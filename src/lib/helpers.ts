@@ -16,6 +16,24 @@ export const ZERO_ADDRESS = zeroAddress;
 
 export const GRACE_PERIOD_SECONDS = 7776000n; // 90 days in seconds
 
+// BASE_ETH_NODE = namehash("base.eth") = keccak256(ETH_NODE + keccak256("base"))
+export const BASE_ETH_NODE = keccak256(
+  encodePacked(
+    ["bytes32", "bytes32"],
+    [ETH_NODE as `0x${string}`, keccak256(encodePacked(["string"], ["base"])) as `0x${string}`],
+  ),
+);
+
+// ─── Token / Label Helpers ──────────────────────────────────────────────────
+
+/**
+ * Convert a BaseRegistrar tokenId (bigint) to a labelHash hex string.
+ * The tokenId IS the labelHash as a uint256.
+ */
+export function tokenIdToLabelHash(tokenId: bigint): string {
+  return "0x" + tokenId.toString(16).padStart(64, "0");
+}
+
 // ─── Node Computation ───────────────────────────────────────────────────────
 
 export function makeSubdomainNode(
@@ -207,6 +225,54 @@ export function bigintMax(a: bigint, b: bigint): bigint {
 export function uniq<T>(arr: readonly T[]): T[] {
   return [...new Set(arr)];
 }
+
+// ─── Name Preimage ──────────────────────────────────────────────────────────
+
+/**
+ * Shared logic for controller NameRegistered/NameRenewed events that provide
+ * the plaintext label. Updates the Domain's labelName/name and the
+ * Registration's labelName/cost.
+ */
+export async function setNamePreimage(
+  context: handlerContext,
+  labelName: string,
+  labelHash: string,
+  cost: bigint,
+  managedNode: string,
+  managedName: string,
+): Promise<void> {
+  const node = makeSubdomainNode(labelHash, managedNode);
+  const domain = await context.Domain.get(node);
+  if (!domain) return;
+
+  // Sanitize label: skip if it contains null bytes (subgraph compat)
+  const sanitizedLabel = hasNullByte(labelName)
+    ? stripNullBytes(labelName)
+    : labelName;
+
+  // Update Domain labelName and name if different
+  if (domain.labelName !== sanitizedLabel) {
+    const name = `${sanitizedLabel}.${managedName}`;
+    context.Domain.set({
+      ...domain,
+      labelName: sanitizedLabel,
+      name,
+    });
+  }
+
+  // Update Registration labelName and cost
+  const registrationId = makeRegistrationId(labelHash, node);
+  const registration = await context.Registration.get(registrationId);
+  if (registration) {
+    context.Registration.set({
+      ...registration,
+      labelName: sanitizedLabel,
+      cost,
+    });
+  }
+}
+
+// ─── String Utilities ───────────────────────────────────────────────────────
 
 export function hasNullByte(str: string): boolean {
   return str.includes("\0");

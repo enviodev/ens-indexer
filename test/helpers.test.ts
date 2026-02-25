@@ -10,8 +10,10 @@ import {
   hasNullByte,
   stripNullBytes,
   sharedEventValues,
+  tokenIdToLabelHash,
   ROOT_NODE,
   ETH_NODE,
+  BASE_ETH_NODE,
   ADDR_REVERSE_NODE,
   ZERO_ADDRESS,
   GRACE_PERIOD_SECONDS,
@@ -46,6 +48,17 @@ describe("Constants", () => {
   it("GRACE_PERIOD_SECONDS is 90 days", () => {
     expect(GRACE_PERIOD_SECONDS).toBe(7_776_000n);
     expect(GRACE_PERIOD_SECONDS).toBe(BigInt(90 * 24 * 60 * 60));
+  });
+
+  it("BASE_ETH_NODE is the namehash of 'base.eth'", () => {
+    expect(BASE_ETH_NODE).toBe(
+      "0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72fbf672e7b7fd5690328e10",
+    );
+    // Verify it can be derived from ETH_NODE + keccak256("base")
+    const { keccak256, encodePacked } = require("viem");
+    const baseLabelHash = keccak256(encodePacked(["string"], ["base"]));
+    const computed = makeSubdomainNode(baseLabelHash, ETH_NODE);
+    expect(BASE_ETH_NODE).toBe(computed);
   });
 });
 
@@ -122,6 +135,29 @@ describe("makeRegistrationId", () => {
     const labelHash = "0xabc";
     const node = "0xdef";
     expect(makeRegistrationId(labelHash, node)).toBe(node);
+  });
+});
+
+// ─── tokenIdToLabelHash ─────────────────────────────────────────────────────
+
+describe("tokenIdToLabelHash", () => {
+  it("converts a bigint tokenId to a 0x-prefixed 64-char hex string", () => {
+    const tokenId = 0x4f5b812789fc606be1b3b16908db13fc7a9adf7ca72641f84d75b47069d3d7f0n;
+    expect(tokenIdToLabelHash(tokenId)).toBe(
+      "0x4f5b812789fc606be1b3b16908db13fc7a9adf7ca72641f84d75b47069d3d7f0",
+    );
+  });
+
+  it("pads small values to 64 hex chars", () => {
+    expect(tokenIdToLabelHash(1n)).toBe(
+      "0x0000000000000000000000000000000000000000000000000000000000000001",
+    );
+  });
+
+  it("handles zero", () => {
+    expect(tokenIdToLabelHash(0n)).toBe(
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    );
   });
 });
 

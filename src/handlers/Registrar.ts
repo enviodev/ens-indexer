@@ -13,9 +13,8 @@ import {
   upsertAccount,
   upsertRegistration,
   sharedEventValues,
-  encodeLabelHash,
-  hasNullByte,
-  stripNullBytes,
+  tokenIdToLabelHash,
+  setNamePreimage,
   ZERO_ADDRESS,
 } from "../lib/helpers";
 
@@ -23,58 +22,6 @@ import {
 
 const managedNode = ETH_NODE;
 const managedName = "eth";
-
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Convert a BaseRegistrar tokenId (bigint) to a labelHash hex string.
- * The tokenId IS the labelHash as a uint256.
- */
-function tokenIdToLabelHash(tokenId: bigint): string {
-  return "0x" + tokenId.toString(16).padStart(64, "0");
-}
-
-/**
- * Shared logic for controller NameRegistered/NameRenewed events that provide
- * the plaintext label. Updates the Domain's labelName/name and the
- * Registration's labelName/cost.
- */
-async function setNamePreimage(
-  context: any,
-  labelName: string,
-  labelHash: string,
-  cost: bigint,
-) {
-  const node = makeSubdomainNode(labelHash, managedNode);
-  const domain = await context.Domain.get(node);
-  if (!domain) return;
-
-  // Sanitize label: skip if it contains null bytes (subgraph compat)
-  const sanitizedLabel = hasNullByte(labelName)
-    ? stripNullBytes(labelName)
-    : labelName;
-
-  // Update Domain labelName and name if different
-  if (domain.labelName !== sanitizedLabel) {
-    const name = `${sanitizedLabel}.${managedName}`;
-    context.Domain.set({
-      ...domain,
-      labelName: sanitizedLabel,
-      name,
-    });
-  }
-
-  // Update Registration labelName and cost
-  const registrationId = makeRegistrationId(labelHash, node);
-  const registration = await context.Registration.get(registrationId);
-  if (registration) {
-    context.Registration.set({
-      ...registration,
-      labelName: sanitizedLabel,
-      cost,
-    });
-  }
-}
 
 // ─── BaseRegistrar Handlers ─────────────────────────────────────────────────
 
@@ -226,7 +173,7 @@ LegacyController.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });
 
 /**
@@ -238,7 +185,7 @@ LegacyController.NameRenewed.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });
 
 // ─── WrappedController Handlers ─────────────────────────────────────────────
@@ -253,7 +200,7 @@ WrappedController.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.baseCost + event.params.premium;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });
 
 /**
@@ -265,7 +212,7 @@ WrappedController.NameRenewed.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });
 
 // ─── UnwrappedController Handlers ───────────────────────────────────────────
@@ -280,7 +227,7 @@ UnwrappedController.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const cost = event.params.baseCost + event.params.premium;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });
 
 /**
@@ -292,5 +239,5 @@ UnwrappedController.NameRenewed.handler(async ({ event, context }) => {
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost);
+  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
 });

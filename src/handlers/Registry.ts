@@ -23,7 +23,7 @@ import {
 // We track whether the root node has been created so we can initialize it on
 // the very first NewOwner event from the old registry.
 
-let rootNodeInitialized = false;
+const rootNodeInitializedChains = new Set<number>();
 
 function createRootDomain(context: handlerContext, timestamp: bigint): void {
   upsertAccount(context, ZERO_ADDRESS);
@@ -81,9 +81,9 @@ async function handleNewOwner(
   // Compute the subdomain node from labelHash + parentNode
   const node = makeSubdomainNode(labelHash, parentNode);
 
-  // Ensure the root domain exists on the first event
-  if (!rootNodeInitialized) {
-    rootNodeInitialized = true;
+  // Ensure the root domain exists on the first event per chain
+  if (!rootNodeInitializedChains.has(event.chainId)) {
+    rootNodeInitializedChains.add(event.chainId);
     const existingRoot = await context.Domain.get(ROOT_NODE);
     if (!existingRoot) {
       createRootDomain(context, BigInt(event.block.timestamp));

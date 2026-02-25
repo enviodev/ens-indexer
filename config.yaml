@@ -120,6 +120,55 @@ contracts:
           transaction_fields:
             - hash
 
+  # ─── Base L2 Contracts ─────────────────────────────────────────────────────
+  - name: BaseRegistrar_Base
+    events:
+      - event: "NameRegistered(uint256 indexed id, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRegisteredWithRecord(uint256 indexed id, address indexed owner, uint256 expires, address resolver, uint64 ttl)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(uint256 indexed id, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: EAController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: RegController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: UpgController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
   # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
   - name: Resolver
     events:
@@ -196,6 +245,30 @@ chains:
         address:
           - "0x59e16fccd424cc24e280be16e11bcd56fb0ce547"
         start_block: 22764821
+      - name: Resolver
+        # Dynamically registered via Registry.NewResolver contractRegister
+  - id: 8453 # Base
+    start_block: 17571480
+    contracts:
+      - name: Registry
+        address:
+          - "0xb94704422c2a1e396835a571837aa5ae53285a95"
+      - name: BaseRegistrar_Base
+        address:
+          - "0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a"
+        start_block: 17571486
+      - name: EAController_Base
+        address:
+          - "0xd3e6775ed9b7dc12b205c8e608dc3767b9e5efda"
+        start_block: 17575699
+      - name: RegController_Base
+        address:
+          - "0x4ccb0bb02fcaba27e82a56646e81d8c5bc4119a5"
+        start_block: 18619035
+      - name: UpgController_Base
+        address:
+          - "0xa7d2607c6bd39ae9521e514026cbb078405ab322"
+        start_block: 35286620
       - name: Resolver
         # Dynamically registered via Registry.NewResolver contractRegister
 
