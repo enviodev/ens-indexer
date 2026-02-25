@@ -250,3 +250,59 @@ type VersionChangedEvent {
   resolver: Resolver!
   version: BigInt!
 }
+
+# ─── Protocol Acceleration Entities ─────────────────────────────────────────
+
+type PAResolver {
+  id: ID!
+  chainId: Int!
+  address: String!
+}
+
+type PAResolverRecords {
+  id: ID!
+  chainId: Int!
+  address: String!
+  node: String!
+  name: String
+  resolver: PAResolver!
+}
+
+type PAResolverAddressRecord {
+  id: ID!
+  chainId: Int!
+  address: String!
+  node: String!
+  coinType: BigInt!
+  value: String!
+  resolverRecords: PAResolverRecords!
+}
+
+type PAResolverTextRecord {
+  id: ID!
+  chainId: Int!
+  address: String!
+  node: String!
+  key: String!
+  value: String!
+  resolverRecords: PAResolverRecords!
+}
+
+type DomainResolverRelation {
+  id: ID!
+  chainId: Int!
+  address: String!
+  domainId: String!
+  resolver: String!
+}
+
+type ReverseNameRecord {
+  id: ID!
+  address: String!
+  coinType: BigInt!
+  value: String!
+}
+
+type MigratedNode {
+  id: ID!
+}

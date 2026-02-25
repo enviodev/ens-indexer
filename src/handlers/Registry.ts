@@ -20,6 +20,12 @@ import {
   ensureRootDomain,
 } from "../lib/helpers";
 
+import {
+  upsertDomainResolverRelation,
+  migrateNode,
+  nodeIsMigrated,
+} from "../lib/protocol-acceleration";
+
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
 // the very first NewOwner event from the old registry.
@@ -137,6 +143,11 @@ async function handleNewOwner(
     domain_id: node,
     owner_id: owner,
   });
+
+  // PA: track migration from RegistryOld → Registry (ENS Root only)
+  if (isMigrated && event.chainId === 1) {
+    migrateNode(context, node);
+  }
 }
 
 // ─── RegistryOld.NewOwner ───────────────────────────────────────────────────
@@ -234,6 +245,7 @@ async function handleNewResolver(
     srcAddress: string;
   },
   context: handlerContext,
+  isOldRegistry: boolean = false,
 ): Promise<void> {
   const { node, resolver: resolverAddress } = event.params;
   const isZeroResolver = resolverAddress === ZERO_ADDRESS;
@@ -282,18 +294,33 @@ async function handleNewResolver(
     domain_id: node,
     resolver_id: isZeroResolver ? ZERO_ADDRESS : resolverId,
   });
+
+  // PA: track domain-resolver relationship
+  // For RegistryOld on ENS Root: skip PA update if node is migrated
+  if (isOldRegistry && event.chainId === 1) {
+    const migrated = await nodeIsMigrated(context, node);
+    if (migrated) return;
+  }
+
+  upsertDomainResolverRelation(
+    context,
+    event.chainId,
+    event.srcAddress,
+    node,
+    resolverAddress,
+  );
 }
 
 // ─── RegistryOld.NewResolver ────────────────────────────────────────────────
 
 RegistryOld.NewResolver.handler(async ({ event, context }) => {
-  await handleNewResolver(event, context);
+  await handleNewResolver(event, context, true);
 });
 
 // ─── Registry.NewResolver ───────────────────────────────────────────────────
 
 Registry.NewResolver.handler(async ({ event, context }) => {
-  await handleNewResolver(event, context);
+  await handleNewResolver(event, context, false);
 });
 
 // ─── Shared NewTTL Handler ──────────────────────────────────────────────────

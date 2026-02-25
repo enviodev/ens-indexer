@@ -7,7 +7,22 @@ import {
   uniq,
   hasNullByte,
   stripNullBytes,
+  decodeDnsEncodedName,
 } from "../lib/helpers";
+
+import {
+  ETH_COIN_TYPE,
+  bigintToCoinType,
+  ensurePAResolver,
+  ensurePAResolverRecords,
+  handlePAAddressRecordUpdate,
+  handlePATextRecordUpdate,
+  handlePANameUpdate,
+  interpretTextRecordKey,
+  interpretTextRecordValue,
+} from "../lib/protocol-acceleration";
+
+import dnsPacket, { type Answer } from "dns-packet";
 
 // ─── AddrChanged ─────────────────────────────────────────────────────────────
 // Emitted when the ETH address for a node changes.
@@ -43,6 +58,11 @@ Resolver.AddrChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     addr_id: a,
   });
+
+  // PA: track ETH address record
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  handlePAAddressRecordUpdate(context, event.chainId, event.srcAddress, node, ETH_COIN_TYPE, a);
 });
 
 // ─── AddressChanged (multicoin) ──────────────────────────────────────────────
@@ -73,6 +93,14 @@ Resolver.AddressChanged.handler(async ({ event, context }) => {
     coinType,
     addr: newAddress,
   });
+
+  // PA: track multicoin address record
+  const paCoinType = bigintToCoinType(coinType);
+  if (paCoinType !== null) {
+    ensurePAResolver(context, event.chainId, event.srcAddress);
+    ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+    handlePAAddressRecordUpdate(context, event.chainId, event.srcAddress, node, paCoinType, newAddress);
+  }
 });
 
 // ─── NameChanged ─────────────────────────────────────────────────────────────
@@ -99,6 +127,11 @@ Resolver.NameChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     name,
   });
+
+  // PA: track name record
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  await handlePANameUpdate(context, event.chainId, event.srcAddress, node, name);
 });
 
 // ─── ABIChanged ──────────────────────────────────────────────────────────────
@@ -185,6 +218,11 @@ Resolver.TextChanged.handler(async ({ event, context }) => {
     key: sanitizedKey,
     value: sanitizedValue,
   });
+
+  // PA: track text record
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value ?? null);
 });
 
 // ─── ContenthashChanged ─────────────────────────────────────────────────────
@@ -295,4 +333,113 @@ Resolver.VersionChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     version: newVersion,
   });
+});
+
+// ─── DNS Record Helpers (PA only) ──────────────────────────────────────────
+
+function parseRRSet(record: string): Answer[] {
+  const data = Buffer.from(record.slice(2), "hex");
+  let offset = 0;
+  const decodedRecords: Answer[] = [];
+
+  while (offset < data.length) {
+    let answer: Answer | undefined;
+    try {
+      answer = (dnsPacket as any).answer.decode(data, offset);
+    } catch {}
+
+    if (!answer) break;
+    if ((answer.type as string) === "UNKNOWN_0") break;
+
+    const consumedLength = (dnsPacket as any).answer.encodingLength(answer);
+    if (consumedLength === 0) break;
+
+    decodedRecords.push(answer);
+    offset += consumedLength;
+  }
+
+  return decodedRecords;
+}
+
+function decodeTXTData(data: Buffer[]): string | null {
+  const decoded = data.map((buf) => buf.toString());
+  if (decoded.length === 0) return null;
+  return decoded[0]!;
+}
+
+function parseDnsTxtRecordArgs({
+  name,
+  resource,
+  record,
+}: {
+  name: string;
+  resource: bigint;
+  record?: string;
+}): { key: string | null; value: string | null } {
+  // ignore records that are not TXT records (resource id 16)
+  if (resource !== 16n) return { key: null, value: null };
+
+  // parse the record's name (DNS wire format)
+  const recordName = decodeDnsEncodedName(name).join(".");
+
+  // ignore keys that don't end with .ens
+  if (!recordName.endsWith(".ens")) return { key: null, value: null };
+
+  // trim the .ens suffix to match ENS record naming
+  const key = interpretTextRecordKey(recordName.slice(0, -4));
+  if (key === null) return { key: null, value: null };
+
+  // no record? interpret as deletion
+  if (!record) return { key, value: null };
+
+  // parse the RRSet from the record parameter
+  const answers = parseRRSet(record);
+
+  const txtDatas = answers
+    .filter((answer) => answer.type === "TXT")
+    .map((answer) => decodeTXTData(answer.data as Buffer[]));
+
+  if (txtDatas.length === 0) return { key, value: null };
+
+  const value = txtDatas[0]!;
+  return { key, value: interpretTextRecordValue(value) };
+}
+
+// ─── DNSRecordChanged (4-arg: without ttl) ──────────────────────────────────
+// PA-only: indexes DNS TXT records as PA text records.
+
+Resolver.DNSRecordChanged4.handler(async ({ event, context }) => {
+  const { node, name, resource, record } = event.params;
+  const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
+  if (key === null) return;
+
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value);
+});
+
+// ─── DNSRecordChanged (5-arg: with ttl) ─────────────────────────────────────
+// PA-only: indexes DNS TXT records as PA text records.
+
+Resolver.DNSRecordChanged5.handler(async ({ event, context }) => {
+  const { node, name, resource, record } = event.params;
+  const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
+  if (key === null) return;
+
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value);
+});
+
+// ─── DNSRecordDeleted ───────────────────────────────────────────────────────
+// PA-only: deletes DNS TXT records from PA text records.
+
+Resolver.DNSRecordDeleted.handler(async ({ event, context }) => {
+  const { node, name, resource } = event.params;
+  const { key } = parseDnsTxtRecordArgs({ name, resource });
+  if (key === null) return;
+
+  ensurePAResolver(context, event.chainId, event.srcAddress);
+  ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
+  handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, null);
 });

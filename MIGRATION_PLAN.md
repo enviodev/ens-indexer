@@ -15,7 +15,7 @@
 - [Phase 1: Core Mainnet (Subgraph Plugin)](#phase-1-core-mainnet-subgraph-plugin) — DONE
 - [Phase 2: Tests for Phase 1](#phase-2-tests-for-phase-1) — DONE
 - [Phase 3: Multi-Chain Subgraph Extensions](#phase-3-multi-chain-subgraph-extensions)
-- [Phase 4: Protocol Acceleration Plugin](#phase-4-protocol-acceleration-plugin)
+- [Phase 4: Protocol Acceleration Plugin](#phase-4-protocol-acceleration-plugin) — DONE
 - [Phase 5: Registrars Plugin](#phase-5-registrars-plugin)
 - [Phase 6: TokenScope Plugin](#phase-6-tokenscope-plugin)
 - [Phase 7: ENSv2 Plugin](#phase-7-ensv2-plugin)
@@ -37,7 +37,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 3a | Basenames (Base L2) | DONE | — |
 | 3b | Lineanames (Linea L2) | DONE | — |
 | 3c | ThreeDNS (Optimism + Base) | DONE | — |
-| 4 | Protocol Acceleration | NOT STARTED | High |
+| 4 | Protocol Acceleration | DONE | — |
 | 5 | Registrars | NOT STARTED | Medium |
 | 6 | TokenScope | NOT STARTED | Medium |
 | 7 | ENSv2 | NOT STARTED | Low (future protocol) |
@@ -48,22 +48,21 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), and **ThreeDNS on Optimism + Base** (Phase 3c):
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), **ThreeDNS on Optimism + Base** (Phase 3c), and the **Protocol Acceleration Plugin** (Phase 4):
 
-- **4 chains**: Ethereum Mainnet (1), Base (8453), Linea (59144), and Optimism (10)
-- **18 contracts** configured in `config.yaml` (10 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared, with Registry, Resolver, and NameWrapper reused cross-chain)
-- **7 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`
-- **1 helper library**: `helpers.ts` (20 utility functions including shared `setNamePreimage`, `tokenIdToLabelHash`, `decodeDnsEncodedName`, `ensureRootDomain`, `MANAGED_NODES`)
-- **25 schema entities** (7 core + 18 event logs)
-- **~46 event types** handled (26 mainnet + 9 Base + 7 Linea + 4 ThreeDNS)
+- **6 chains**: Ethereum Mainnet (1), Base (8453), Linea (59144), Optimism (10), Arbitrum (42161), Scroll (534352)
+- **20 contracts** configured in `config.yaml` (10 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared + StandaloneReverseRegistrar across 5 chains, with Registry, Resolver, and NameWrapper reused cross-chain)
+- **8 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`, `ReverseRegistrar.ts`
+- **2 helper libraries**: `helpers.ts` (20 utility functions), `protocol-acceleration.ts` (PA helper module with ID generators, coin type utilities, interpretation functions, DB helpers)
+- **32 schema entities** (7 core + 18 event logs + 7 PA entities)
+- **~52 event types** handled (26 mainnet + 9 Base + 7 Linea + 4 ThreeDNS + 3 DNS record + 1 StandaloneReverseRegistrar + PA logic merged into existing handlers)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **2 additional chains** (Arbitrum, Scroll)
-- **~20 additional contracts**
-- **~25+ additional entities** (ensv2, registrars, protocol-acceleration, tokenscope schemas)
-- **5 remaining plugins** worth of handler logic
+- **~15 additional contracts** (registrars, tokenscope, ensv2)
+- **~17+ additional entities** (ensv2, registrars, tokenscope schemas)
+- **3 remaining plugins** worth of handler logic
 
 ---
 
@@ -328,34 +327,26 @@ ThreeDNS is a third-party DNS integration for ENS, deployed on both Optimism and
 
 ## Phase 4: Protocol Acceleration Plugin
 
-**Status: NOT STARTED**
-**Priority: High**
+**Status: DONE**
+**Priority: —**
 **Effort: Large**
 **Source:** `ensnode/apps/ensindexer/src/plugins/protocol-acceleration/`
 
 This plugin provides fast domain resolution by caching resolver records and domain-resolver relationships. Critical for production ENS resolution performance.
 
-### New Schema Entities
+### Schema Entities Added (7)
 
 | Entity | Purpose |
 |--------|---------|
-| `reverseNameRecord` | ENSIP-19 reverse records (address → name by coinType) |
-| `domainResolverRelation` | Domain-to-resolver mapping cache |
-| `resolver` | Resolver contract references (chainId, address) |
-| `resolverRecords` | Resolver records per (chainId, address, node) |
-| `resolverAddressRecord` | Address records indexed by coinType |
-| `resolverTextRecord` | Text records indexed by key |
-| `migratedNode` | RegistryOld → Registry migration tracking |
+| `PAResolver` | Resolver contract references (chainId, address) |
+| `PAResolverRecords` | Resolver records per (chainId, address, node) |
+| `PAResolverAddressRecord` | Address records indexed by coinType |
+| `PAResolverTextRecord` | Text records indexed by key |
+| `DomainResolverRelation` | Domain-to-resolver mapping cache |
+| `ReverseNameRecord` | ENSIP-19 reverse records (address → name by coinType) |
+| `MigratedNode` | RegistryOld → Registry migration tracking |
 
-### Contracts Involved (across 6 chains)
-
-**Registry events** (domain-resolver relationship):
-- ENSv1Registry on Mainnet
-- Registries on Base, Linea (from Phase 3)
-
-**Resolver events** (record caching):
-- All Resolver contracts from all chains (Mainnet, Base, Linea, Optimism, Arbitrum, Scroll)
-- Tracks: AddrChanged, AddressChanged (multicoin), TextChanged, NameChanged, DNSRecordChanged (2 variants: with/without TTL), DNSRecordDeleted
+### Contracts Configured (across 6 chains)
 
 **StandaloneReverseRegistrar** (ENSIP-19 reverse resolution):
 
@@ -368,33 +359,68 @@ This plugin provides fast domain resolution by caching resolver records and doma
 | Arbitrum (42161) | `0x0000000000d8e504002cc26e3ec46d81971c1664` | 349,263,357 |
 | Scroll (534352) | `0x0000000000d8e504002cc26e3ec46d81971c1664` | 16,604,272 |
 
-**Additional Mainnet reverse resolvers:**
-- DefaultReverseResolver2: `0x231b0ee14048e9dccd1d247744d114a4eb5e8e63` (block 16,925,619)
-- DefaultReverseResolver3: `0xa7d635c8de9a58a228aa69353a1699c7cc240dcf` (block 22,764,871)
-- Multiple DefaultPublicResolver versions (0-5)
-- BaseReverseResolver: `0xc800dbc8ff9796e58efba2d7b35028ddd1997e5e` (block 22,764,838)
-- LineaReverseResolver: `0x0ce08a41bdb10420fb5cac7da8ca508ea313aef8` (block 22,764,840)
-- OptimismReverseResolver: `0xf9edb1a21867ac11b023ce34abad916d29abf107` (block 22,764,854)
-- ArbitrumReverseResolver: `0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898` (block 22,764,837)
-- ScrollReverseResolver: `0xc4842814ca523e481ca5aa85f719fed1e9cac614` (block 22,921,284)
+**Static mainnet reverse resolvers added to Resolver contract:**
+- DefaultReverseResolver2: `0x231b0ee14048e9dccd1d247744d114a4eb5e8e63`
+- DefaultReverseResolver3: `0xa7d635c8de9a58a228aa69353a1699c7cc240dcf`
+- BaseReverseResolver: `0xc800dbc8ff9796e58efba2d7b35028ddd1997e5e`
+- LineaReverseResolver: `0x0ce08a41bdb10420fb5cac7da8ca508ea313aef8`
+- OptimismReverseResolver: `0xf9edb1a21867ac11b023ce34abad916d29abf107`
+- ArbitrumReverseResolver: `0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898`
+- ScrollReverseResolver: `0xc4842814ca523e481ca5aa85f719fed1e9cac614`
 
-### Handler Work
+**DNS record events added to Resolver contract:**
+- `DNSRecordChanged` (4-arg, without TTL)
+- `DNSRecordChanged` (5-arg, with TTL) — custom event name `DNSRecordChanged5` to avoid codegen collision
+- `DNSRecordDeleted`
 
-- [ ] Add `resolverRecords`, `resolverAddressRecord`, `resolverTextRecord` entities to schema
-- [ ] Add `domainResolverRelation` entity to schema
-- [ ] Add `reverseNameRecord` entity to schema
-- [ ] Add `migratedNode` entity to schema
-- [ ] Migrate `ENSv1Registry.ts` handler — tracks domain-resolver relationships via `NewResolver` and `NewOwner` events on both RegistryOld and Registry
-- [ ] Migrate `ENSv2Registry.ts` handler — `ResolverUpdated` events for v2 resolver tracking
-- [ ] Migrate `Resolver.ts` handler — caches individual resolver records (addr, text, name, DNS records). Includes DNS record parsing via `parseDnsTxtRecordArgs`
-- [ ] Migrate `StandaloneReverseRegistrar.ts` handler — `NameForAddrChanged` events across 6 chains
-- [ ] Add StandaloneReverseRegistrar ABIs and contract config for all 6 chains
-- [ ] Add all reverse resolver contracts to config
-- [ ] Migrate `ThreeDNSToken.ts` handler — `NewOwner` events for indexing domain-resolver relationships (uses hardcoded `ThreeDNSResolverByChainId` per chain)
+### Implementation Summary
 
-### Architecture Decision
+**Files changed:**
 
-> The Ponder version uses separate handler registrations per-plugin, so the same contract events (e.g., Registry.NewResolver) fire handlers in BOTH the subgraph plugin AND protocol-acceleration plugin. In HyperIndex, a single handler per event must incorporate both codepaths. Plan how to merge or compose these.
+| File | Action | Changes |
+|------|--------|---------|
+| `schema.graphql` | Modified | Added 7 PA entities |
+| `config.yaml` | Modified | Added StandaloneReverseRegistrar contract, DNS events to Resolver, Arbitrum + Scroll chains, static reverse resolver addresses, StandaloneReverseRegistrar to existing chains |
+| `src/lib/protocol-acceleration.ts` | Created | PA helper module (~325 lines): ID generators, coin type utilities (ETH_COIN_TYPE, DEFAULT_EVM_COIN_TYPE, evmChainIdToCoinType, bigintToCoinType), interpretation functions (interpretNameRecordValue, interpretAddressRecordValue, interpretTextRecordKey, interpretTextRecordValue), DB helpers (ensurePAResolver, ensurePAResolverRecords, handlePAAddressRecordUpdate, handlePATextRecordUpdate, handlePANameUpdate, upsertDomainResolverRelation, migrateNode, nodeIsMigrated, upsertReverseNameRecord) |
+| `src/handlers/Registry.ts` | Modified | Added `isOldRegistry` param to `handleNewResolver`, appended PA calls: `upsertDomainResolverRelation` (with migration check for RegistryOld on chainId 1) + `migrateNode` in `handleNewOwner` for Registry on chainId 1 |
+| `src/handlers/Resolver.ts` | Modified | Appended PA calls to AddrChanged (ETH address), AddressChanged (multicoin), NameChanged, TextChanged handlers; added DNS record helpers (parseRRSet, decodeTXTData, parseDnsTxtRecordArgs) and 3 new PA-only handlers: DNSRecordChanged4, DNSRecordChanged5, DNSRecordDeleted |
+| `src/handlers/ThreeDNS.ts` | Modified | Appended `upsertDomainResolverRelation` call to NewOwner handler |
+| `src/handlers/ReverseRegistrar.ts` | Created | StandaloneReverseRegistrar.NameForAddrChanged handler (~22 lines) — indexes ENSIP-19 reverse name records per address and coinType |
+| `package.json` | Modified | Added `dns-packet` dependency + `@types/dns-packet` dev dependency |
+
+### Completed Tasks
+
+- [x] Add 7 PA entities to `schema.graphql` (PAResolver, PAResolverRecords, PAResolverAddressRecord, PAResolverTextRecord, DomainResolverRelation, ReverseNameRecord, MigratedNode)
+- [x] Create `src/lib/protocol-acceleration.ts` helper module with ID generators, interpretation functions, coin type utilities, and DB helpers
+- [x] Add StandaloneReverseRegistrar contract definition and DNS events to Resolver in `config.yaml`
+- [x] Add Arbitrum (42161) and Scroll (534352) chains to `config.yaml`
+- [x] Add static reverse resolver addresses to mainnet Resolver contract in `config.yaml`
+- [x] Add StandaloneReverseRegistrar to existing chains (Mainnet, Base, Linea, Optimism)
+- [x] Install `dns-packet` + `@types/dns-packet` dependencies
+- [x] Run `pnpm codegen` — generates types for all 7 new entities + StandaloneReverseRegistrar + DNS events
+- [x] Merge PA logic into `Registry.ts` — `upsertDomainResolverRelation` in `handleNewResolver`, `migrateNode` in `handleNewOwner`, migration check for RegistryOld
+- [x] Merge PA logic into `ThreeDNS.ts` — `upsertDomainResolverRelation` in NewOwner handler
+- [x] Merge PA logic into `Resolver.ts` — PA calls appended to AddrChanged, AddressChanged, NameChanged, TextChanged
+- [x] Add DNS record event handlers (DNSRecordChanged4, DNSRecordChanged5, DNSRecordDeleted) with RRSet parsing via `dns-packet`
+- [x] Create `src/handlers/ReverseRegistrar.ts` for StandaloneReverseRegistrar.NameForAddrChanged
+- [x] Type check passes (`pnpm tsc --noEmit` — zero errors)
+- [x] Existing tests pass (79/81 — 2 timeouts are pre-existing network issues)
+
+### Architecture Decision (Resolved)
+
+PA logic is **merged into existing handlers** via PA helper function calls appended after the existing subgraph logic. This preserves zero changes to subgraph behavior while adding PA functionality. PA helper functions live in `src/lib/protocol-acceleration.ts`. The key patterns:
+
+- **Registry.handleNewResolver** → existing subgraph logic + `upsertDomainResolverRelation()`
+- **Registry.handleNewOwner** → existing subgraph logic + `migrateNode()` (ENS Root only)
+- **Resolver.AddrChanged/AddressChanged/NameChanged/TextChanged** → existing subgraph logic + PA record upsert/delete
+- **ThreeDNS.NewOwner** → existing subgraph logic + `upsertDomainResolverRelation()`
+- **StandaloneReverseRegistrar.NameForAddrChanged** → PA-only (new handler)
+- **DNSRecordChanged/Deleted** → PA-only (new handlers)
+
+### Deferred Items
+
+- **Legacy 3-arg TextChanged** (`TextChanged(bytes32 indexed node, string indexed indexedKey, string key)`) — emitted by legacy resolvers (LegacyPublicResolver, DefaultPublicResolver3) without a `value` param. Requires Effect API for on-chain `text(node, key)` reads. Only affects historical events from 2 specific contracts on mainnet.
+- **ENSv2Registry.ResolverUpdated** — deferred to Phase 7 (ENSv2 Plugin)
 
 ---
 

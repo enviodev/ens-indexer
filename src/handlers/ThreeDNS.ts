@@ -21,6 +21,8 @@ import {
   stripNullBytes,
 } from "../lib/helpers";
 
+import { upsertDomainResolverRelation } from "../lib/protocol-acceleration";
+
 // ─── Root Node Tracking ─────────────────────────────────────────────────────
 // ThreeDNS lives on chains that may not have a Registry (e.g. Optimism).
 // Ensure the root domain exists on the first event per chain.
@@ -113,6 +115,15 @@ ThreeDNSToken.NewOwner.handler(async ({ event, context }) => {
     domain_id: node,
     owner_id: owner,
   });
+
+  // PA: track domain-resolver relationship for ThreeDNS
+  upsertDomainResolverRelation(
+    context,
+    event.chainId,
+    event.srcAddress,
+    node,
+    THREEDNS_RESOLVER,
+  );
 });
 
 // ─── ThreeDNSToken.Transfer ─────────────────────────────────────────────────

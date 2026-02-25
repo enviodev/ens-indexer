@@ -267,6 +267,29 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+      # ─── DNS Record Events (for PA plugin) ────────────────────────────────────
+      - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, bytes record)"
+        name: DNSRecordChanged4
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, uint32 ttl, bytes record)"
+        name: DNSRecordChanged5
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "DNSRecordDeleted(bytes32 indexed node, bytes name, uint16 resource)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── StandaloneReverseRegistrar (PA plugin) ────────────────────────────────
+  - name: StandaloneReverseRegistrar
+    events:
+      - event: "NameForAddrChanged(address indexed addr, string name)"
+        field_selection:
+          transaction_fields:
+            - hash
 
 # ─── Chain Configuration ───────────────────────────────────────────────────────
 chains:
@@ -301,7 +324,21 @@ chains:
           - "0x59e16fccd424cc24e280be16e11bcd56fb0ce547"
         start_block: 22764821
       - name: Resolver
-        # Dynamically registered via Registry.NewResolver contractRegister
+        address:
+          # Static reverse resolver addresses (PA plugin)
+          - "0x231b0ee14048e9dccd1d247744d114a4eb5e8e63" # DefaultReverseResolver2
+          - "0xa7d635c8de9a58a228aa69353a1699c7cc240dcf" # DefaultReverseResolver3
+          - "0xc800dbc8ff9796e58efba2d7b35028ddd1997e5e" # BaseReverseResolver
+          - "0x0ce08a41bdb10420fb5cac7da8ca508ea313aef8" # LineaReverseResolver
+          - "0xf9edb1a21867ac11b023ce34abad916d29abf107" # OptimismReverseResolver
+          - "0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898" # ArbitrumReverseResolver
+          - "0xc4842814ca523e481ca5aa85f719fed1e9cac614" # ScrollReverseResolver
+        start_block: 16925619
+        # Also dynamically registered via Registry.NewResolver contractRegister
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x283f227c4bd38ece252c4ae7ece650b0e913f1f9"
+        start_block: 22764819
   - id: 8453 # Base
     start_block: 17522624
     contracts:
@@ -332,6 +369,10 @@ chains:
         address:
           - "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8" # ThreeDNS resolver (static)
         # Also dynamically registered via Registry.NewResolver contractRegister
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x0000000000d8e504002cc26e3ec46d81971c1664"
+        start_block: 31808582
   - id: 59144 # Linea
     start_block: 6682888
     contracts:
@@ -352,6 +393,10 @@ chains:
         start_block: 6682978
       - name: Resolver
         # Dynamically registered via Registry.NewResolver contractRegister
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x0000000000d8e504002cc26e3ec46d81971c1664"
+        start_block: 20173340
   - id: 10 # Optimism
     start_block: 110393959
     contracts:
@@ -361,5 +406,21 @@ chains:
       - name: Resolver
         address:
           - "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8" # ThreeDNS resolver (static)
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x0000000000d8e504002cc26e3ec46d81971c1664"
+        start_block: 137403854
+  - id: 42161 # Arbitrum
+    start_block: 349263357
+    contracts:
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x0000000000d8e504002cc26e3ec46d81971c1664"
+  - id: 534352 # Scroll
+    start_block: 16604272
+    contracts:
+      - name: StandaloneReverseRegistrar
+        address:
+          - "0x0000000000d8e504002cc26e3ec46d81971c1664"
 
 address_format: lowercase
