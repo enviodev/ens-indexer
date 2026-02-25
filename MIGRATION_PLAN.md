@@ -35,7 +35,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 1 | Subgraph (Mainnet core) | DONE | — |
 | 2 | Tests for Phase 1 | DONE | — |
 | 3a | Basenames (Base L2) | DONE | — |
-| 3b | Lineanames (Linea L2) | NOT STARTED | High |
+| 3b | Lineanames (Linea L2) | DONE | — |
 | 3c | ThreeDNS (Optimism + Base) | NOT STARTED | Medium |
 | 4 | Protocol Acceleration | NOT STARTED | High |
 | 5 | Registrars | NOT STARTED | Medium |
@@ -48,22 +48,22 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1) and **Basenames on Base L2** (Phase 3a):
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), and **Lineanames on Linea L2** (Phase 3b):
 
-- **2 chains**: Ethereum Mainnet (1) and Base (8453)
-- **14 contracts** configured in `config.yaml` (10 mainnet + 4 Base-specific, with Registry and Resolver reused cross-chain)
-- **5 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`
-- **1 helper library**: `helpers.ts` (16 utility functions including shared `setNamePreimage` and `tokenIdToLabelHash`)
+- **3 chains**: Ethereum Mainnet (1), Base (8453), and Linea (59144)
+- **16 contracts** configured in `config.yaml` (10 mainnet + 4 Base + 2 Linea, with Registry, Resolver, and NameWrapper reused cross-chain)
+- **6 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`
+- **1 helper library**: `helpers.ts` (17 utility functions including shared `setNamePreimage`, `tokenIdToLabelHash`, `MANAGED_NODES`)
 - **25 schema entities** (7 core + 18 event logs)
-- **~35 event types** handled (26 mainnet + 9 Base)
+- **~42 event types** handled (26 mainnet + 9 Base + 7 Linea)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **4 additional chains** (Linea, Optimism, Arbitrum, Scroll)
-- **~26 additional contracts**
+- **3 additional chains** (Optimism, Arbitrum, Scroll)
+- **~24 additional contracts**
 - **~25+ additional entities** (ensv2, registrars, protocol-acceleration, tokenscope schemas)
-- **6 remaining plugins** worth of handler logic
+- **5 remaining plugins** worth of handler logic
 
 ---
 
@@ -118,13 +118,14 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 | File | Tests | Type | Description |
 |------|-------|------|-------------|
-| `test/helpers.test.ts` | 40 | Unit | Pure function tests for `src/lib/helpers.ts` — constants (incl. BASE_ETH_NODE), node computation, ID generators, encoding, tokenIdToLabelHash, sanitization |
+| `test/helpers.test.ts` | 41 | Unit | Pure function tests for `src/lib/helpers.ts` — constants (incl. BASE_ETH_NODE, LINEA_ETH_NODE), node computation, ID generators, encoding, tokenIdToLabelHash, sanitization |
 | `test/Registry.test.ts` | 5 | Integration | RegistryOld root init, new Registry migration, Transfer, NewResolver + dynamic registration, NewTTL |
 | `test/Registrar.test.ts` | 6 | Integration | BaseRegistrar NameRegistered/NameRenewed/Transfer, LegacyController + WrappedController label reveals, full registration flow |
 | `test/NameWrapper.test.ts` | 7 | Integration | NameWrapped + TransferSingle, WrappedDomain creation, FusesSet, ExpiryExtended, wrappedOwner, kitchen sink block |
 | `test/Resolver.test.ts` | 8 | Integration | AddrChanged, AddressChanged (multicoin), TextChanged, ContenthashChanged, VersionChanged, resolver ID format, dynamic registration, full resolver flow |
 | `test/BaseRegistrar.test.ts` | 2 | Integration | Base L2 BaseRegistrar_Base NameRegistered + EAController_Base label preimage with cost=0 |
-| **Total** | **68** | | |
+| `test/LineaRegistrar.test.ts` | 2 | Integration | Linea L2 BaseRegistrar_Linea NameRegistered + EthController_Linea label preimage |
+| **Total** | **71** | | |
 
 ### Key Test Blocks (real on-chain data)
 
@@ -141,12 +142,13 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 ### Completed Tasks
 
-- [x] Unit tests for `src/lib/helpers.ts` (40 tests, incl. BASE_ETH_NODE + tokenIdToLabelHash)
+- [x] Unit tests for `src/lib/helpers.ts` (41 tests, incl. BASE_ETH_NODE, LINEA_ETH_NODE, tokenIdToLabelHash)
 - [x] Integration tests for Registry events (5 tests)
 - [x] Integration tests for Registrar events (6 tests)
 - [x] Integration tests for NameWrapper events (7 tests)
 - [x] Integration tests for Resolver events (8 tests)
 - [x] Integration tests for Base L2 registrar events (2 tests)
+- [x] Integration tests for Linea L2 registrar events (2 tests)
 
 ### Notes
 
@@ -220,50 +222,54 @@ Basenames is the `.base.eth` subregistry on Base L2. Reuses existing `Registry` 
 
 ### Phase 3b: Lineanames (Linea L2)
 
-**Status: NOT STARTED**
-**Priority: High**
+**Status: DONE**
+**Priority: —**
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/lineanames/`
 
-Lineanames is the `.linea.eth` subregistry on Linea L2. Closer to mainnet in structure (has NameWrapper) but with unique registration event variants.
+Lineanames is the `.linea.eth` subregistry on Linea L2. Unlike Base, Linea has a NameWrapper. Reuses existing `Registry`, `Resolver`, and `NameWrapper` contract handlers. New `BaseRegistrar_Linea` and `EthController_Linea` contract names for Linea-specific registrar logic.
 
-#### Contracts to Add
+#### Contracts Added
 
-| Contract | Chain | Address | Start Block |
-|----------|-------|---------|-------------|
-| Registry | Linea (59144) | `0x50130b669b28c339991d8676fa73cf122a121267` | 6,682,888 |
-| BaseRegistrar | Linea (59144) | `0x6e84390dcc5195414ec91a8c56a5c91021b95704` | 6,682,892 |
-| EthRegistrarController | Linea (59144) | `0xdb75db974b1f2bd3b5916d503036208064d18295` | 6,682,978 |
-| NameWrapper | Linea (59144) | `0xa53cca02f98d590819141aa85c891e2af713c223` | 6,682,956 |
-| DefaultPublicResolver | Linea (59144) | `0x86c5aed9f27837074612288610fb98ccc1733126` | 6,682,994 |
-| Resolver | Linea (59144) | Dynamic | 6,682,888 |
+| Contract | HyperIndex Name | Chain | Address | Start Block |
+|----------|----------------|-------|---------|-------------|
+| Registry | `Registry` (reused) | Linea (59144) | `0x50130b669b28c339991d8676fa73cf122a121267` | 6,682,888 |
+| BaseRegistrar | `BaseRegistrar_Linea` | Linea (59144) | `0x6e84390dcc5195414ec91a8c56a5c91021b95704` | 6,682,892 |
+| NameWrapper | `NameWrapper` (reused) | Linea (59144) | `0xa53cca02f98d590819141aa85c891e2af713c223` | 6,682,956 |
+| EthRegistrarController | `EthController_Linea` | Linea (59144) | `0xdb75db974b1f2bd3b5916d503036208064d18295` | 6,682,978 |
+| Resolver | `Resolver` (reused) | Linea (59144) | Dynamic | 6,682,888 |
 
-#### Handler Work
+#### Implementation Summary
 
-- [ ] Add Linea chain (59144) to `config.yaml`
-- [ ] Add Lineanames contract definitions and ABIs
-- [ ] Migrate `lineanames/Registry.ts` handlers — reuses shared `handleNewOwner(isMigrated=true)`, `handleNewResolver`, `handleNewTTL`, `handleTransfer`
-- [ ] Migrate `lineanames/Registrar.ts` handlers:
-  - BaseRegistrar: `NameRegistered`, `NameRenewed`, `Transfer` — require `interpretTokenIdAsLabelHash` remapping
-  - EthRegistrarController: **4 distinct events**:
-    - `OwnerNameRegistered` — free for controller owner (cost=0)
-    - `PohNameRegistered` — free for Proof of Humanity holders (cost=0)
-    - `NameRegistered` — paid registration (cost=baseCost+premium)
-    - `NameRenewed` — renewal with cost
-  - All controller events require arg remapping (`name`→`label`, `label`→`labelHash`)
-- [ ] Migrate `lineanames/NameWrapper.ts` handlers — NameWrapped, NameUnwrapped, FusesSet, ExpiryExtended, TransferSingle, TransferBatch
-- [ ] Implement **preminting support**: create Domain entities on-demand (same as Basenames)
-- [ ] Resolver dynamic registration for Linea resolvers
-- [ ] L1Resolver on mainnet (`0xde16ee87b0c019499cebdde29c9f7686560f679a`, block 20,410,692) bridges Linea names to L1
+**Files changed:**
 
-#### Key Differences from Mainnet
+| File | Action | Changes |
+|------|--------|---------|
+| `src/lib/helpers.ts` | Modified | Added `LINEA_ETH_NODE` constant, added `MANAGED_NODES` set for multi-chain NameWrapper support |
+| `src/handlers/NameWrapper.ts` | Modified | Changed expiryDate preservation check from `ETH_NODE` to `MANAGED_NODES.has()` for multi-chain unwrapping |
+| `config.yaml` | Modified | Added 2 Linea contract definitions + Linea chain (59144) section with 5 contracts |
+| `src/handlers/LineaRegistrar.ts` | Created | All Linea registrar + controller handlers (~190 lines) |
+| `test/helpers.test.ts` | Modified | Added `LINEA_ETH_NODE` test (+1 test) |
+| `test/LineaRegistrar.test.ts` | Created | Integration tests for Linea registrations |
 
-- **Has NameWrapper** (similar to mainnet, full ERC1155 wrapping + fuses)
-- **Preminting support**: Same on-demand Domain creation as Basenames
-- **3 registration variants** on EthRegistrarController: `OwnerNameRegistered` (free for owner), `PohNameRegistered` (free for Proof of Humanity holders), `NameRegistered` (paid)
-- **Controller arg remapping**: Same incorrect naming as Base controllers (`name`→`label`, `label`→`labelHash`)
-- Single controller (EthRegistrarController) vs mainnet's 3
-- Different registry/registrar contract addresses
+**Handlers registered (7 total):**
+- `BaseRegistrar_Linea.NameRegistered` — creates Registration + Domain with preminting support
+- `BaseRegistrar_Linea.NameRenewed` — extends expiry
+- `BaseRegistrar_Linea.Transfer` — updates registrant
+- `EthController_Linea.NameRegistered` — sets name preimage (cost = baseCost + premium)
+- `EthController_Linea.NameRenewed` — sets name preimage (cost = cost)
+- `EthController_Linea.OwnerNameRegistered` — sets name preimage (cost = 0, free for controller owner)
+- `EthController_Linea.PohNameRegistered` — sets name preimage (cost = 0, free for PoH holders)
+
+**Key design decisions:**
+- **Contract name reuse**: `Registry`, `Resolver`, and `NameWrapper` handlers fire for Ethereum, Base, and Linea automatically
+- **NameWrapper multi-chain fix**: `NameUnwrapped` handler now checks `MANAGED_NODES` set instead of just `ETH_NODE` to correctly preserve expiryDate for `.linea.eth` 2LDs
+- **Controller arg remapping**: Same pattern as Base — `name` = plaintext label, `label` = labelHash
+- **4 controller events**: Paid `NameRegistered` (baseCost+premium), `NameRenewed` (cost), free `OwnerNameRegistered` and `PohNameRegistered` (cost=0)
+
+#### Remaining items (deferred)
+
+- L1Resolver on mainnet (`0xde16ee87b0c019499cebdde29c9f7686560f679a`, block 20,410,692) for bridging Linea names to L1 — deferred to Phase 4 or later
 
 ---
 

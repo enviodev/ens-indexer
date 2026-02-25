@@ -14,6 +14,7 @@ import {
   ROOT_NODE,
   ETH_NODE,
   BASE_ETH_NODE,
+  LINEA_ETH_NODE,
   ADDR_REVERSE_NODE,
   ZERO_ADDRESS,
   GRACE_PERIOD_SECONDS,
@@ -59,6 +60,16 @@ describe("Constants", () => {
     const baseLabelHash = keccak256(encodePacked(["string"], ["base"]));
     const computed = makeSubdomainNode(baseLabelHash, ETH_NODE);
     expect(BASE_ETH_NODE).toBe(computed);
+  });
+
+  it("LINEA_ETH_NODE is the namehash of 'linea.eth'", () => {
+    expect(LINEA_ETH_NODE).toBe(
+      "0x527aac89ac1d1de5dd84cff89ec92c69b028ce9ce3fa3d654882474ab4402ec3",
+    );
+    const { keccak256, encodePacked } = require("viem");
+    const lineaLabelHash = keccak256(encodePacked(["string"], ["linea"]));
+    const computed = makeSubdomainNode(lineaLabelHash, ETH_NODE);
+    expect(LINEA_ETH_NODE).toBe(computed);
   });
 });
 

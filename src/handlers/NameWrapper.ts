@@ -10,7 +10,7 @@ import {
   sharedEventValues,
   upsertAccount,
   bigintMax,
-  ETH_NODE,
+  MANAGED_NODES,
 } from "../lib/helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -255,9 +255,10 @@ NameWrapper.NameUnwrapped.handler(async ({ event, context }) => {
   }
 
   // When unwrapping, reset any PCC-materialized expiryDate on the Domain entity.
-  // If the domain's parent is ETH_NODE (i.e. it's a .eth 2LD that has a registration expiry),
-  // keep the domain's expiryDate. Otherwise, clear it because it doesn't expire outside the wrapper.
-  const expiryDate = domain.parent_id === ETH_NODE ? domain.expiryDate : undefined;
+  // If the domain's parent is a managed registrar node (e.g. ETH_NODE, LINEA_ETH_NODE),
+  // it's a 2LD with a registration expiry — keep the domain's expiryDate.
+  // Otherwise, clear it because it doesn't expire outside the wrapper.
+  const expiryDate = (domain.parent_id && MANAGED_NODES.has(domain.parent_id)) ? domain.expiryDate : undefined;
 
   // Clear wrappedOwner and conditionally reset expiryDate
   context.Domain.set({

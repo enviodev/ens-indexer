@@ -20,6 +20,13 @@ export const GRACE_PERIOD_SECONDS = 7776000n; // 90 days in seconds
 export const BASE_ETH_NODE =
   "0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72fbf672e7b7fd5690328e10";
 
+// LINEA_ETH_NODE = namehash("linea.eth") = keccak256(ETH_NODE + keccak256("linea"))
+export const LINEA_ETH_NODE =
+  "0x527aac89ac1d1de5dd84cff89ec92c69b028ce9ce3fa3d654882474ab4402ec3";
+
+// Set of all managed registrar nodes (for NameWrapper expiryDate preservation)
+export const MANAGED_NODES = new Set([ETH_NODE, BASE_ETH_NODE, LINEA_ETH_NODE]);
+
 // ─── Token / Label Helpers ──────────────────────────────────────────────────
 
 /**

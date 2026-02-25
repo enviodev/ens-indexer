@@ -169,6 +169,41 @@ contracts:
           transaction_fields:
             - hash
 
+  # ─── Linea L2 Contracts ────────────────────────────────────────────────────
+  - name: BaseRegistrar_Linea
+    events:
+      - event: "NameRegistered(uint256 indexed id, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(uint256 indexed id, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: EthController_Linea
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 baseCost, uint256 premium, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 cost, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "OwnerNameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "PohNameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
   # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
   - name: Resolver
     events:
@@ -269,6 +304,26 @@ chains:
         address:
           - "0xa7d2607c6bd39ae9521e514026cbb078405ab322"
         start_block: 35286620
+      - name: Resolver
+        # Dynamically registered via Registry.NewResolver contractRegister
+  - id: 59144 # Linea
+    start_block: 6682888
+    contracts:
+      - name: Registry
+        address:
+          - "0x50130b669b28c339991d8676fa73cf122a121267"
+      - name: BaseRegistrar_Linea
+        address:
+          - "0x6e84390dcc5195414ec91a8c56a5c91021b95704"
+        start_block: 6682892
+      - name: NameWrapper
+        address:
+          - "0xa53cca02f98d590819141aa85c891e2af713c223"
+        start_block: 6682956
+      - name: EthController_Linea
+        address:
+          - "0xdb75db974b1f2bd3b5916d503036208064d18295"
+        start_block: 6682978
       - name: Resolver
         # Dynamically registered via Registry.NewResolver contractRegister
 
