@@ -14,7 +14,8 @@
     "vitest": "4.0.16"
   },
   "dependencies": {
-    "envio": "3.0.0-alpha.14"
+    "envio": "3.0.0-alpha.14",
+    "viem": "^2.46.3"
   },
   "optionalDependencies": {
     "generated": "./ens-hyperindex/../generated"
