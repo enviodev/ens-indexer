@@ -11,7 +11,14 @@ import {
   upsertAccount,
   bigintMax,
   MANAGED_NODES,
+  tokenIdToLabelHash,
 } from "../lib/helpers";
+
+import {
+  handleERC1155Transfer,
+  buildDomainAssetId,
+  AssetNamespaces,
+} from "../lib/tokenscope-helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -130,7 +137,7 @@ async function handleTransfer(
 // ─── TransferSingle ─────────────────────────────────────────────────────────
 
 NameWrapper.TransferSingle.handler(async ({ event, context }) => {
-  const { id: tokenId, to } = event.params;
+  const { id: tokenId, to, from, value } = event.params;
 
   await handleTransfer(
     event,
@@ -139,15 +146,26 @@ NameWrapper.TransferSingle.handler(async ({ event, context }) => {
     tokenId,
     to,
   );
+
+  // TokenScope: track ERC1155 transfer
+  const nft = buildDomainAssetId(
+    event.chainId,
+    event.srcAddress,
+    tokenId,
+    AssetNamespaces.ERC1155,
+    (tid) => "0x" + tid.toString(16).padStart(64, "0"),
+  );
+  await handleERC1155Transfer(context, from, to, false, nft, value);
 });
 
 // ─── TransferBatch ──────────────────────────────────────────────────────────
 
 NameWrapper.TransferBatch.handler(async ({ event, context }) => {
-  const { ids: tokenIds, to } = event.params;
+  const { ids: tokenIds, values, to, from } = event.params;
 
   for (let i = 0; i < tokenIds.length; i++) {
     const tokenId = tokenIds[i]!;
+    const value = values[i]!;
     await handleTransfer(
       event,
       context,
@@ -155,6 +173,16 @@ NameWrapper.TransferBatch.handler(async ({ event, context }) => {
       tokenId,
       to,
     );
+
+    // TokenScope: track ERC1155 transfer for each token
+    const nft = buildDomainAssetId(
+      event.chainId,
+      event.srcAddress,
+      tokenId,
+      AssetNamespaces.ERC1155,
+      (tid) => "0x" + tid.toString(16).padStart(64, "0"),
+    );
+    await handleERC1155Transfer(context, from, to, false, nft, value);
   }
 });
 

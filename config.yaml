@@ -230,6 +230,15 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+      # ─── ERC1155 Transfer events (for TokenScope plugin) ──────────────────────
+      - event: "TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
+        field_selection:
+          transaction_fields:
+            - hash
 
   # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
   - name: Resolver
@@ -301,6 +310,16 @@ contracts:
             - hash
             - from
 
+  # ─── Seaport (TokenScope plugin) ───────────────────────────────────────────
+  - name: Seaport
+    abi_file_path: ./abis/Seaport1_5.json
+    handler: ./src/handlers/TokenScope.ts
+    events:
+      - event: "OrderFulfilled(bytes32 orderHash, address indexed offerer, address indexed zone, address recipient, (uint8,address,uint256,uint256)[] offer, (uint8,address,uint256,uint256,address)[] consideration)"
+        field_selection:
+          transaction_fields:
+            - hash
+
   # ─── StandaloneReverseRegistrar (PA plugin) ────────────────────────────────
   - name: StandaloneReverseRegistrar
     events:
@@ -345,6 +364,10 @@ chains:
         address:
           - "0xf55575bde5953ee4272d5ce7cdd924c74d8fa81a"
         start_block: 23784217
+      - name: Seaport
+        address:
+          - "0x00000000000000adc04c56bf30ac9d3c0aaf14dc"
+        start_block: 17129405
       - name: Resolver
         address:
           # Static reverse resolver addresses (PA plugin)

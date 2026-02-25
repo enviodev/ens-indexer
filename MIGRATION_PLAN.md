@@ -2,7 +2,7 @@
 
 > Ponder (ENSNode) → Envio HyperIndex
 
-**Last updated:** 2026-02-25
+**Last updated:** 2026-02-26
 **Source:** `/ensnode/` (Ponder monorepo)
 **Target:** `/ens-hyperindex/` (Envio HyperIndex)
 
@@ -17,7 +17,7 @@
 - [Phase 3: Multi-Chain Subgraph Extensions](#phase-3-multi-chain-subgraph-extensions)
 - [Phase 4: Protocol Acceleration Plugin](#phase-4-protocol-acceleration-plugin) — DONE
 - [Phase 5: Registrars Plugin](#phase-5-registrars-plugin) — DONE
-- [Phase 6: TokenScope Plugin](#phase-6-tokenscope-plugin)
+- [Phase 6: TokenScope Plugin](#phase-6-tokenscope-plugin) — DONE
 - [Phase 7: ENSv2 Plugin](#phase-7-ensv2-plugin)
 - [Contract Reference](#contract-reference)
 - [Schema Reference](#schema-reference)
@@ -39,7 +39,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 3c | ThreeDNS (Optimism + Base) | DONE | — |
 | 4 | Protocol Acceleration | DONE | — |
 | 5 | Registrars | DONE | — |
-| 6 | TokenScope | NOT STARTED | Medium |
+| 6 | TokenScope | DONE | — |
 | 7 | ENSv2 | NOT STARTED | Low (future protocol) |
 
 ---
@@ -48,21 +48,21 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), **ThreeDNS on Optimism + Base** (Phase 3c), the **Protocol Acceleration Plugin** (Phase 4), and the **Registrars Plugin** (Phase 5):
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), **ThreeDNS on Optimism + Base** (Phase 3c), the **Protocol Acceleration Plugin** (Phase 4), the **Registrars Plugin** (Phase 5), and the **TokenScope Plugin** (Phase 6):
 
 - **6 chains**: Ethereum Mainnet (1), Base (8453), Linea (59144), Optimism (10), Arbitrum (42161), Scroll (534352)
-- **21 contracts** configured in `config.yaml` (11 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared + StandaloneReverseRegistrar across 5 chains, with Registry, Resolver, and NameWrapper reused cross-chain)
-- **8 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`, `ReverseRegistrar.ts`
-- **3 helper libraries**: `helpers.ts` (20 utility functions), `protocol-acceleration.ts` (PA helper module), `registrar-helpers.ts` (registrar action tracking, referrer decoding, lifecycle management)
-- **37 schema entities** (7 core + 18 event logs + 7 PA entities + 1 enum + 4 registrar entities)
-- **~53 event types** handled (27 mainnet + 9 Base + 7 Linea + 4 ThreeDNS + 3 DNS record + 1 StandaloneReverseRegistrar + registrar/PA logic merged into existing handlers)
+- **22 contracts** configured in `config.yaml` (12 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared + StandaloneReverseRegistrar across 5 chains, with Registry, Resolver, and NameWrapper reused cross-chain)
+- **9 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`, `ReverseRegistrar.ts`, `TokenScope.ts`
+- **4 helper libraries**: `helpers.ts` (20 utility functions), `protocol-acceleration.ts` (PA helper module), `registrar-helpers.ts` (registrar action tracking, referrer decoding, lifecycle management), `tokenscope-helpers.ts` (NFT transfer state machine, CAIP-19 asset IDs, Seaport order parsing)
+- **39 schema entities** (7 core + 18 event logs + 7 PA entities + 1 enum + 4 registrar entities + 2 tokenscope entities)
+- **~56 event types** handled (28 mainnet + 9 Base + 7 Linea + 6 ThreeDNS + 3 DNS record + 1 StandaloneReverseRegistrar + registrar/PA/tokenscope logic merged into existing handlers)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **~14 additional contracts** (tokenscope, ensv2)
-- **~14+ additional entities** (ensv2, tokenscope schemas)
-- **3 remaining plugins** worth of handler logic
+- **~12 additional contracts** (ensv2)
+- **~12 additional entities** (ensv2 schema)
+- **1 remaining plugin** worth of handler logic (ENSv2)
 
 ---
 
@@ -304,11 +304,13 @@ ThreeDNS is a third-party DNS integration for ENS, deployed on both Optimism and
 | `test/helpers.test.ts` | Modified | Added `THREEDNS_RESOLVER` + `decodeDnsEncodedName` tests (+8 tests) |
 | `test/ThreeDNS.test.ts` | Created | Integration tests for ThreeDNS on Optimism + Base |
 
-**Handlers registered (4 total):**
+**Handlers registered (6 total):**
 - `ThreeDNSToken.NewOwner` — creates/updates domain with hardcoded ThreeDNS resolver, handles root node init per chain
 - `ThreeDNSToken.Transfer` — updates domain ownership
 - `ThreeDNSToken.RegistrationCreated` — decodes DNS-encoded FQDN, sets labelName/name/expiryDate, creates Registration
 - `ThreeDNSToken.RegistrationExtended` — extends expiry on Domain and Registration
+- `ThreeDNSToken.TransferSingle` — ERC1155 NFT tracking with `allowMintedRemint = true` (added in Phase 6)
+- `ThreeDNSToken.TransferBatch` — ERC1155 batch NFT tracking with `allowMintedRemint = true` (added in Phase 6)
 
 **Key design decisions:**
 - **Resolver reuse**: ThreeDNS resolver at `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` is registered as a static address for the existing `Resolver` contract on both Optimism and Base. Standard Resolver.ts handlers (AddrChanged, TextChanged, etc.) fire automatically.
@@ -517,51 +519,152 @@ Unified registration lifecycle tracking across all subregistries (Ethnames, Base
 
 ## Phase 6: TokenScope Plugin
 
-**Status: NOT STARTED**
-**Priority: Medium**
-**Effort: Small-Medium**
+**Status: DONE**
+**Priority: —**
+**Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/tokenscope/`
 
-Tracks ENS NFT transfers and secondary market sales via Seaport.
+Tracks ENS NFT transfers (ERC721 and ERC1155) across all subregistries and secondary market sales via Seaport. Implements a full NFT transfer state machine with 9 transfer types and CAIP-19 asset ID generation.
 
-### New Schema Entities
+### Schema Entities Added (2)
 
 | Entity | Purpose |
 |--------|---------|
-| `nameSales` | Secondary market sales (buyer, seller, price, currency, Seaport order) |
-| `nameTokens` | NFT token state (CAIP-19 asset ID, owner, mint/burn status) |
+| `NameToken` | NFT token state — CAIP-19 asset ID, domain mapping, owner, mint/burn status |
+| `NameSale` | Secondary market sales — buyer, seller, price, currency, Seaport order details |
 
-### Contracts Used
+### Contract Added
 
-| Contract | Chain | Address | Start Block | Event Type |
-|----------|-------|---------|-------------|------------|
-| Seaport 1.5 | Mainnet (1) | `0x00000000000000adc04c56bf30ac9d3c0aaf14dc` | 17,129,405 | OrderFulfilled |
-| EthBaseRegistrar | Mainnet (1) | `0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85` | 9,380,410 | ERC721 Transfer |
-| BaseBaseRegistrar | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 | ERC721 Transfer |
-| LineaBaseRegistrar | Linea (59144) | `0x6e84390dcc5195414ec91a8c56a5c91021b95704` | 6,682,892 | ERC721 Transfer |
-| NameWrapper | Mainnet (1) | `0xd4416b13d2b3a9abae7acd5d6c2bbdbe25686401` | 16,925,608 | ERC1155 TransferSingle/Batch |
-| ThreeDNSToken | Optimism (10) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 110,393,959 | ERC1155 TransferSingle/Batch |
-| ThreeDNSToken | Base (8453) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 17,522,624 | ERC1155 TransferSingle/Batch |
+| Contract | HyperIndex Name | Chain | Address | Start Block |
+|----------|----------------|-------|---------|-------------|
+| Seaport 1.5 | `Seaport` | Mainnet (1) | `0x00000000000000adc04c56bf30ac9d3c0aaf14dc` | 17,129,405 |
 
-### Handler Work
+### Events Added to Existing Contracts
 
-- [ ] Add `nameSales` and `nameTokens` entities to schema
-- [ ] Add Seaport 1.5 ABI and contract config
-- [ ] Migrate `BaseRegistrars.ts` handler — ERC721 Transfer tracking for **Eth + Base + Linea** BaseRegistrars (3 contracts across 3 chains)
-- [ ] Migrate `NameWrapper.ts` handler — ERC1155 TransferSingle/TransferBatch tracking
-- [ ] Migrate `ThreeDNSToken.ts` handler — ERC1155 TransferSingle/TransferBatch events on both Optimism and Base
-- [ ] Migrate `Seaport.ts` handler — OrderFulfilled events for secondary market sales
-- [ ] Port shared libraries:
-  - `handle-nft-transfer.ts` — mint/burn detection, CAIP-19 asset ID generation
-  - `nft-issuers.ts` — NFT issuer identification
-  - `seaport.ts` — Seaport order fulfillment parsing
+| Contract | Events Added |
+|----------|-------------|
+| `ThreeDNSToken` | `TransferSingle`, `TransferBatch` (ERC1155 transfers) |
 
-### Notes
+### NFT Issuers Tracked (6 contracts across 4 chains)
 
-- Seaport handler parses complex order structures to extract ENS domain sales
-- CAIP-19 asset IDs follow `eip155:{chainId}/{namespace}:{contract}/{tokenId}` format
-- TokenScope reuses Transfer events from BaseRegistrar and NameWrapper (same merge concern)
-- **ThreeDNS quirk**: `allowMintedRemint = true` — 3DNS contracts allow a minted NFT to be reminted before an intermediate burn (non-standard behavior)
+| Contract | Chain | Token Standard | getDomainId |
+|----------|-------|---------------|-------------|
+| BaseRegistrar (mainnet) | Mainnet (1) | ERC721 | `makeSubdomainNode(tokenIdToLabelHash(tokenId), ETH_NODE)` |
+| BaseRegistrar_Base | Base (8453) | ERC721 | `makeSubdomainNode(tokenIdToLabelHash(tokenId), BASE_ETH_NODE)` |
+| BaseRegistrar_Linea | Linea (59144) | ERC721 | `makeSubdomainNode(tokenIdToLabelHash(tokenId), LINEA_ETH_NODE)` |
+| NameWrapper | Mainnet (1) | ERC1155 | `"0x" + tokenId.toString(16).padStart(64, "0")` (namehash) |
+| ThreeDNSToken | Optimism (10) | ERC1155 | `"0x" + tokenId.toString(16).padStart(64, "0")` (namehash) |
+| ThreeDNSToken | Base (8453) | ERC1155 | `"0x" + tokenId.toString(16).padStart(64, "0")` (namehash) |
+
+### Implementation Summary
+
+**Files changed:**
+
+| File | Action | Changes |
+|------|--------|---------|
+| `schema.graphql` | Modified | Added 2 entities (NameToken, NameSale) |
+| `config.yaml` | Modified | Added Seaport contract definition + mainnet chain entry; added TransferSingle/TransferBatch events to ThreeDNSToken |
+| `abis/Seaport1_5.json` | Created | ABI for OrderFulfilled event with SpentItem[]/ReceivedItem[] struct arrays |
+| `src/lib/tokenscope-helpers.ts` | Created | ~350 lines: NFT transfer state machine, CAIP-19 asset ID formatting, Seaport order parsing, currency mapping, issuer lookup |
+| `src/handlers/TokenScope.ts` | Created | Seaport.OrderFulfilled handler (~55 lines) |
+| `src/handlers/Registrar.ts` | Modified | Appended `handleNFTTransfer()` to BaseRegistrar.Transfer handler |
+| `src/handlers/BaseRegistrar.ts` | Modified | Appended `handleNFTTransfer()` to BaseRegistrar_Base.Transfer handler |
+| `src/handlers/LineaRegistrar.ts` | Modified | Appended `handleNFTTransfer()` to BaseRegistrar_Linea.Transfer handler |
+| `src/handlers/NameWrapper.ts` | Modified | Appended `handleERC1155Transfer()` to TransferSingle + TransferBatch handlers |
+| `src/handlers/ThreeDNS.ts` | Modified | Added 2 NEW handlers: ThreeDNSToken.TransferSingle + ThreeDNSToken.TransferBatch |
+
+**TokenScope logic appended to existing handlers (7 events) + 3 new handlers:**
+
+*ERC721 Transfer tracking (merged into existing handlers):*
+- `BaseRegistrar.Transfer` → `handleNFTTransfer()` (mainnet .eth)
+- `BaseRegistrar_Base.Transfer` → `handleNFTTransfer()` (Base .base.eth)
+- `BaseRegistrar_Linea.Transfer` → `handleNFTTransfer()` (Linea .linea.eth)
+
+*ERC1155 Transfer tracking (merged into existing handlers):*
+- `NameWrapper.TransferSingle` → `handleERC1155Transfer()` (mainnet)
+- `NameWrapper.TransferBatch` → `handleERC1155Transfer()` (mainnet)
+
+*ERC1155 Transfer tracking (new handlers for ThreeDNS):*
+- `ThreeDNSToken.TransferSingle` → `handleERC1155Transfer()` with `allowMintedRemint = true`
+- `ThreeDNSToken.TransferBatch` → `handleERC1155Transfer()` with `allowMintedRemint = true`
+
+*Seaport sales tracking (new handler):*
+- `Seaport.OrderFulfilled` → parses order, creates NameSale entity
+
+### Helper Module: `src/lib/tokenscope-helpers.ts`
+
+**Constants:**
+- `NFTMintStatuses` — `minted` / `burned` enum
+- `AssetNamespaces` — `erc721` / `erc1155` enum
+- `CurrencyIds` — `ETH`, `USDC`, `DAI` mapping
+
+**Types:**
+- `DomainAssetId` — NFT identity (chainId, contractAddress, tokenId, assetNamespace, domainId, assetId)
+- `OfferTuple` / `ConsiderationTuple` — HyperIndex tuple types for Seaport struct arrays
+- `SupportedSale` — Parsed sale with buyer, seller, NFT identity, currency, amount
+
+**Core Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `formatAssetId(nft)` | CAIP-19 formatting: `eip155:{chainId}/{namespace}:{contract}/{tokenId}` |
+| `getSupportedNFTIssuer(chainId, address)` | Hardcoded lookup for 6 known ENS NFT contracts |
+| `buildDomainAssetId(...)` | Constructor for DomainAssetId with chain-specific tokenId→domainId conversion |
+| `handleNFTTransfer(context, from, to, allowMintedRemint, nft)` | Full NFT transfer state machine — 9 transfer types, insert/update NameToken |
+| `handleERC1155Transfer(context, from, to, allowMintedRemint, nft, amount)` | Validates amount===1, delegates to handleNFTTransfer |
+| `getSupportedSaleFromOrderFulfilledEvent(...)` | Seaport order parsing — extracts ENS domain sales from complex order structures |
+
+**NFT Transfer State Machine (9 types):**
+
+| Type | Condition | Action |
+|------|-----------|--------|
+| Mint | from=zero, no existing token | Insert with `minted` status |
+| Remint | from=zero, existing token is `burned` | Update to `minted`, set new owner |
+| MintedRemint | from=zero, existing token is `minted`, `allowMintedRemint=true` | Update owner (3DNS non-standard) |
+| Burn | to=zero, existing token is `minted` | Update to `burned`, owner=zeroAddress |
+| Transfer | both non-zero, existing token is `minted` | Update owner |
+| SelfTransfer | from=to, existing token is `minted` | No-op |
+| RemintBurn | from=zero, to=zero, existing token is `burned` | No-op |
+| MintedRemintBurn | from=zero, to=zero, existing token is `minted` | Update to `burned` |
+| MintBurn | from=zero, to=zero, no existing token | Insert with `burned` status |
+
+**Seaport Order Parsing:**
+- Supports standard listings (offerer sells NFT for payment) and standard offers (offerer pays for NFT)
+- Rejects multi-NFT and multi-currency orders
+- Consolidates multiple consideration items to the same currency
+- Currency mapping: mainnet-only (ETH via zeroAddress, USDC, DAI)
+- Uses HyperIndex tuple arrays (`[bigint, string, bigint, bigint]`) with `parseTupleToItem()` conversion
+
+### Key Design Decisions
+
+1. **CAIP-19 asset IDs**: Globally unique NFT identifiers formatted as `eip155:{chainId}/{assetNamespace}:{address}/{tokenId}` (all lowercase). Implemented inline without the `caip` npm package.
+2. **Hardcoded issuer lookup**: 6 known ENS NFT contracts with their chain IDs, addresses, and asset namespaces. Replaces Ponder's dynamic datasource-based lookup.
+3. **Token ID interpretation**: BaseRegistrar tokenId = labelHash (compose with parent node via `makeSubdomainNode`), NameWrapper/ThreeDNS tokenId = namehash (node directly, padded to 32 bytes hex).
+4. **3DNS allowMintedRemint**: ThreeDNS has improperly implemented ERC1155 that allows minting over already-minted tokens. The `MintedRemint` transfer type handles this case specifically.
+5. **Seaport tuple arrays**: HyperIndex generates `Array<[bigint, Address_t, bigint, bigint]>` for Seaport struct arrays (unnamed tuples) instead of named objects. A `parseTupleToItem()` conversion function bridges the gap.
+6. **Currency mapping simplified**: Mainnet-only since Seaport is only configured on mainnet. Supports ETH (native/zeroAddress), USDC (`0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48`), DAI (`0x6b175474e89094c44da98b954eedeac495271d0f`).
+7. **ERC1155 amount validation**: `handleERC1155Transfer` validates `amount === 1n` — ENS domain NFTs are non-fungible, so amounts > 1 are unexpected and silently skipped.
+
+### Completed Tasks
+
+- [x] Add 2 entities to `schema.graphql` (NameToken, NameSale)
+- [x] Create `abis/Seaport1_5.json` ABI file for OrderFulfilled event
+- [x] Add Seaport contract definition + mainnet chain entry to `config.yaml`
+- [x] Add TransferSingle/TransferBatch events to ThreeDNSToken contract definition in `config.yaml`
+- [x] Create `src/lib/tokenscope-helpers.ts` — NFT transfer state machine, CAIP-19 formatting, Seaport order parsing, currency mapping, issuer lookup
+- [x] Create `src/handlers/TokenScope.ts` — Seaport.OrderFulfilled handler
+- [x] Merge TokenScope logic into `Registrar.ts` — BaseRegistrar.Transfer + handleNFTTransfer
+- [x] Merge TokenScope logic into `BaseRegistrar.ts` — BaseRegistrar_Base.Transfer + handleNFTTransfer
+- [x] Merge TokenScope logic into `LineaRegistrar.ts` — BaseRegistrar_Linea.Transfer + handleNFTTransfer
+- [x] Merge TokenScope logic into `NameWrapper.ts` — TransferSingle/TransferBatch + handleERC1155Transfer
+- [x] Add ThreeDNS TransferSingle/TransferBatch handlers to `ThreeDNS.ts` with `allowMintedRemint = true`
+- [x] Run `pnpm codegen` — generates types for 2 new entities + Seaport contract + ThreeDNS events
+- [x] Type check passes (`pnpm tsc --noEmit` — zero errors)
+- [x] Existing tests pass (pre-existing HyperSync flakiness on some integration tests is unchanged)
+
+### Architecture Note
+
+> Like Phase 4 (Protocol Acceleration) and Phase 5 (Registrars), TokenScope logic is **merged into existing handlers** via helper function calls appended after subgraph logic. This preserves zero changes to subgraph behavior while adding NFT tracking and sales functionality. The only truly new handlers are `ThreeDNSToken.TransferSingle`, `ThreeDNSToken.TransferBatch` (new events not previously indexed), and `Seaport.OrderFulfilled` (new contract). All TokenScope helper functions live in `src/lib/tokenscope-helpers.ts`.
 
 ---
 
@@ -668,14 +771,14 @@ Next-generation ENS protocol with new registry and registrar contracts.
 
 ### Entity Count by Plugin
 
-| Plugin | Core Entities | Event Entities | Total |
-|--------|--------------|----------------|-------|
-| Subgraph (Phase 1) | 5 | 20 | 25 |
-| Protocol Acceleration (Phase 4) | 7 | 0 | 7 |
-| Registrars (Phase 5) | 5 (incl. 1 enum) | 0 | 5 |
-| TokenScope (Phase 6) | 2 | 0 | 2 |
-| ENSv2 (Phase 7) | 12 | 0 | 12 |
-| **Total** | **31** | **20** | **~51** |
+| Plugin | Core Entities | Event Entities | Total | Status |
+|--------|--------------|----------------|-------|--------|
+| Subgraph (Phase 1) | 5 | 20 | 25 | DONE |
+| Protocol Acceleration (Phase 4) | 7 | 0 | 7 | DONE |
+| Registrars (Phase 5) | 5 (incl. 1 enum) | 0 | 5 | DONE |
+| TokenScope (Phase 6) | 2 | 0 | 2 | DONE |
+| ENSv2 (Phase 7) | 12 | 0 | 12 | NOT STARTED |
+| **Total** | **31** | **20** | **~51** | |
 
 ---
 

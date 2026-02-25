@@ -23,6 +23,12 @@ import {
 
 import { upsertDomainResolverRelation } from "../lib/protocol-acceleration";
 
+import {
+  handleERC1155Transfer,
+  buildDomainAssetId,
+  AssetNamespaces,
+} from "../lib/tokenscope-helpers";
+
 // ─── Root Node Tracking ─────────────────────────────────────────────────────
 // ThreeDNS lives on chains that may not have a Registry (e.g. Optimism).
 // Ensure the root domain exists on the first event per chain.
@@ -262,4 +268,51 @@ ThreeDNSToken.RegistrationExtended.handler(async ({ event, context }) => {
     registration_id: registrationId,
     expiryDate: newExpiry,
   });
+});
+
+// ─── ThreeDNSToken.TransferSingle (TokenScope: ERC1155 NFT tracking) ──────
+
+ThreeDNSToken.TransferSingle.handler(async ({ event, context }) => {
+  const { id: tokenId, from, to, value } = event.params;
+
+  // 3DNS allows non-standard minted remint (mint over already-minted token)
+  const allowMintedRemint = true;
+
+  const nft = buildDomainAssetId(
+    event.chainId,
+    event.srcAddress,
+    tokenId,
+    AssetNamespaces.ERC1155,
+    (tid) => "0x" + tid.toString(16).padStart(64, "0"),
+  );
+  await handleERC1155Transfer(context, from, to, allowMintedRemint, nft, value);
+});
+
+// ─── ThreeDNSToken.TransferBatch (TokenScope: ERC1155 NFT tracking) ───────
+
+ThreeDNSToken.TransferBatch.handler(async ({ event, context }) => {
+  const { ids: tokenIds, values, from, to } = event.params;
+
+  if (tokenIds.length !== values.length) {
+    throw new Error(
+      `ERC1155 transfer batch ids and values must have the same length, got ${tokenIds.length} and ${values.length}.`,
+    );
+  }
+
+  // 3DNS allows non-standard minted remint (mint over already-minted token)
+  const allowMintedRemint = true;
+
+  for (let i = 0; i < tokenIds.length; i++) {
+    const tokenId = tokenIds[i]!;
+    const value = values[i]!;
+
+    const nft = buildDomainAssetId(
+      event.chainId,
+      event.srcAddress,
+      tokenId,
+      AssetNamespaces.ERC1155,
+      (tid) => "0x" + tid.toString(16).padStart(64, "0"),
+    );
+    await handleERC1155Transfer(context, from, to, allowMintedRemint, nft, value);
+  }
 });

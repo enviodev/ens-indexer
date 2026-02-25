@@ -24,6 +24,12 @@ import {
   handleRegistrarControllerEvent,
 } from "../lib/registrar-helpers";
 
+import {
+  handleNFTTransfer,
+  buildDomainAssetId,
+  AssetNamespaces,
+} from "../lib/tokenscope-helpers";
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const managedNode = LINEA_ETH_NODE;
@@ -178,6 +184,16 @@ BaseRegistrar_Linea.Transfer.handler(async ({ event, context }) => {
     registration_id: registrationId,
     newOwner_id: to,
   });
+
+  // TokenScope: track ERC721 transfer
+  const nft = buildDomainAssetId(
+    event.chainId,
+    event.srcAddress,
+    event.params.tokenId,
+    AssetNamespaces.ERC721,
+    (tokenId) => makeSubdomainNode(tokenIdToLabelHash(tokenId), managedNode),
+  );
+  await handleNFTTransfer(context, event.params.from, to, false, nft);
 });
 
 // ─── EthController_Linea.NameRegistered (paid registration) ─────────────────

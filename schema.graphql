@@ -348,3 +348,35 @@ type RegistrarActionMetadata {
   logicalEventKey: String!   # "{node}:{transactionHash}"
   logicalEventId: String!    # ID of registrarAction being built
 }
+
+# ─── TokenScope Plugin Entities ──────────────────────────────────────────
+
+type NameToken {
+  id: ID!                    # CAIP-19 Asset ID
+  domainId: String!          # namehash (node) of the ENS domain
+  chainId: Int!              # chain managing the token
+  contractAddress: String!   # NFT contract address
+  tokenId: BigInt!           # token ID in the contract
+  assetNamespace: String!    # "erc721" or "erc1155"
+  owner: String!             # current owner (zeroAddress if burned)
+  mintStatus: String!        # "minted" or "burned"
+}
+
+type NameSale {
+  id: ID!                    # "{chainId}-{blockNumber}-{logIndex}"
+  chainId: Int!
+  blockNumber: Int!
+  logIndex: Int!
+  transactionHash: String!
+  orderHash: String!
+  contractAddress: String!
+  tokenId: BigInt!
+  assetNamespace: String!
+  assetId: String!           # CAIP-19 Asset ID
+  domainId: String!          # namehash (node)
+  buyer: String!
+  seller: String!
+  currency: String!          # "ETH", "USDC", "DAI"
+  amount: BigInt!            # smallest unit
+  timestamp: BigInt!
+}
