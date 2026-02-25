@@ -2,7 +2,7 @@
 
 > Ponder (ENSNode) → Envio HyperIndex
 
-**Last updated:** 2025-02-25
+**Last updated:** 2026-02-25
 **Source:** `/ensnode/` (Ponder monorepo)
 **Target:** `/ens-hyperindex/` (Envio HyperIndex)
 
@@ -13,7 +13,7 @@
 - [Migration Overview](#migration-overview)
 - [Current Status Summary](#current-status-summary)
 - [Phase 1: Core Mainnet (Subgraph Plugin)](#phase-1-core-mainnet-subgraph-plugin) — DONE
-- [Phase 2: Tests for Phase 1](#phase-2-tests-for-phase-1)
+- [Phase 2: Tests for Phase 1](#phase-2-tests-for-phase-1) — DONE
 - [Phase 3: Multi-Chain Subgraph Extensions](#phase-3-multi-chain-subgraph-extensions)
 - [Phase 4: Protocol Acceleration Plugin](#phase-4-protocol-acceleration-plugin)
 - [Phase 5: Registrars Plugin](#phase-5-registrars-plugin)
@@ -33,7 +33,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | Phase | Plugin | Status | Priority |
 |-------|--------|--------|----------|
 | 1 | Subgraph (Mainnet core) | DONE | — |
-| 2 | Tests for Phase 1 | NOT STARTED | High |
+| 2 | Tests for Phase 1 | DONE | — |
 | 3a | Basenames (Base L2) | NOT STARTED | High |
 | 3b | Lineanames (Linea L2) | NOT STARTED | High |
 | 3c | ThreeDNS (Optimism + Base) | NOT STARTED | Medium |
@@ -63,7 +63,6 @@ The HyperIndex indexer fully covers the **Subgraph Plugin for Ethereum Mainnet**
 - **~30 additional contracts**
 - **~25+ additional entities** (ensv2, registrars, protocol-acceleration, tokenscope schemas)
 - **7 remaining plugins** worth of handler logic
-- **Test suite** (Vitest configured but no test files)
 
 ---
 
@@ -108,51 +107,50 @@ The HyperIndex indexer fully covers the **Subgraph Plugin for Ethereum Mainnet**
 
 ## Phase 2: Tests for Phase 1
 
-**Status: NOT STARTED**
-**Priority: High**
+**Status: DONE**
+**Priority: —**
 **Effort: Medium**
 
-Vitest is configured (`vitest` in devDependencies, `pnpm test` script) but no test files exist.
+Full test suite using Vitest + Envio's `createTestIndexer()` framework with real on-chain data via HyperSync.
 
-### Tasks
+### Test Summary
 
-- [ ] Write unit tests for `src/lib/helpers.ts`
-  - `makeSubdomainNode` — verify keccak256 node computation
-  - `makeResolverId` / `makeEventId` / `makeRegistrationId` — ID format tests
-  - `encodeLabelHash` — hex encoding
-  - `isDomainEmpty` — garbage collection predicate
-  - `hasNullByte` / `stripNullBytes` — sanitization
-  - `bigintMax` / `uniq` — utility correctness
-- [ ] Write integration/handler tests for Registry events
-  - Root node initialization
-  - NewOwner creates/updates domains correctly
-  - Transfer updates ownership and logs events
-  - NewResolver registers dynamic contracts
-  - NewTTL updates TTL values
-  - Domain garbage collection on zero-address owner
-- [ ] Write integration/handler tests for Registrar events
-  - BaseRegistrar NameRegistered creates Registration + Domain
-  - BaseRegistrar NameRenewed extends expiry
-  - BaseRegistrar Transfer updates registrant
-  - Controller events reveal plaintext labels
-  - Grace period calculation (90 days)
-- [ ] Write integration/handler tests for NameWrapper events
-  - NameWrapped creates WrappedDomain
-  - NameUnwrapped deletes WrappedDomain
-  - FusesSet updates fuses + PCC expiry materialization
-  - ExpiryExtended updates expiry
-  - TransferSingle/TransferBatch update wrapped owner
-- [ ] Write integration/handler tests for Resolver events
-  - AddrChanged updates resolver + domain resolvedAddress
-  - AddressChanged tracks multicoin addresses
-  - TextChanged manages text records array
-  - VersionChanged clears resolver data
-  - Null byte sanitization in values
+| File | Tests | Type | Description |
+|------|-------|------|-------------|
+| `test/helpers.test.ts` | 36 | Unit | Pure function tests for `src/lib/helpers.ts` — constants, node computation, ID generators, encoding, sanitization |
+| `test/Registry.test.ts` | 5 | Integration | RegistryOld root init, new Registry migration, Transfer, NewResolver + dynamic registration, NewTTL |
+| `test/Registrar.test.ts` | 6 | Integration | BaseRegistrar NameRegistered/NameRenewed/Transfer, LegacyController + WrappedController label reveals, full registration flow |
+| `test/NameWrapper.test.ts` | 7 | Integration | NameWrapped + TransferSingle, WrappedDomain creation, FusesSet, ExpiryExtended, wrappedOwner, kitchen sink block |
+| `test/Resolver.test.ts` | 8 | Integration | AddrChanged, AddressChanged (multicoin), TextChanged, ContenthashChanged, VersionChanged, resolver ID format, dynamic registration, full resolver flow |
+| **Total** | **62** | | |
+
+### Key Test Blocks (real on-chain data)
+
+| Block | Content | Used In |
+|-------|---------|---------|
+| 3,327,417–3,328,000 | RegistryOld deployment + first NewOwner events | Registry, Registrar, Resolver |
+| 9,380,380–9,381,000 | New Registry migration (isMigrated=true) | Registry |
+| 9,500,000–9,500,100 | BaseRegistrar NameRenewed events | Registrar |
+| 12,010,405 | "luki.eth" registration (BaseRegistrar + LegacyController) | Registrar |
+| 12,062,607 | "buytaert.eth" full registration flow | Registry, Registrar, Resolver |
+| 12,100,000–12,100,100 | ContenthashChanged events | Resolver |
+| 16,925,700–16,926,200 | NameWrapper FusesSet + ExpiryExtended + VersionChanged | NameWrapper, Resolver |
+| 18,965,734 | "mergendise.eth" kitchen sink — NameWrapper + Controller + Registry + Resolver | NameWrapper, Registrar, Resolver |
+
+### Completed Tasks
+
+- [x] Unit tests for `src/lib/helpers.ts` (36 tests)
+- [x] Integration tests for Registry events (5 tests)
+- [x] Integration tests for Registrar events (6 tests)
+- [x] Integration tests for NameWrapper events (7 tests)
+- [x] Integration tests for Resolver events (8 tests)
 
 ### Notes
 
-- Envio's testing patterns use mock context objects — check Envio docs for test helpers
-- Ponder source has no tests to reference; tests must be written from spec
+- Tests use Envio's `createTestIndexer()` + `indexer.process()` with real Ethereum mainnet data via HyperSync
+- Requires `ENVIO_API_TOKEN` environment variable for HyperSync access
+- `vitest.config.ts` sets `testTimeout: 120_000` and `hookTimeout: 60_000` for network latency
+- Run with `pnpm test` or `npx vitest run`
 
 ---
 
