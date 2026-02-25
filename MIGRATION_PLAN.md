@@ -34,7 +34,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 |-------|--------|--------|----------|
 | 1 | Subgraph (Mainnet core) | DONE | — |
 | 2 | Tests for Phase 1 | DONE | — |
-| 3a | Basenames (Base L2) | NOT STARTED | High |
+| 3a | Basenames (Base L2) | DONE | — |
 | 3b | Lineanames (Linea L2) | NOT STARTED | High |
 | 3c | ThreeDNS (Optimism + Base) | NOT STARTED | Medium |
 | 4 | Protocol Acceleration | NOT STARTED | High |
@@ -48,21 +48,22 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer fully covers the **Subgraph Plugin for Ethereum Mainnet** — the core ENS v1 protocol:
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1) and **Basenames on Base L2** (Phase 3a):
 
-- **10 contracts** configured in `config.yaml` (RegistryOld, Registry, BaseRegistrar, NameWrapper, 3 Controllers, Resolver dynamic)
-- **4 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`
-- **1 helper library**: `helpers.ts` (13 utility functions)
+- **2 chains**: Ethereum Mainnet (1) and Base (8453)
+- **14 contracts** configured in `config.yaml` (10 mainnet + 4 Base-specific, with Registry and Resolver reused cross-chain)
+- **5 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`
+- **1 helper library**: `helpers.ts` (16 utility functions including shared `setNamePreimage` and `tokenIdToLabelHash`)
 - **25 schema entities** (7 core + 18 event logs)
-- **~26 event types** handled
+- **~35 event types** handled (26 mainnet + 9 Base)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **5 additional chains** (Base, Linea, Optimism, Arbitrum, Scroll)
-- **~30 additional contracts**
+- **4 additional chains** (Linea, Optimism, Arbitrum, Scroll)
+- **~26 additional contracts**
 - **~25+ additional entities** (ensv2, registrars, protocol-acceleration, tokenscope schemas)
-- **7 remaining plugins** worth of handler logic
+- **6 remaining plugins** worth of handler logic
 
 ---
 
@@ -88,10 +89,10 @@ The HyperIndex indexer fully covers the **Subgraph Plugin for Ethereum Mainnet**
 | File | Events | Lines |
 |------|--------|-------|
 | `src/handlers/Registry.ts` | NewOwner, Transfer, NewResolver, NewTTL (x2 for Old+New) | ~365 |
-| `src/handlers/Registrar.ts` | BR: NameRegistered, NameRenewed, Transfer; Controllers: NameRegistered, NameRenewed (x3) | ~297 |
+| `src/handlers/Registrar.ts` | BR: NameRegistered, NameRenewed, Transfer; Controllers: NameRegistered, NameRenewed (x3) | ~243 |
 | `src/handlers/NameWrapper.ts` | NameWrapped, NameUnwrapped, FusesSet, ExpiryExtended, TransferSingle, TransferBatch | ~332 |
 | `src/handlers/Resolver.ts` | AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged, ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged | ~299 |
-| `src/lib/helpers.ts` | Shared utilities, constants, upsert functions, GC logic | ~218 |
+| `src/lib/helpers.ts` | Shared utilities, constants, upsert functions, GC logic, setNamePreimage, tokenIdToLabelHash | ~280 |
 
 ### Schema Entities (25 total)
 
@@ -117,12 +118,13 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 | File | Tests | Type | Description |
 |------|-------|------|-------------|
-| `test/helpers.test.ts` | 36 | Unit | Pure function tests for `src/lib/helpers.ts` — constants, node computation, ID generators, encoding, sanitization |
+| `test/helpers.test.ts` | 40 | Unit | Pure function tests for `src/lib/helpers.ts` — constants (incl. BASE_ETH_NODE), node computation, ID generators, encoding, tokenIdToLabelHash, sanitization |
 | `test/Registry.test.ts` | 5 | Integration | RegistryOld root init, new Registry migration, Transfer, NewResolver + dynamic registration, NewTTL |
 | `test/Registrar.test.ts` | 6 | Integration | BaseRegistrar NameRegistered/NameRenewed/Transfer, LegacyController + WrappedController label reveals, full registration flow |
 | `test/NameWrapper.test.ts` | 7 | Integration | NameWrapped + TransferSingle, WrappedDomain creation, FusesSet, ExpiryExtended, wrappedOwner, kitchen sink block |
 | `test/Resolver.test.ts` | 8 | Integration | AddrChanged, AddressChanged (multicoin), TextChanged, ContenthashChanged, VersionChanged, resolver ID format, dynamic registration, full resolver flow |
-| **Total** | **62** | | |
+| `test/BaseRegistrar.test.ts` | 2 | Integration | Base L2 BaseRegistrar_Base NameRegistered + EAController_Base label preimage with cost=0 |
+| **Total** | **68** | | |
 
 ### Key Test Blocks (real on-chain data)
 
@@ -139,11 +141,12 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 ### Completed Tasks
 
-- [x] Unit tests for `src/lib/helpers.ts` (36 tests)
+- [x] Unit tests for `src/lib/helpers.ts` (40 tests, incl. BASE_ETH_NODE + tokenIdToLabelHash)
 - [x] Integration tests for Registry events (5 tests)
 - [x] Integration tests for Registrar events (6 tests)
 - [x] Integration tests for NameWrapper events (7 tests)
 - [x] Integration tests for Resolver events (8 tests)
+- [x] Integration tests for Base L2 registrar events (2 tests)
 
 ### Notes
 
@@ -158,51 +161,60 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 ### Phase 3a: Basenames (Base L2)
 
-**Status: NOT STARTED**
-**Priority: High**
+**Status: DONE**
+**Priority: —**
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/basenames/`
 
-Basenames is the `.base.eth` subregistry on Base L2. It reuses shared handler patterns but with Base-specific contracts, controllers, and preminting support.
+Basenames is the `.base.eth` subregistry on Base L2. Reuses existing `Registry` and `Resolver` contract handlers (same events fire for both Ethereum and Base). New `BaseRegistrar_Base` + 3 controller contract names for Base-specific registrar logic.
 
-#### Contracts to Add
+#### Contracts Added
 
-| Contract | Chain | Address | Start Block | End Block |
-|----------|-------|---------|-------------|-----------|
-| Registry | Base (8453) | `0xb94704422c2a1e396835a571837aa5ae53285a95` | 17,571,480 | — |
-| BaseRegistrar | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 | — |
-| EARegistrarController | Base (8453) | `0xd3e6775ed9b7dc12b205c8e608dc3767b9e5efda` | 17,575,699 | — |
-| RegistrarController | Base (8453) | `0x4ccb0bb02fcaba27e82a56646e81d8c5bc4119a5` | 18,619,035 | **35,936,564** |
-| UpgradeableRegistrarController | Base (8453) | `0xa7d2607c6bd39ae9521e514026cbb078405ab322` | 35,286,620 | — |
-| L2Resolver1 | Base (8453) | `0xc6d566a56a1aff6508b41f6c90ff131615583bcd` | 17,575,714 | — |
-| L2Resolver2 | Base (8453) | `0x426fa03fb86e510d0dd9f70335cf102a98b10875` | 35,286,620 | — |
-| Resolver | Base (8453) | Dynamic | 17,571,480 | — |
+| Contract | HyperIndex Name | Chain | Address | Start Block |
+|----------|----------------|-------|---------|-------------|
+| Registry | `Registry` (reused) | Base (8453) | `0xb94704422c2a1e396835a571837aa5ae53285a95` | 17,571,480 |
+| BaseRegistrar | `BaseRegistrar_Base` | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 |
+| EARegistrarController | `EAController_Base` | Base (8453) | `0xd3e6775ed9b7dc12b205c8e608dc3767b9e5efda` | 17,575,699 |
+| RegistrarController | `RegController_Base` | Base (8453) | `0x4ccb0bb02fcaba27e82a56646e81d8c5bc4119a5` | 18,619,035 |
+| UpgradeableRegistrarController | `UpgController_Base` | Base (8453) | `0xa7d2607c6bd39ae9521e514026cbb078405ab322` | 35,286,620 |
+| Resolver | `Resolver` (reused) | Base (8453) | Dynamic | 17,571,480 |
 
-#### Handler Work
+#### Implementation Summary
 
-- [ ] Add Base chain (8453) to `config.yaml`
-- [ ] Add Basenames contract definitions and ABIs
-- [ ] Migrate `basenames/Registry.ts` handlers — reuses shared `handleNewOwner(isMigrated=true)`, `handleNewResolver`, `handleNewTTL`, `handleTransfer`
-- [ ] Migrate `basenames/Registrar.ts` handlers:
-  - BaseRegistrar: `NameRegistered`, `NameRegisteredWithRecord`, `NameRenewed`, `Transfer` — all require `interpretTokenIdAsLabelHash(event.args.id)` remapping
-  - EARegistrarController: `NameRegistered` (cost=0)
-  - RegistrarController: `NameRegistered`, `NameRenewed` (cost=0)
-  - UpgradeableRegistrarController: `NameRegistered`, `NameRenewed` (cost=0)
-- [ ] Implement **preminting support**: create Domain entities on-demand when BaseRegistrar `NameRegistered` fires but no Domain exists (preminted names skip Registry `NewOwner`)
-- [ ] Handle **controller event arg remapping**: Base controllers incorrectly name args (`name` is actually `label`, `label` is actually `labelHash`)
-- [ ] RegistrarController has an `endBlock` (35,936,564) — verify HyperIndex `end_block` config support
-- [ ] Resolver dynamic registration for Base resolvers
-- [ ] Verify schema entities work cross-chain (Domain IDs may need chain scoping)
+**Files changed:**
 
-#### Key Differences from Mainnet
+| File | Action | Changes |
+|------|--------|---------|
+| `src/lib/helpers.ts` | Modified | Added `BASE_ETH_NODE` constant, exported `tokenIdToLabelHash()` and parameterized `setNamePreimage()` |
+| `src/handlers/Registrar.ts` | Modified | Imports shared `tokenIdToLabelHash` + `setNamePreimage` from helpers (removed local copies) |
+| `src/handlers/Registry.ts` | Modified | Changed `rootNodeInitialized` boolean to per-chain `Set<number>` for multi-chain support |
+| `config.yaml` | Modified | Added 4 Base contract definitions + Base chain (8453) section with 6 contracts |
+| `src/handlers/BaseRegistrar.ts` | Created | All Base registrar + controller handlers (~230 lines) |
+| `test/helpers.test.ts` | Modified | Added `BASE_ETH_NODE` and `tokenIdToLabelHash` tests (+3 tests) |
+| `test/BaseRegistrar.test.ts` | Created | Integration tests for Base registrations |
 
-- **No NameWrapper** on Base
-- **Preminting support**: Names can be registered in BaseRegistrar before appearing in Registry. Handler must create Domain entities on-demand.
-- **Controller arg remapping**: All 3 controllers name args incorrectly (`name`→`label`, `label`→`labelHash`)
-- **Cost = 0**: All controllers pass `cost: 0n` in the subgraph plugin (Base subsidizes registrations)
-- **3 controller generations**: EA (early access), Regular (deprecated at block 35,936,564), Upgradeable (current)
-- `NameRegisteredWithRecord` event on BaseRegistrar (registers + sets resolver records in one tx)
-- L1Resolver on mainnet (`0xde9049636f4a1dfe0a64d1bfe3155c0a14c54f31`, block 20,420,641) bridges Base names to L1
+**Handlers registered (9 total):**
+- `BaseRegistrar_Base.NameRegistered` — creates Registration + Domain with preminting support
+- `BaseRegistrar_Base.NameRegisteredWithRecord` — same as NameRegistered (extra resolver/ttl args ignored per subgraph behavior)
+- `BaseRegistrar_Base.NameRenewed` — extends expiry
+- `BaseRegistrar_Base.Transfer` — updates registrant
+- `EAController_Base.NameRegistered` — sets name preimage (cost=0)
+- `RegController_Base.NameRegistered` — sets name preimage (cost=0)
+- `RegController_Base.NameRenewed` — sets name preimage (cost=0)
+- `UpgController_Base.NameRegistered` — sets name preimage (cost=0)
+- `UpgController_Base.NameRenewed` — sets name preimage (cost=0)
+
+**Key design decisions:**
+- **Contract name reuse**: `Registry` and `Resolver` handlers fire for both Ethereum and Base automatically
+- **Multi-chain root init**: `rootNodeInitializedChains` Set ensures root domain creation check fires once per chain
+- **Shared functions**: `tokenIdToLabelHash` and `setNamePreimage` extracted to `helpers.ts` with `managedNode`/`managedName` parameters
+- **Controller arg remapping**: All 3 controllers have swapped arg names (`name` = plaintext label, `label` = labelHash)
+- **Cost = 0n**: All Base controllers pass 0n cost
+
+#### Remaining items (deferred)
+
+- RegistrarController `endBlock` (35,936,564) — HyperIndex `end_block` config support not yet verified
+- L1Resolver on mainnet (`0xde9049636f4a1dfe0a64d1bfe3155c0a14c54f31`, block 20,420,641) for bridging Base names to L1 — deferred to Phase 4 or later
 
 ---
 
@@ -275,7 +287,7 @@ ThreeDNS is a third-party DNS integration for ENS, deployed on both Optimism and
 
 #### Handler Work
 
-- [ ] Add Optimism chain (10) and Base chain (8453 — if not added in Phase 3a) to `config.yaml`
+- [ ] Add Optimism chain (10) to `config.yaml` (Base 8453 already added in Phase 3a)
 - [ ] Add ThreeDNS contract definitions and ABIs (`ThreeDNSToken.ts`)
 - [ ] Migrate `ThreeDNSToken.ts` handlers (shared handler at `shared-handlers/ThreeDNSToken.ts`):
   - `setup` → `setupRootNode`
