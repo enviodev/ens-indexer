@@ -207,7 +207,8 @@ function getNFTTransferType(
       );
     } else {
       if (!isIndexed)
-        throw new Error(`Invalid state transition from unindexed -> self-transfer`);
+        // Token minted before our start_block — treat as late-discovered mint
+        return NFTTransferTypes.Mint;
       if (!isIndexedAsMinted)
         throw new Error(`Invalid state transition from burned -> self-transfer`);
       return NFTTransferTypes.SelfTransfer;
@@ -219,13 +220,15 @@ function getNFTTransferType(
     throw new Error(`Invalid state transition from minted -> mint`);
   } else if (isBurn) {
     if (!isIndexed)
-      throw new Error(`Invalid state transition from unindexed -> burn`);
+      // Token minted before our start_block — treat as mint + burn
+      return NFTTransferTypes.MintBurn;
     if (!isIndexedAsMinted)
       throw new Error(`Invalid state transition from burned -> burn`);
     return NFTTransferTypes.Burn;
   } else {
     if (!isIndexed)
-      throw new Error(`Invalid state transition from unindexed -> transfer`);
+      // Token minted before our start_block — treat as late-discovered mint
+      return NFTTransferTypes.Mint;
     if (!isIndexedAsMinted)
       throw new Error(`Invalid state transition from burned -> transfer`);
     return NFTTransferTypes.Transfer;
