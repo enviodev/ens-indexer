@@ -17,12 +17,8 @@ export const ZERO_ADDRESS = zeroAddress;
 export const GRACE_PERIOD_SECONDS = 7776000n; // 90 days in seconds
 
 // BASE_ETH_NODE = namehash("base.eth") = keccak256(ETH_NODE + keccak256("base"))
-export const BASE_ETH_NODE = keccak256(
-  encodePacked(
-    ["bytes32", "bytes32"],
-    [ETH_NODE as `0x${string}`, keccak256(encodePacked(["string"], ["base"])) as `0x${string}`],
-  ),
-);
+export const BASE_ETH_NODE =
+  "0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72fbf672e7b7fd5690328e10";
 
 // ─── Token / Label Helpers ──────────────────────────────────────────────────
 
