@@ -49,10 +49,12 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "NameRenewed(uint256 indexed id, uint256 expires)"
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
         field_selection:
           transaction_fields:
@@ -127,14 +129,17 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "NameRegisteredWithRecord(uint256 indexed id, address indexed owner, uint256 expires, address resolver, uint64 ttl)"
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "NameRenewed(uint256 indexed id, uint256 expires)"
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
         field_selection:
           transaction_fields:
@@ -176,10 +181,12 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "NameRenewed(uint256 indexed id, uint256 expires)"
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
         field_selection:
           transaction_fields:
@@ -283,6 +290,17 @@ contracts:
           transaction_fields:
             - hash
 
+  # ─── UniversalRenewal (Registrars plugin) ──────────────────────────────────
+  - name: UniversalRenewal
+    abi_file_path: ./abis/UniversalRegistrarRenewalWithReferrer.json
+    handler: ./src/handlers/Registrar.ts
+    events:
+      - event: "RenewalReferred(string label, bytes32 indexed labelHash, uint256 cost, uint256 duration, bytes32 referrer)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+
   # ─── StandaloneReverseRegistrar (PA plugin) ────────────────────────────────
   - name: StandaloneReverseRegistrar
     events:
@@ -323,6 +341,10 @@ chains:
         address:
           - "0x59e16fccd424cc24e280be16e11bcd56fb0ce547"
         start_block: 22764821
+      - name: UniversalRenewal
+        address:
+          - "0xf55575bde5953ee4272d5ce7cdd924c74d8fa81a"
+        start_block: 23784217
       - name: Resolver
         address:
           # Static reverse resolver addresses (PA plugin)

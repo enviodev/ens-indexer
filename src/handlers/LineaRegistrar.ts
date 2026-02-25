@@ -8,6 +8,7 @@ import {
   GRACE_PERIOD_SECONDS,
   makeSubdomainNode,
   makeRegistrationId,
+  makeEventId,
   upsertAccount,
   upsertRegistration,
   sharedEventValues,
@@ -15,6 +16,13 @@ import {
   setNamePreimage,
   ZERO_ADDRESS,
 } from "../lib/helpers";
+import { zeroAddress } from "viem";
+
+import {
+  handleRegistrarRegistration,
+  handleRegistrarRenewal,
+  handleRegistrarControllerEvent,
+} from "../lib/registrar-helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -76,6 +84,20 @@ BaseRegistrar_Linea.NameRegistered.handler(async ({ event, context }) => {
     registrant_id: owner,
     expiryDate: expires,
   });
+
+  // Registrar: track registration action
+  await handleRegistrarRegistration(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── BaseRegistrar_Linea.NameRenewed ────────────────────────────────────────
@@ -107,6 +129,20 @@ BaseRegistrar_Linea.NameRenewed.handler(async ({ event, context }) => {
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
+  });
+
+  // Registrar: track renewal action
+  await handleRegistrarRenewal(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
   });
 });
 
@@ -151,9 +187,24 @@ BaseRegistrar_Linea.Transfer.handler(async ({ event, context }) => {
 EthController_Linea.NameRegistered.handler(async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
-  const cost = event.params.baseCost + event.params.premium;
+  const baseCost = event.params.baseCost;
+  const premium = event.params.premium;
+  const cost = baseCost + premium;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost,
+    premium,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── EthController_Linea.NameRenewed ────────────────────────────────────────
@@ -164,6 +215,19 @@ EthController_Linea.NameRenewed.handler(async ({ event, context }) => {
   const cost = event.params.cost;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: cost,
+    premium: 0n,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── EthController_Linea.OwnerNameRegistered (free for controller owner) ────
@@ -173,6 +237,19 @@ EthController_Linea.OwnerNameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (free registration)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: 0n,
+    premium: 0n,
+    total: 0n,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── EthController_Linea.PohNameRegistered (free for PoH holders) ───────────
@@ -182,4 +259,17 @@ EthController_Linea.PohNameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (free registration)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: 0n,
+    premium: 0n,
+    total: 0n,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });

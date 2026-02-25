@@ -306,3 +306,45 @@ type ReverseNameRecord {
 type MigratedNode {
   id: ID!
 }
+
+# ─── Registrars Plugin Entities ────────────────────────────────────────────
+
+enum RegistrarActionType {
+  registration
+  renewal
+}
+
+type Subregistry {
+  id: ID!                    # CAIP-10: "eip155:{chainId}:{address}"
+  node: String!              # namehash of managed name (e.g. ETH_NODE)
+}
+
+type RegistrationLifecycle {
+  id: ID!                    # node hash (domain namehash)
+  subregistryId: String!     # FK to Subregistry
+  expiresAt: BigInt!         # Unix timestamp
+}
+
+type RegistrarAction {
+  id: ID!                    # first event ID (from BaseRegistrar event)
+  type: RegistrarActionType!
+  subregistryId: String!     # FK to Subregistry
+  node: String!              # domain namehash
+  incrementalDuration: BigInt!
+  baseCost: BigInt           # nullable (unknown for some controllers)
+  premium: BigInt            # nullable
+  total: BigInt              # nullable
+  registrant: String!        # transaction.from address
+  encodedReferrer: String    # nullable, raw bytes32
+  decodedReferrer: String    # nullable, decoded address
+  blockNumber: BigInt!
+  timestamp: BigInt!
+  transactionHash: String!
+  eventIds: [String!]!       # array of contributing event IDs
+}
+
+type RegistrarActionMetadata {
+  id: ID!                    # always "current" (singleton)
+  logicalEventKey: String!   # "{node}:{transactionHash}"
+  logicalEventId: String!    # ID of registrarAction being built
+}

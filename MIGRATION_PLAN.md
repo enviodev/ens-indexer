@@ -16,7 +16,7 @@
 - [Phase 2: Tests for Phase 1](#phase-2-tests-for-phase-1) — DONE
 - [Phase 3: Multi-Chain Subgraph Extensions](#phase-3-multi-chain-subgraph-extensions)
 - [Phase 4: Protocol Acceleration Plugin](#phase-4-protocol-acceleration-plugin) — DONE
-- [Phase 5: Registrars Plugin](#phase-5-registrars-plugin)
+- [Phase 5: Registrars Plugin](#phase-5-registrars-plugin) — DONE
 - [Phase 6: TokenScope Plugin](#phase-6-tokenscope-plugin)
 - [Phase 7: ENSv2 Plugin](#phase-7-ensv2-plugin)
 - [Contract Reference](#contract-reference)
@@ -38,7 +38,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 3b | Lineanames (Linea L2) | DONE | — |
 | 3c | ThreeDNS (Optimism + Base) | DONE | — |
 | 4 | Protocol Acceleration | DONE | — |
-| 5 | Registrars | NOT STARTED | Medium |
+| 5 | Registrars | DONE | — |
 | 6 | TokenScope | NOT STARTED | Medium |
 | 7 | ENSv2 | NOT STARTED | Low (future protocol) |
 
@@ -48,20 +48,20 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), **ThreeDNS on Optimism + Base** (Phase 3c), and the **Protocol Acceleration Plugin** (Phase 4):
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), **ThreeDNS on Optimism + Base** (Phase 3c), the **Protocol Acceleration Plugin** (Phase 4), and the **Registrars Plugin** (Phase 5):
 
 - **6 chains**: Ethereum Mainnet (1), Base (8453), Linea (59144), Optimism (10), Arbitrum (42161), Scroll (534352)
-- **20 contracts** configured in `config.yaml` (10 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared + StandaloneReverseRegistrar across 5 chains, with Registry, Resolver, and NameWrapper reused cross-chain)
+- **21 contracts** configured in `config.yaml` (11 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared + StandaloneReverseRegistrar across 5 chains, with Registry, Resolver, and NameWrapper reused cross-chain)
 - **8 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`, `ReverseRegistrar.ts`
-- **2 helper libraries**: `helpers.ts` (20 utility functions), `protocol-acceleration.ts` (PA helper module with ID generators, coin type utilities, interpretation functions, DB helpers)
-- **32 schema entities** (7 core + 18 event logs + 7 PA entities)
-- **~52 event types** handled (26 mainnet + 9 Base + 7 Linea + 4 ThreeDNS + 3 DNS record + 1 StandaloneReverseRegistrar + PA logic merged into existing handlers)
+- **3 helper libraries**: `helpers.ts` (20 utility functions), `protocol-acceleration.ts` (PA helper module), `registrar-helpers.ts` (registrar action tracking, referrer decoding, lifecycle management)
+- **37 schema entities** (7 core + 18 event logs + 7 PA entities + 1 enum + 4 registrar entities)
+- **~53 event types** handled (27 mainnet + 9 Base + 7 Linea + 4 ThreeDNS + 3 DNS record + 1 StandaloneReverseRegistrar + registrar/PA logic merged into existing handlers)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **~15 additional contracts** (registrars, tokenscope, ensv2)
-- **~17+ additional entities** (ensv2, registrars, tokenscope schemas)
+- **~14 additional contracts** (tokenscope, ensv2)
+- **~14+ additional entities** (ensv2, tokenscope schemas)
 - **3 remaining plugins** worth of handler logic
 
 ---
@@ -426,48 +426,92 @@ PA logic is **merged into existing handlers** via PA helper function calls appen
 
 ## Phase 5: Registrars Plugin
 
-**Status: NOT STARTED**
-**Priority: Medium**
+**Status: DONE**
+**Priority: —**
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/registrars/`
 
-Unified registration lifecycle tracking across all subregistries (Ethnames, Basenames, Lineanames).
+Unified registration lifecycle tracking across all subregistries (Ethnames, Basenames, Lineanames). Tracks subregistry metadata, registration lifecycles (current state per managed name), and "logical registrar actions" that aggregate data from multiple events in the same transaction (BaseRegistrar events + Controller events).
 
-### New Schema Entities
+### Schema Entities Added (1 enum + 4 entities)
 
 | Entity | Purpose |
 |--------|---------|
-| `subregistries` | Subregistry metadata (CAIP-10 ID, namehash) |
-| `registrationLifecycles` | Current registration state per managed name |
-| `registrarActions` | Logical registration/renewal actions with cost breakdown |
+| `RegistrarActionType` (enum) | `registration` / `renewal` |
+| `Subregistry` | Subregistry metadata (CAIP-10 ID `eip155:{chainId}:{address}`, managed namehash) |
+| `RegistrationLifecycle` | Current registration state per managed name (node → expiresAt) |
+| `RegistrarAction` | Logical registration/renewal actions with cost breakdown, referral data, and multi-event aggregation |
+| `RegistrarActionMetadata` | Singleton tracking the "current" logical action being built across events |
 
-### Handler Work
+### Contract Added
 
-- [ ] Add `subregistries`, `registrationLifecycles`, `registrarActions` entities to schema
-- [ ] Migrate `Ethnames_Registrar.ts` — BaseRegistrar events for .eth
-- [ ] Migrate `Ethnames_RegistrarController.ts` — controller events with cost/referrer parsing
-- [ ] Migrate `Ethnames_UniversalRegistrarRenewalWithReferrer.ts` — universal renewal handler
-- [ ] Migrate `Basenames_Registrar.ts` — BaseRegistrar events for .base.eth
-- [ ] Migrate `Basenames_RegistrarController.ts` — Base controller events
-- [ ] Migrate `Lineanames_Registrar.ts` — BaseRegistrar events for .linea.eth
-- [ ] Migrate `Lineanames_RegistrarController.ts` — 4 events: `OwnerNameRegistered`, `PohNameRegistered`, `NameRegistered`, `NameRenewed`
-- [ ] Port shared library logic:
-  - `registrar-action.ts` — logical action aggregation
-  - `registrar-events.ts` — BaseRegistrar event handlers (NameRegistered, NameRenewed)
-  - `registrar-controller-events.ts` — controller event handlers (NameRegistered, NameRenewed by controller)
-  - `registration-lifecycle.ts` — lifecycle state machine
-  - `subregistry.ts` — subregistry tracking
-  - `universal-registrar-renewal-with-referrer-events.ts` — referrer tracking for universal renewals
+| Contract | HyperIndex Name | Chain | Address | Start Block |
+|----------|----------------|-------|---------|-------------|
+| UniversalRegistrarRenewalWithReferrer | `UniversalRenewal` | Mainnet (1) | `0xf55575bde5953ee4272d5ce7cdd924c74d8fa81a` | 23,784,217 |
 
-### Additional Mainnet Contract
+### Implementation Summary
 
-| Contract | Address | Start Block |
-|----------|---------|-------------|
-| UniversalRegistrarRenewalWithReferrer | `0xf55575bde5953ee4272d5ce7cdd924c74d8fa81a` | 23,784,217 |
+**Files changed:**
+
+| File | Action | Changes |
+|------|--------|---------|
+| `schema.graphql` | Modified | Added 1 enum + 4 entities (Subregistry, RegistrationLifecycle, RegistrarAction, RegistrarActionMetadata) |
+| `config.yaml` | Modified | Added UniversalRenewal contract definition + mainnet chain entry; added `from` to `transaction_fields` for all BaseRegistrar NameRegistered/NameRenewed events across mainnet, Base, and Linea |
+| `abis/UniversalRegistrarRenewalWithReferrer.json` | Created | ABI for RenewalReferred event |
+| `src/lib/registrar-helpers.ts` | Created | ~280 lines: ID generators (CAIP-10 subregistry, logical event key), referrer decoding (bytes32 → checksummed address with left-zero-padding validation), subregistry upsert, registration lifecycle management, registrar action creation, handler helpers |
+| `src/handlers/Registrar.ts` | Modified | Appended registrar calls to BaseRegistrar.NameRegistered/NameRenewed + all 3 controller NameRegistered/NameRenewed handlers; added new UniversalRenewal.RenewalReferred handler |
+| `src/handlers/BaseRegistrar.ts` | Modified | Appended registrar calls to BaseRegistrar_Base.NameRegistered/NameRegisteredWithRecord/NameRenewed + all 3 Base controller NameRegistered/NameRenewed handlers |
+| `src/handlers/LineaRegistrar.ts` | Modified | Appended registrar calls to BaseRegistrar_Linea.NameRegistered/NameRenewed + all 4 Linea controller event handlers |
+
+**Registrar logic appended to existing handlers (17 events total):**
+
+*Mainnet (.eth):*
+- `BaseRegistrar.NameRegistered` → `handleRegistrarRegistration()` — creates Subregistry + RegistrationLifecycle + initial RegistrarAction
+- `BaseRegistrar.NameRenewed` → `handleRegistrarRenewal()` — creates renewal RegistrarAction + updates lifecycle expiry
+- `LegacyController.NameRegistered/NameRenewed` → `handleRegistrarControllerEvent()` — updates action with baseCost/total pricing
+- `WrappedController.NameRegistered` → `handleRegistrarControllerEvent()` — updates action with baseCost + premium pricing
+- `WrappedController.NameRenewed` → `handleRegistrarControllerEvent()` — updates action with cost pricing
+- `UnwrappedController.NameRegistered/NameRenewed` → `handleRegistrarControllerEvent()` — updates action with pricing + decoded referrer
+- `UniversalRenewal.RenewalReferred` → `handleUniversalRenewalEvent()` — updates action with referral data only (new handler)
+
+*Base (.base.eth):*
+- `BaseRegistrar_Base.NameRegistered/NameRegisteredWithRecord` → `handleRegistrarRegistration()`
+- `BaseRegistrar_Base.NameRenewed` → `handleRegistrarRenewal()`
+- `EAController_Base/RegController_Base/UpgController_Base.NameRegistered/NameRenewed` → `handleRegistrarControllerEvent()` with pricing=undefined (unknown per Ponder TODO)
+
+*Linea (.linea.eth):*
+- `BaseRegistrar_Linea.NameRegistered` → `handleRegistrarRegistration()`
+- `BaseRegistrar_Linea.NameRenewed` → `handleRegistrarRenewal()`
+- `EthController_Linea.OwnerNameRegistered/PohNameRegistered` → `handleRegistrarControllerEvent()` with baseCost=0, premium=0, total=0
+- `EthController_Linea.NameRegistered` → `handleRegistrarControllerEvent()` with baseCost + premium
+- `EthController_Linea.NameRenewed` → `handleRegistrarControllerEvent()` with cost
+
+### Key Design Decisions
+
+1. **Metadata singleton**: `RegistrarActionMetadata` entity with `id: "current"` replaces Ponder's `internal_registrarActionMetadata` singleton. Tracks which registrar action is being built across multiple events in the same TX.
+2. **Pricing simplification**: Ponder uses complex `PriceEth` / `RegistrarActionPricingAvailable` types with currency wrappers. We store raw bigint amounts directly (all prices in Wei). `undefined` = pricing unknown (Basenames controllers).
+3. **No CAIP dependency**: CAIP-10 formatting implemented inline (`eip155:{chainId}:{address}`) rather than importing the `caip` npm package.
+4. **Event ordering assumption**: Within a block, events are processed in logIndex order. BaseRegistrar events precede Controller events in the same TX because BaseRegistrar fires first in the call chain. Critical for the metadata aggregation pattern.
+5. **Referrer decoding**: Ported from `ensnode-sdk/src/registrars/encoded-referrer.ts` — validates left-zero-padding (first 12 bytes must be zeros), extracts last 20 bytes as checksummed address. Non-zero padding returns zero address.
+6. **`transaction.from` requirement**: Added `from` to `transaction_fields` for BaseRegistrar events on all 3 chains. Used as the `registrant` field on RegistrarAction. Falls back to `zeroAddress` for TypeScript safety.
+
+### Completed Tasks
+
+- [x] Add 1 enum + 4 entities to `schema.graphql` (RegistrarActionType, Subregistry, RegistrationLifecycle, RegistrarAction, RegistrarActionMetadata)
+- [x] Create `abis/UniversalRegistrarRenewalWithReferrer.json` ABI file
+- [x] Add UniversalRenewal contract definition + mainnet chain entry to `config.yaml`
+- [x] Add `from` to `transaction_fields` for BaseRegistrar events across all 3 chains
+- [x] Create `src/lib/registrar-helpers.ts` — CAIP-10 IDs, referrer decoding, lifecycle management, action creation, handler helpers
+- [x] Merge registrar logic into `Registrar.ts` — 7 existing handlers updated + 1 new handler (UniversalRenewal.RenewalReferred)
+- [x] Merge registrar logic into `BaseRegistrar.ts` — 8 existing handlers updated
+- [x] Merge registrar logic into `LineaRegistrar.ts` — 6 existing handlers updated
+- [x] Run `pnpm codegen` — generates types for all new entities + UniversalRenewal contract + enum
+- [x] Type check passes (`pnpm tsc --noEmit` — zero errors)
+- [x] Existing tests pass (all 59 registrar-related tests pass)
 
 ### Architecture Note
 
-> The registrars plugin tracks the same BaseRegistrar/Controller events as the subgraph plugin but writes to different entities. Same merge/compose consideration as Phase 4.
+> Like Phase 4 (Protocol Acceleration), registrar logic is **merged into existing handlers** via helper function calls appended after subgraph logic. This preserves zero changes to subgraph behavior while adding registrar functionality. All registrar helper functions live in `src/lib/registrar-helpers.ts`.
 
 ---
 
@@ -628,10 +672,10 @@ Next-generation ENS protocol with new registry and registrar contracts.
 |--------|--------------|----------------|-------|
 | Subgraph (Phase 1) | 5 | 20 | 25 |
 | Protocol Acceleration (Phase 4) | 7 | 0 | 7 |
-| Registrars (Phase 5) | 3 | 0 | 3 |
+| Registrars (Phase 5) | 5 (incl. 1 enum) | 0 | 5 |
 | TokenScope (Phase 6) | 2 | 0 | 2 |
 | ENSv2 (Phase 7) | 12 | 0 | 12 |
-| **Total** | **29** | **20** | **~49** |
+| **Total** | **31** | **20** | **~51** |
 
 ---
 

@@ -10,6 +10,7 @@ import {
   GRACE_PERIOD_SECONDS,
   makeSubdomainNode,
   makeRegistrationId,
+  makeEventId,
   upsertAccount,
   upsertRegistration,
   sharedEventValues,
@@ -17,6 +18,13 @@ import {
   setNamePreimage,
   ZERO_ADDRESS,
 } from "../lib/helpers";
+import { zeroAddress } from "viem";
+
+import {
+  handleRegistrarRegistration,
+  handleRegistrarRenewal,
+  handleRegistrarControllerEvent,
+} from "../lib/registrar-helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -78,6 +86,20 @@ BaseRegistrar_Base.NameRegistered.handler(async ({ event, context }) => {
     registrant_id: owner,
     expiryDate: expires,
   });
+
+  // Registrar: track registration action
+  await handleRegistrarRegistration(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── BaseRegistrar_Base.NameRegisteredWithRecord ────────────────────────────
@@ -137,6 +159,20 @@ BaseRegistrar_Base.NameRegisteredWithRecord.handler(
       registrant_id: owner,
       expiryDate: expires,
     });
+
+    // Registrar: track registration action
+    await handleRegistrarRegistration(context, {
+      eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+      chainId: event.chainId,
+      contractAddress: event.srcAddress,
+      managedNode,
+      labelHash,
+      registrant: event.transaction.from ?? zeroAddress,
+      expiresAt: expires,
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    });
   },
 );
 
@@ -169,6 +205,20 @@ BaseRegistrar_Base.NameRenewed.handler(async ({ event, context }) => {
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
+  });
+
+  // Registrar: track renewal action
+  await handleRegistrarRenewal(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
   });
 });
 
@@ -215,6 +265,19 @@ EAController_Base.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (unknown for Basenames controllers)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: undefined,
+    premium: undefined,
+    total: undefined,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── RegController_Base.NameRegistered ──────────────────────────────────────
@@ -224,6 +287,19 @@ RegController_Base.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (unknown for Basenames controllers)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: undefined,
+    premium: undefined,
+    total: undefined,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── RegController_Base.NameRenewed ─────────────────────────────────────────
@@ -233,6 +309,19 @@ RegController_Base.NameRenewed.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (unknown for Basenames controllers)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: undefined,
+    premium: undefined,
+    total: undefined,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── UpgController_Base.NameRegistered ──────────────────────────────────────
@@ -242,6 +331,19 @@ UpgController_Base.NameRegistered.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (unknown for Basenames controllers)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: undefined,
+    premium: undefined,
+    total: undefined,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── UpgController_Base.NameRenewed ─────────────────────────────────────────
@@ -251,4 +353,17 @@ UpgController_Base.NameRenewed.handler(async ({ event, context }) => {
   const labelHash = event.params.label; // bytes32 labelHash
 
   await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+
+  // Registrar: update action with pricing (unknown for Basenames controllers)
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: undefined,
+    premium: undefined,
+    total: undefined,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });

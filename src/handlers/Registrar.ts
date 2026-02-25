@@ -3,6 +3,7 @@ import {
   LegacyController,
   WrappedController,
   UnwrappedController,
+  UniversalRenewal,
 } from "generated";
 
 import {
@@ -10,6 +11,7 @@ import {
   GRACE_PERIOD_SECONDS,
   makeSubdomainNode,
   makeRegistrationId,
+  makeEventId,
   upsertAccount,
   upsertRegistration,
   sharedEventValues,
@@ -17,6 +19,15 @@ import {
   setNamePreimage,
   ZERO_ADDRESS,
 } from "../lib/helpers";
+import { zeroAddress } from "viem";
+
+import {
+  handleRegistrarRegistration,
+  handleRegistrarRenewal,
+  handleRegistrarControllerEvent,
+  handleUniversalRenewalEvent,
+  decodeEncodedReferrer,
+} from "../lib/registrar-helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -85,6 +96,20 @@ BaseRegistrar.NameRegistered.handler(async ({ event, context }) => {
     registrant_id: owner,
     expiryDate: expires,
   });
+
+  // Registrar: track registration action
+  await handleRegistrarRegistration(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── BaseRegistrar.NameRenewed ──────────────────────────────────────────────
@@ -119,6 +144,20 @@ BaseRegistrar.NameRenewed.handler(async ({ event, context }) => {
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
+  });
+
+  // Registrar: track renewal action
+  await handleRegistrarRenewal(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
+    contractAddress: event.srcAddress,
+    managedNode,
+    labelHash,
+    registrant: event.transaction.from ?? zeroAddress,
+    expiresAt: expires,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
   });
 });
 
@@ -174,6 +213,19 @@ LegacyController.NameRegistered.handler(async ({ event, context }) => {
   const cost = event.params.cost;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: cost,
+    premium: 0n,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 /**
@@ -186,6 +238,19 @@ LegacyController.NameRenewed.handler(async ({ event, context }) => {
   const cost = event.params.cost;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: cost,
+    premium: 0n,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── WrappedController Handlers ─────────────────────────────────────────────
@@ -198,9 +263,24 @@ LegacyController.NameRenewed.handler(async ({ event, context }) => {
 WrappedController.NameRegistered.handler(async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
-  const cost = event.params.baseCost + event.params.premium;
+  const baseCost = event.params.baseCost;
+  const premium = event.params.premium;
+  const cost = baseCost + premium;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost,
+    premium,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 /**
@@ -213,6 +293,19 @@ WrappedController.NameRenewed.handler(async ({ event, context }) => {
   const cost = event.params.cost;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing
+  const node = makeSubdomainNode(labelHash, managedNode);
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: cost,
+    premium: 0n,
+    total: cost,
+    encodedReferrer: undefined,
+    decodedReferrer: undefined,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 // ─── UnwrappedController Handlers ───────────────────────────────────────────
@@ -225,9 +318,27 @@ WrappedController.NameRenewed.handler(async ({ event, context }) => {
 UnwrappedController.NameRegistered.handler(async ({ event, context }) => {
   const labelName = event.params.label; // plaintext label
   const labelHash = event.params.labelhash; // bytes32 labelHash
-  const cost = event.params.baseCost + event.params.premium;
+  const baseCost = event.params.baseCost;
+  const premium = event.params.premium;
+  const cost = baseCost + premium;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing and referral
+  const node = makeSubdomainNode(labelHash, managedNode);
+  const encodedReferrer = event.params.referrer;
+  const decodedReferrer = decodeEncodedReferrer(encodedReferrer);
+
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost,
+    premium,
+    total: cost,
+    encodedReferrer,
+    decodedReferrer,
+    transactionHash: event.transaction.hash,
+  });
 });
 
 /**
@@ -240,4 +351,37 @@ UnwrappedController.NameRenewed.handler(async ({ event, context }) => {
   const cost = event.params.cost;
 
   await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+
+  // Registrar: update action with pricing and referral
+  const node = makeSubdomainNode(labelHash, managedNode);
+  const encodedReferrer = event.params.referrer;
+  const decodedReferrer = decodeEncodedReferrer(encodedReferrer);
+
+  await handleRegistrarControllerEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    baseCost: cost,
+    premium: 0n,
+    total: cost,
+    encodedReferrer,
+    decodedReferrer,
+    transactionHash: event.transaction.hash,
+  });
+});
+
+// ─── UniversalRenewal Handler ───────────────────────────────────────────────
+
+UniversalRenewal.RenewalReferred.handler(async ({ event, context }) => {
+  const labelHash = event.params.labelHash;
+  const node = makeSubdomainNode(labelHash, managedNode);
+  const encodedReferrer = event.params.referrer;
+  const decodedReferrer = decodeEncodedReferrer(encodedReferrer);
+
+  await handleUniversalRenewalEvent(context, {
+    eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    node,
+    encodedReferrer,
+    decodedReferrer,
+    transactionHash: event.transaction.hash,
+  });
 });
