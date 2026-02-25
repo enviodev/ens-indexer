@@ -156,18 +156,12 @@ describe("Registrar", () => {
       // Initialize
       await indexer.process({
         chains: {
-          1: { startBlock: 3_327_417, endBlock: 3_327_417 },
+          1: { startBlock: 3_327_417, endBlock: 3_330_000 },
         },
       });
 
       // Block 12,010,405 — LegacyController NameRegistered for "luki"
-      await indexer.process({
-        chains: {
-          1: { startBlock: 12_010_405, endBlock: 12_010_405 },
-        },
-      });
-
-      // After processing, find domains with labelName set
+      // Both BaseRegistrar and LegacyController events fire in this block
       const result = await indexer.process({
         chains: {
           1: { startBlock: 12_010_405, endBlock: 12_010_405 },

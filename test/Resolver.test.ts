@@ -274,10 +274,19 @@ describe("Resolver", () => {
     it("registers resolver addresses via NewResolver contractRegister", async () => {
       const indexer = createTestIndexer();
 
-      // Process blocks that include NewResolver events
+      // Process blocks that include NewResolver events.
+      // The first NewResolver events for RegistryOld happen when domains
+      // set their resolvers — this is well after the deployment block.
+      // Block 12,062,607 (buytaert.eth) includes NewResolver events.
       await indexer.process({
         chains: {
-          1: { startBlock: 3_327_417, endBlock: 3_327_500 },
+          1: { startBlock: 3_327_417, endBlock: 3_330_000 },
+        },
+      });
+
+      await indexer.process({
+        chains: {
+          1: { startBlock: 12_062_607, endBlock: 12_062_607 },
         },
       });
 
@@ -289,7 +298,7 @@ describe("Resolver", () => {
       for (const addr of resolverAddresses) {
         expect(addr).toMatch(/^0x[a-f0-9]{40}$/);
       }
-    }, 30_000);
+    }, 60_000);
   });
 
   // ─── Full resolver flow in a single block ─────────────────────────────

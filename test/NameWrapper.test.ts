@@ -111,31 +111,26 @@ describe("NameWrapper", () => {
 
       await indexer.process({
         chains: {
-          1: { startBlock: 3_327_417, endBlock: 3_327_417 },
+          1: { startBlock: 3_327_417, endBlock: 3_330_000 },
         },
       });
 
-      await indexer.process({
+      // Process block 18,965,734 — NameWrapped sets wrappedOwner_id on Domain
+      const result = await indexer.process({
         chains: {
           1: { startBlock: 18_965_734, endBlock: 18_965_734 },
         },
       });
 
-      // Check domains that have wrappedOwner set
-      const domains = (await indexer.process({
-        chains: {
-          1: { startBlock: 18_965_734, endBlock: 18_965_734 },
-        },
-      })).changes.flatMap((c) => c.Domain?.sets ?? []);
-
+      // Check domains that have wrappedOwner set in the changes
+      const domains = result.changes.flatMap((c) => c.Domain?.sets ?? []);
       const domainsWithWrappedOwner = domains.filter(
         (d) => d.wrappedOwner_id !== undefined,
       );
 
-      if (domainsWithWrappedOwner.length > 0) {
-        for (const d of domainsWithWrappedOwner) {
-          expect(d.wrappedOwner_id).toBeTruthy();
-        }
+      expect(domainsWithWrappedOwner.length).toBeGreaterThan(0);
+      for (const d of domainsWithWrappedOwner) {
+        expect(d.wrappedOwner_id).toBeTruthy();
       }
     }, 60_000);
   });
