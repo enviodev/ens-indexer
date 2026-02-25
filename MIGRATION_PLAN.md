@@ -163,37 +163,45 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/basenames/`
 
-Basenames is the `.base.eth` subregistry on Base L2. It reuses similar patterns to the mainnet subgraph but with Base-specific contracts and controllers.
+Basenames is the `.base.eth` subregistry on Base L2. It reuses shared handler patterns but with Base-specific contracts, controllers, and preminting support.
 
 #### Contracts to Add
 
-| Contract | Chain | Address | Start Block |
-|----------|-------|---------|-------------|
-| Registry | Base (8453) | `0xb94704422c2a1e396835a571837aa5ae53285a95` | 17,571,480 |
-| BaseRegistrar | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 |
-| EARegistrarController | Base (8453) | `0xd3e6775ed9b7dc12b205c8e608dc3767b9e5efda` | 17,575,699 |
-| RegistrarController | Base (8453) | `0x4ccb0bb02fcaba27e82a56646e81d8c5bc4119a5` | 18,619,035 |
-| UpgradeableRegistrarController | Base (8453) | `0xa7d2607c6bd39ae9521e514026cbb078405ab322` | 35,286,620 |
-| L2Resolver1 | Base (8453) | `0xc6d566a56a1aff6508b41f6c90ff131615583bcd` | 17,575,714 |
-| L2Resolver2 | Base (8453) | `0x426fa03fb86e510d0dd9f70335cf102a98b10875` | 35,286,620 |
-| Resolver | Base (8453) | Dynamic | 17,571,480 |
+| Contract | Chain | Address | Start Block | End Block |
+|----------|-------|---------|-------------|-----------|
+| Registry | Base (8453) | `0xb94704422c2a1e396835a571837aa5ae53285a95` | 17,571,480 | — |
+| BaseRegistrar | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 | — |
+| EARegistrarController | Base (8453) | `0xd3e6775ed9b7dc12b205c8e608dc3767b9e5efda` | 17,575,699 | — |
+| RegistrarController | Base (8453) | `0x4ccb0bb02fcaba27e82a56646e81d8c5bc4119a5` | 18,619,035 | **35,936,564** |
+| UpgradeableRegistrarController | Base (8453) | `0xa7d2607c6bd39ae9521e514026cbb078405ab322` | 35,286,620 | — |
+| L2Resolver1 | Base (8453) | `0xc6d566a56a1aff6508b41f6c90ff131615583bcd` | 17,575,714 | — |
+| L2Resolver2 | Base (8453) | `0x426fa03fb86e510d0dd9f70335cf102a98b10875` | 35,286,620 | — |
+| Resolver | Base (8453) | Dynamic | 17,571,480 | — |
 
 #### Handler Work
 
 - [ ] Add Base chain (8453) to `config.yaml`
 - [ ] Add Basenames contract definitions and ABIs
-- [ ] Migrate `basenames/Registry.ts` handlers — reuses shared registry handler patterns
-- [ ] Migrate `basenames/Registrar.ts` handlers — NameRegistered, NameRegisteredWithRecord, NameRenewed, Transfer
-- [ ] Note: Basenames has `NameRegisteredWithRecord` event not present in mainnet — check ABI
-- [ ] Note: RegistrarController has an `endBlock` (35,936,564) — HyperIndex may need end block config
+- [ ] Migrate `basenames/Registry.ts` handlers — reuses shared `handleNewOwner(isMigrated=true)`, `handleNewResolver`, `handleNewTTL`, `handleTransfer`
+- [ ] Migrate `basenames/Registrar.ts` handlers:
+  - BaseRegistrar: `NameRegistered`, `NameRegisteredWithRecord`, `NameRenewed`, `Transfer` — all require `interpretTokenIdAsLabelHash(event.args.id)` remapping
+  - EARegistrarController: `NameRegistered` (cost=0)
+  - RegistrarController: `NameRegistered`, `NameRenewed` (cost=0)
+  - UpgradeableRegistrarController: `NameRegistered`, `NameRenewed` (cost=0)
+- [ ] Implement **preminting support**: create Domain entities on-demand when BaseRegistrar `NameRegistered` fires but no Domain exists (preminted names skip Registry `NewOwner`)
+- [ ] Handle **controller event arg remapping**: Base controllers incorrectly name args (`name` is actually `label`, `label` is actually `labelHash`)
+- [ ] RegistrarController has an `endBlock` (35,936,564) — verify HyperIndex `end_block` config support
 - [ ] Resolver dynamic registration for Base resolvers
 - [ ] Verify schema entities work cross-chain (Domain IDs may need chain scoping)
 
 #### Key Differences from Mainnet
 
-- No NameWrapper on Base
-- Different controller contract set (EA, Regular, Upgradeable)
-- `NameRegisteredWithRecord` event (registers + sets resolver records in one tx)
+- **No NameWrapper** on Base
+- **Preminting support**: Names can be registered in BaseRegistrar before appearing in Registry. Handler must create Domain entities on-demand.
+- **Controller arg remapping**: All 3 controllers name args incorrectly (`name`→`label`, `label`→`labelHash`)
+- **Cost = 0**: All controllers pass `cost: 0n` in the subgraph plugin (Base subsidizes registrations)
+- **3 controller generations**: EA (early access), Regular (deprecated at block 35,936,564), Upgradeable (current)
+- `NameRegisteredWithRecord` event on BaseRegistrar (registers + sets resolver records in one tx)
 - L1Resolver on mainnet (`0xde9049636f4a1dfe0a64d1bfe3155c0a14c54f31`, block 20,420,641) bridges Base names to L1
 
 ---
@@ -205,7 +213,7 @@ Basenames is the `.base.eth` subregistry on Base L2. It reuses similar patterns 
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/lineanames/`
 
-Lineanames is the `.linea.eth` subregistry on Linea L2. Closer to mainnet in structure (has NameWrapper).
+Lineanames is the `.linea.eth` subregistry on Linea L2. Closer to mainnet in structure (has NameWrapper) but with unique registration event variants.
 
 #### Contracts to Add
 
@@ -222,16 +230,27 @@ Lineanames is the `.linea.eth` subregistry on Linea L2. Closer to mainnet in str
 
 - [ ] Add Linea chain (59144) to `config.yaml`
 - [ ] Add Lineanames contract definitions and ABIs
-- [ ] Migrate `lineanames/Registry.ts` handlers
-- [ ] Migrate `lineanames/Registrar.ts` handlers
-- [ ] Migrate `lineanames/NameWrapper.ts` handlers — Linea has NameWrapper unlike Base
+- [ ] Migrate `lineanames/Registry.ts` handlers — reuses shared `handleNewOwner(isMigrated=true)`, `handleNewResolver`, `handleNewTTL`, `handleTransfer`
+- [ ] Migrate `lineanames/Registrar.ts` handlers:
+  - BaseRegistrar: `NameRegistered`, `NameRenewed`, `Transfer` — require `interpretTokenIdAsLabelHash` remapping
+  - EthRegistrarController: **4 distinct events**:
+    - `OwnerNameRegistered` — free for controller owner (cost=0)
+    - `PohNameRegistered` — free for Proof of Humanity holders (cost=0)
+    - `NameRegistered` — paid registration (cost=baseCost+premium)
+    - `NameRenewed` — renewal with cost
+  - All controller events require arg remapping (`name`→`label`, `label`→`labelHash`)
+- [ ] Migrate `lineanames/NameWrapper.ts` handlers — NameWrapped, NameUnwrapped, FusesSet, ExpiryExtended, TransferSingle, TransferBatch
+- [ ] Implement **preminting support**: create Domain entities on-demand (same as Basenames)
 - [ ] Resolver dynamic registration for Linea resolvers
 - [ ] L1Resolver on mainnet (`0xde16ee87b0c019499cebdde29c9f7686560f679a`, block 20,410,692) bridges Linea names to L1
 
 #### Key Differences from Mainnet
 
-- Has NameWrapper (similar to mainnet)
-- Single controller (EthRegistrarController)
+- **Has NameWrapper** (similar to mainnet, full ERC1155 wrapping + fuses)
+- **Preminting support**: Same on-demand Domain creation as Basenames
+- **3 registration variants** on EthRegistrarController: `OwnerNameRegistered` (free for owner), `PohNameRegistered` (free for Proof of Humanity holders), `NameRegistered` (paid)
+- **Controller arg remapping**: Same incorrect naming as Base controllers (`name`→`label`, `label`→`labelHash`)
+- Single controller (EthRegistrarController) vs mainnet's 3
 - Different registry/registrar contract addresses
 
 ---
@@ -243,7 +262,7 @@ Lineanames is the `.linea.eth` subregistry on Linea L2. Closer to mainnet in str
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/threedns/`
 
-ThreeDNS is a third-party DNS integration for ENS, deployed on Optimism and Base.
+ThreeDNS is a third-party DNS integration for ENS, deployed on both Optimism and Base with identical contract addresses. It uses a completely different architecture from the standard ENS Registry model — ERC1155-based tokens with a hardcoded protocol-wide resolver.
 
 #### Contracts to Add
 
@@ -256,19 +275,32 @@ ThreeDNS is a third-party DNS integration for ENS, deployed on Optimism and Base
 
 #### Handler Work
 
-- [ ] Add Optimism chain (10) to `config.yaml`
-- [ ] Add ThreeDNS contract definitions and ABIs
-- [ ] Migrate `ThreeDNSToken.ts` handlers — Transfer, Approval, URI events
-- [ ] Migrate `ThreeDNSResolver.ts` handlers — resolver record events
-- [ ] ThreeDNS uses ERC721 token model — tokenId represents DNS domain
-- [ ] Handle domain creation from token mint events
+- [ ] Add Optimism chain (10) and Base chain (8453 — if not added in Phase 3a) to `config.yaml`
+- [ ] Add ThreeDNS contract definitions and ABIs (`ThreeDNSToken.ts`)
+- [ ] Migrate `ThreeDNSToken.ts` handlers (shared handler at `shared-handlers/ThreeDNSToken.ts`):
+  - `setup` → `setupRootNode`
+  - `NewOwner` → `handleNewOwner` (domain ownership updates)
+  - `Transfer` → `handleTransfer` (ERC1155 transfers)
+  - `RegistrationCreated` → `handleRegistrationCreated` (new domain registration with expiry)
+  - `RegistrationExtended` → `handleRegistrationExtended` (renewal/extension)
+- [ ] Migrate `ThreeDNSResolver.ts` handlers — standard ENS Resolver events PLUS DNS-specific events:
+  - Standard: AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged (2 signatures), ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged
+  - **DNS-specific (unique to ThreeDNS):**
+    - `DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, uint32 ttl, bytes record)` — includes TTL parameter
+    - `DNSRecordDeleted(bytes32 indexed node, bytes name, uint16 resource)`
+    - `DNSZonehashChanged(bytes32 indexed node, bytes lastzonehash, bytes zonehash)`
+    - `ZoneCreated(bytes32 indexed node)`
+- [ ] Handle **hardcoded resolver**: ThreeDNS uses a fixed protocol-wide resolver address per chain (NOT dynamic registration). The resolver address is read from the ThreeDNSToken contract config, not from NewResolver events.
+- [ ] Implement FQDN decoding and on-chain metadata reading for domain name resolution
 
 #### Key Differences
 
-- ERC721-based (not ENS Registry model)
-- Token Transfer creates/updates domain ownership
-- Custom resolver model for DNS records
-- Same contract addresses on both Optimism and Base
+- **ERC1155-based** (NOT ERC721) — uses TransferSingle/TransferBatch for ownership
+- **Hardcoded resolver** — single protocol-wide resolver per chain, not dynamically registered per domain
+- **Custom domain lifecycle**: Uses `RegistrationCreated`/`RegistrationExtended` events instead of standard BaseRegistrar patterns
+- **DNS-specific resolver events**: `DNSRecordChanged` (with TTL), `DNSRecordDeleted`, `DNSZonehashChanged`, `ZoneCreated` not present in standard ENS
+- **Multi-chain**: Same contract addresses on both Optimism and Base
+- **Own shared handler**: Uses `shared-handlers/ThreeDNSToken.ts` (320 lines), NOT the standard Registry/Registrar shared handlers
 
 ---
 
@@ -301,7 +333,7 @@ This plugin provides fast domain resolution by caching resolver records and doma
 
 **Resolver events** (record caching):
 - All Resolver contracts from all chains (Mainnet, Base, Linea, Optimism, Arbitrum, Scroll)
-- Tracks: AddrChanged, MulticoinAddrChanged, TextChanged, NameChanged
+- Tracks: AddrChanged, AddressChanged (multicoin), TextChanged, NameChanged, DNSRecordChanged (2 variants: with/without TTL), DNSRecordDeleted
 
 **StandaloneReverseRegistrar** (ENSIP-19 reverse resolution):
 
@@ -330,12 +362,13 @@ This plugin provides fast domain resolution by caching resolver records and doma
 - [ ] Add `domainResolverRelation` entity to schema
 - [ ] Add `reverseNameRecord` entity to schema
 - [ ] Add `migratedNode` entity to schema
-- [ ] Migrate `ENSv1Registry.ts` handler — tracks domain-resolver relationships
-- [ ] Migrate `Resolver.ts` handler — caches individual resolver records (addr, text, name)
-- [ ] Migrate `StandaloneReverseRegistrar.ts` handler — ReverseNameUpdated events across 6 chains
+- [ ] Migrate `ENSv1Registry.ts` handler — tracks domain-resolver relationships via `NewResolver` and `NewOwner` events on both RegistryOld and Registry
+- [ ] Migrate `ENSv2Registry.ts` handler — `ResolverUpdated` events for v2 resolver tracking
+- [ ] Migrate `Resolver.ts` handler — caches individual resolver records (addr, text, name, DNS records). Includes DNS record parsing via `parseDnsTxtRecordArgs`
+- [ ] Migrate `StandaloneReverseRegistrar.ts` handler — `NameForAddrChanged` events across 6 chains
 - [ ] Add StandaloneReverseRegistrar ABIs and contract config for all 6 chains
 - [ ] Add all reverse resolver contracts to config
-- [ ] Migrate `ThreeDNSToken.ts` handler — 3DNS reverse record tracking
+- [ ] Migrate `ThreeDNSToken.ts` handler — `NewOwner` events for indexing domain-resolver relationships (uses hardcoded `ThreeDNSResolverByChainId` per chain)
 
 ### Architecture Decision
 
@@ -369,12 +402,14 @@ Unified registration lifecycle tracking across all subregistries (Ethnames, Base
 - [ ] Migrate `Basenames_Registrar.ts` — BaseRegistrar events for .base.eth
 - [ ] Migrate `Basenames_RegistrarController.ts` — Base controller events
 - [ ] Migrate `Lineanames_Registrar.ts` — BaseRegistrar events for .linea.eth
-- [ ] Migrate `Lineanames_RegistrarController.ts` — Linea controller events
+- [ ] Migrate `Lineanames_RegistrarController.ts` — 4 events: `OwnerNameRegistered`, `PohNameRegistered`, `NameRegistered`, `NameRenewed`
 - [ ] Port shared library logic:
   - `registrar-action.ts` — logical action aggregation
-  - `registrar-events.ts` — event normalization
+  - `registrar-events.ts` — BaseRegistrar event handlers (NameRegistered, NameRenewed)
+  - `registrar-controller-events.ts` — controller event handlers (NameRegistered, NameRenewed by controller)
   - `registration-lifecycle.ts` — lifecycle state machine
   - `subregistry.ts` — subregistry tracking
+  - `universal-registrar-renewal-with-referrer-events.ts` — referrer tracking for universal renewals
 
 ### Additional Mainnet Contract
 
@@ -404,27 +439,37 @@ Tracks ENS NFT transfers and secondary market sales via Seaport.
 | `nameSales` | Secondary market sales (buyer, seller, price, currency, Seaport order) |
 | `nameTokens` | NFT token state (CAIP-19 asset ID, owner, mint/burn status) |
 
-### Contracts to Add
+### Contracts Used
 
-| Contract | Chain | Address | Start Block |
-|----------|-------|---------|-------------|
-| Seaport 1.5 | Mainnet (1) | `0x00000000000000adc04c56bf30ac9d3c0aaf14dc` | 17,129,405 |
+| Contract | Chain | Address | Start Block | Event Type |
+|----------|-------|---------|-------------|------------|
+| Seaport 1.5 | Mainnet (1) | `0x00000000000000adc04c56bf30ac9d3c0aaf14dc` | 17,129,405 | OrderFulfilled |
+| EthBaseRegistrar | Mainnet (1) | `0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85` | 9,380,410 | ERC721 Transfer |
+| BaseBaseRegistrar | Base (8453) | `0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a` | 17,571,486 | ERC721 Transfer |
+| LineaBaseRegistrar | Linea (59144) | `0x6e84390dcc5195414ec91a8c56a5c91021b95704` | 6,682,892 | ERC721 Transfer |
+| NameWrapper | Mainnet (1) | `0xd4416b13d2b3a9abae7acd5d6c2bbdbe25686401` | 16,925,608 | ERC1155 TransferSingle/Batch |
+| ThreeDNSToken | Optimism (10) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 110,393,959 | ERC1155 TransferSingle/Batch |
+| ThreeDNSToken | Base (8453) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 17,522,624 | ERC1155 TransferSingle/Batch |
 
 ### Handler Work
 
 - [ ] Add `nameSales` and `nameTokens` entities to schema
 - [ ] Add Seaport 1.5 ABI and contract config
-- [ ] Migrate `BaseRegistrars.ts` handler — ERC721 Transfer tracking for Eth + Base BaseRegistrars
-- [ ] Migrate `NameWrapper.ts` handler — ERC1155 Transfer tracking
-- [ ] Migrate `ThreeDNSToken.ts` handler — Transfer and Approval events
-- [ ] Migrate `Seaport.ts` handler — OrderFulfilled events for secondary market
-- [ ] Port `handle-nft-transfer.ts` library — mint/burn detection, CAIP-19 asset ID generation
+- [ ] Migrate `BaseRegistrars.ts` handler — ERC721 Transfer tracking for **Eth + Base + Linea** BaseRegistrars (3 contracts across 3 chains)
+- [ ] Migrate `NameWrapper.ts` handler — ERC1155 TransferSingle/TransferBatch tracking
+- [ ] Migrate `ThreeDNSToken.ts` handler — ERC1155 TransferSingle/TransferBatch events on both Optimism and Base
+- [ ] Migrate `Seaport.ts` handler — OrderFulfilled events for secondary market sales
+- [ ] Port shared libraries:
+  - `handle-nft-transfer.ts` — mint/burn detection, CAIP-19 asset ID generation
+  - `nft-issuers.ts` — NFT issuer identification
+  - `seaport.ts` — Seaport order fulfillment parsing
 
 ### Notes
 
 - Seaport handler parses complex order structures to extract ENS domain sales
 - CAIP-19 asset IDs follow `eip155:{chainId}/{namespace}:{contract}/{tokenId}` format
 - TokenScope reuses Transfer events from BaseRegistrar and NameWrapper (same merge concern)
+- **ThreeDNS quirk**: `allowMintedRemint = true` — 3DNS contracts allow a minted NFT to be reminted before an intermediate burn (non-standard behavior)
 
 ---
 
@@ -455,30 +500,44 @@ Next-generation ENS protocol with new registry and registrar contracts.
 
 ### Contracts to Add
 
-| Contract | Chain | Address | Notes |
-|----------|-------|---------|-------|
-| ENSv2 Registry | Mainnet (1) | TBD | New v2 registry |
-| ENSv2 ETHRegistrar | Mainnet (1) | TBD | New v2 registrar |
-| EnhancedAccessControl | Mainnet (1) | TBD | Permissions contract |
+**Sepolia V2 test deployment (addresses known):**
+
+| Contract | Chain | Address | Start Block |
+|----------|-------|---------|-------------|
+| RootRegistry | Sepolia | `0x245de1984f9bb890c5db0b1fb839470c6a4c7e08` | 9,374,708 |
+| ETHRegistry | Sepolia | `0x3f0920aa92c5f9bce54643c09955c5f241f1f763` | 9,374,708 |
+| ETHRegistrar | Sepolia | `0x3334f0ebcbc4b5b7067f3aff25c6da8973690d54` | 9,374,708 |
+| EnhancedAccessControl | Sepolia | Per-chain from datasource config | 9,374,708 |
+
+**Mainnet deployment: TBD** (contracts not yet deployed on mainnet)
+
+**V1 contracts tracked in ENSv2 context (multi-chain):**
+- ENSv1Registry: ENS Root + Basenames + Lineanames
+- BaseRegistrar: ENS Root + Basenames + Lineanames
+- NameWrapper: ENS Root + Lineanames
+- RegistrarController: ENS Root (3 controllers) + Basenames (3 controllers) + Lineanames (1 controller)
 
 ### Handler Work
 
-- [ ] Add all ENSv2 schema entities
+- [ ] Add all ENSv2 schema entities (12 total)
 - [ ] Add ENSv2 contract ABIs (Registry, ETHRegistrar, EnhancedAccessControl)
-- [ ] Migrate `ensv1/BaseRegistrar.ts` — v1 BaseRegistrar events in v2 context
-- [ ] Migrate `ensv1/ENSv1Registry.ts` — v1 Registry events in v2 context
-- [ ] Migrate `ensv1/NameWrapper.ts` — v1 NameWrapper events in v2 context
-- [ ] Migrate `ensv1/RegistrarController.ts` — v1 controller events in v2 context
-- [ ] Migrate `ensv2/ENSv2Registry.ts` — new v2 Registry events
-- [ ] Migrate `ensv2/ETHRegistrar.ts` — new v2 ETHRegistrar events
-- [ ] Migrate `ensv2/EnhancedAccessControl.ts` — permissions/access control events
-- [ ] Label rainbow table population
+- [ ] Migrate `ensv1/BaseRegistrar.ts` — v1 BaseRegistrar `Transfer` events across ENS Root + Basenames + Lineanames
+- [ ] Migrate `ensv1/ENSv1Registry.ts` — v1 Registry `NewOwner` events on RegistryOld + Registry
+- [ ] Migrate `ensv1/NameWrapper.ts` — v1 NameWrapper `TransferSingle`/`TransferBatch` events on ENS Root + Lineanames
+- [ ] Migrate `ensv1/RegistrarController.ts` — v1 controller `NameRegistered`/`NameRenewed` events across all subregistries
+- [ ] Migrate `ensv2/ENSv2Registry.ts` — v2 Registry events: `NameRegistered`, `ExpiryUpdated`, `SubregistryUpdated`, `TokenRegenerated`, `TransferSingle`, `TransferBatch`
+- [ ] Migrate `ensv2/ETHRegistrar.ts` — v2 ETHRegistrar `NameRegistered` events
+- [ ] Migrate `ensv2/EnhancedAccessControl.ts` — `EACRolesChanged` events for permissions tracking
+- [ ] Label rainbow table population (labelHash → InterpretedLabel mapping)
 
 ### Notes
 
-- ENSv2 contracts may not be deployed yet — monitor ENS team announcements
-- This plugin tracks BOTH v1 and v2 domains simultaneously for migration period
-- Polymorphic registrations support 4 types with type-specific fields
+- ENSv2 Sepolia test deployment exists; mainnet deployment TBD — monitor ENS team announcements
+- This plugin tracks BOTH v1 and v2 domains simultaneously for the migration period
+- **Dual-registry architecture**: v1Domain (flat tree) + v2Domain (graph-based with sub-registries)
+- **Materialized effective owner**: v1Domain.owner computed at index time (considers Registry, Registrars, NameWrapper ownership)
+- Polymorphic registrations support types: `BaseRegistrar`, `NameWrapper`, `ENSv2Registry`
+- **Multi-chain v1 tracking**: The ENSv2 plugin re-indexes v1 contract events across ENS Root, Basenames, and Lineanames chains
 
 ---
 
@@ -490,8 +549,8 @@ Next-generation ENS protocol with new registry and registrar contracts.
 |-------|----|-----------|---------------|
 | Ethereum Mainnet | 1 | ~15 | All plugins |
 | Base | 8453 | ~8 | Subgraph, ProtocolAccel, Registrars, TokenScope |
-| Linea | 59144 | ~6 | Subgraph, ProtocolAccel, Registrars |
-| Optimism | 10 | ~3 | Subgraph (3DNS), ProtocolAccel |
+| Linea | 59144 | ~6 | Subgraph, ProtocolAccel, Registrars, TokenScope |
+| Optimism | 10 | ~3 | Subgraph (3DNS), ProtocolAccel, TokenScope |
 | Arbitrum | 42161 | ~1 | ProtocolAccel (reverse resolver only) |
 | Scroll | 534352 | ~1 | ProtocolAccel (reverse resolver only) |
 
@@ -523,8 +582,8 @@ Next-generation ENS protocol with new registry and registrar contracts.
 | Protocol Acceleration (Phase 4) | 7 | 0 | 7 |
 | Registrars (Phase 5) | 3 | 0 | 3 |
 | TokenScope (Phase 6) | 2 | 0 | 2 |
-| ENSv2 (Phase 7) | 11 | 0 | 11 |
-| **Total** | **28** | **20** | **~48** |
+| ENSv2 (Phase 7) | 12 | 0 | 12 |
+| **Total** | **29** | **20** | **~49** |
 
 ---
 
@@ -547,8 +606,21 @@ Entities like Domain, Registration etc. currently use mainnet-only IDs (namehash
 
 ### 3. Shared Handler Patterns
 
-The Ponder codebase uses shared handlers (e.g., `shared-handlers/Registry.ts`) that are parameterized per chain. Consider creating a similar pattern in HyperIndex to avoid duplicating handler logic for Basenames/Lineanames.
+The Ponder codebase has a rich shared handler architecture under `shared-handlers/`:
+
+- `Registry.ts` — parameterized `handleNewOwner(isMigrated)` factory, used by Basenames, Lineanames, ENSRoot
+- `Registrar.ts` — `makeRegistrarHandlers({ pluginName })` factory returning 5 handler functions, includes preminting support
+- `NameWrapper.ts` — all NameWrapper event handlers, used by Lineanames + ENSRoot
+- `Resolver.ts` — all resolver event handlers exported as individual functions
+- `ThreeDNSToken.ts` — standalone shared handlers for ThreeDNS (320 lines)
+- `multi-chain/Resolver.ts` — **idempotent registration wrapper** with `hasBeenRegistered` boolean flag to ensure multi-chain Resolver handlers are only registered once even when called from multiple plugins
+
+In HyperIndex, consider creating equivalent shared functions that can be called from chain-specific handlers to avoid code duplication.
 
 ### 4. End Block Support
 
 Basenames `RegistrarController` has an `endBlock` (35,936,564) — verify if HyperIndex config supports `end_block` for contracts that are superseded.
+
+### 5. Preminting Support
+
+Both Basenames and Lineanames support "preminted" names — names registered in the BaseRegistrar without a corresponding Registry `NewOwner` event. When a `NameRegistered` event fires and no Domain entity exists, the handler must create the Domain on-demand by invoking the equivalent of `handleNewOwner(isMigrated=true)`. This is controlled by `pluginSupportsPremintedNames` in the Ponder code.
