@@ -1,0 +1,217 @@
+import { keccak256, encodePacked, zeroAddress } from "viem";
+import type { handlerContext, Domain } from "generated";
+
+// ─── Constants ──────────────────────────────────────────────────────────────
+
+export const ROOT_NODE =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+export const ETH_NODE =
+  "0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae";
+
+export const ADDR_REVERSE_NODE =
+  "0x91d1777781884d03a6757a803996e38de2a42967fb37eeaca72729271025a9e2";
+
+export const ZERO_ADDRESS = zeroAddress;
+
+export const GRACE_PERIOD_SECONDS = 7776000n; // 90 days in seconds
+
+// ─── Node Computation ───────────────────────────────────────────────────────
+
+export function makeSubdomainNode(
+  labelHash: string,
+  parentNode: string,
+): string {
+  return keccak256(encodePacked(["bytes32", "bytes32"], [parentNode as `0x${string}`, labelHash as `0x${string}`]));
+}
+
+// ─── ID Generation ──────────────────────────────────────────────────────────
+
+export function makeResolverId(
+  chainId: number,
+  resolverAddress: string,
+  node: string,
+): string {
+  return `${chainId}-${resolverAddress}-${node}`;
+}
+
+export function makeEventId(
+  chainId: number,
+  blockNumber: number,
+  logIndex: number,
+  transferIndex?: number,
+): string {
+  const parts = [chainId, blockNumber, logIndex];
+  if (transferIndex !== undefined) {
+    return `${parts.join("-")}-${transferIndex}`;
+  }
+  return parts.join("-");
+}
+
+export function makeRegistrationId(labelHash: string, node: string): string {
+  // Use node for cross-registrar uniqueness
+  return node;
+}
+
+// ─── Label Encoding ─────────────────────────────────────────────────────────
+
+export function encodeLabelHash(labelHash: string): string {
+  return `[${labelHash.slice(2)}]`;
+}
+
+// ─── Account Upsert ─────────────────────────────────────────────────────────
+
+export function upsertAccount(context: handlerContext, address: string): void {
+  const existing = context.Account.getOrCreate({
+    id: address,
+  });
+  // getOrCreate handles the upsert - if exists returns existing, else creates
+  // But since Account only has id, we can just set it unconditionally
+  context.Account.set({ id: address });
+}
+
+// ─── Resolver Upsert ────────────────────────────────────────────────────────
+
+export async function upsertResolver(
+  context: handlerContext,
+  values: {
+    id: string;
+    domain_id: string;
+    address: string;
+    addr_id?: string | undefined;
+    contentHash?: string | undefined;
+    coinTypes?: readonly bigint[] | undefined;
+    texts?: readonly string[] | undefined;
+  },
+): Promise<{
+  id: string;
+  domain_id: string;
+  address: string;
+  addr_id: string | undefined;
+  contentHash: string | undefined;
+  texts: readonly string[] | undefined;
+  coinTypes: readonly bigint[] | undefined;
+}> {
+  const existing = await context.Resolver.get(values.id);
+  if (existing) {
+    const updated = {
+      ...existing,
+      ...values,
+    };
+    context.Resolver.set(updated);
+    return updated;
+  }
+  const newResolver = {
+    id: values.id,
+    domain_id: values.domain_id,
+    address: values.address,
+    addr_id: values.addr_id,
+    contentHash: values.contentHash,
+    texts: values.texts,
+    coinTypes: values.coinTypes,
+  };
+  context.Resolver.set(newResolver);
+  return newResolver;
+}
+
+// ─── Registration Upsert ────────────────────────────────────────────────────
+
+export async function upsertRegistration(
+  context: handlerContext,
+  values: {
+    id: string;
+    domain_id: string;
+    registrationDate: bigint;
+    expiryDate: bigint;
+    registrant_id: string;
+    labelName?: string | undefined;
+    cost?: bigint | undefined;
+  },
+): Promise<void> {
+  const existing = await context.Registration.get(values.id);
+  if (existing) {
+    context.Registration.set({
+      ...existing,
+      ...values,
+    });
+  } else {
+    context.Registration.set({
+      id: values.id,
+      domain_id: values.domain_id,
+      registrationDate: values.registrationDate,
+      expiryDate: values.expiryDate,
+      registrant_id: values.registrant_id,
+      labelName: values.labelName,
+      cost: values.cost,
+    });
+  }
+}
+
+// ─── Shared Event Values ────────────────────────────────────────────────────
+
+export function sharedEventValues(
+  chainId: number,
+  event: {
+    block: { number: number };
+    logIndex: number;
+    transaction: { hash: string };
+  },
+) {
+  return {
+    id: makeEventId(chainId, event.block.number, event.logIndex),
+    blockNumber: event.block.number,
+    transactionID: event.transaction.hash,
+  };
+}
+
+// ─── Domain Empty Check / Garbage Collection ────────────────────────────────
+
+function isDomainEmpty(domain: Domain): boolean {
+  return (
+    domain.resolver_id === undefined &&
+    domain.owner_id === ZERO_ADDRESS &&
+    domain.subdomainCount === 0
+  );
+}
+
+export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
+  context: handlerContext,
+  node: string,
+): Promise<void> {
+  const domain = await context.Domain.get(node);
+  if (!domain) return;
+
+  if (isDomainEmpty(domain) && domain.parent_id !== undefined) {
+    const parent = await context.Domain.get(domain.parent_id);
+    if (parent) {
+      context.Domain.set({
+        ...parent,
+        subdomainCount: parent.subdomainCount - 1,
+      });
+    }
+
+    // recurse to parent
+    return recursivelyRemoveEmptyDomainFromParentSubdomainCount(
+      context,
+      domain.parent_id,
+    );
+  }
+}
+
+// ─── Utility ────────────────────────────────────────────────────────────────
+
+export function bigintMax(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
+export function uniq<T>(arr: readonly T[]): T[] {
+  return [...new Set(arr)];
+}
+
+export function hasNullByte(str: string): boolean {
+  return str.includes("\0");
+}
+
+export function stripNullBytes(str: string): string {
+  return str.replace(/\0/g, "");
+}

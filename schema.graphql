@@ -1,0 +1,252 @@
+# ENS HyperIndex Schema
+# Migrated from ENSNode Ponder indexer (subgraph plugin)
+
+# ─── Core Entities ───────────────────────────────────────────────────────────
+
+type Domain {
+  id: ID!
+  name: String
+  labelName: String
+  labelhash: String
+  parent: Domain
+  subdomainCount: Int!
+  resolvedAddress: Account
+  resolver: Resolver
+  ttl: BigInt
+  isMigrated: Boolean!
+  createdAt: BigInt!
+  owner: Account!
+  registrant: Account
+  wrappedOwner: Account
+  expiryDate: BigInt
+  subdomains: [Domain!]! @derivedFrom(field: "parent")
+}
+
+type Account {
+  id: ID!
+  domains: [Domain!]! @derivedFrom(field: "owner")
+  registrations: [Registration!]! @derivedFrom(field: "registrant")
+}
+
+type Resolver {
+  id: ID!
+  domain: Domain!
+  address: String!
+  addr: Account
+  contentHash: String
+  texts: [String!]
+  coinTypes: [BigInt!]
+}
+
+type Registration {
+  id: ID!
+  domain: Domain!
+  registrationDate: BigInt!
+  expiryDate: BigInt!
+  cost: BigInt
+  registrant: Account!
+  labelName: String
+}
+
+type WrappedDomain {
+  id: ID!
+  domain: Domain!
+  expiryDate: BigInt!
+  fuses: Int!
+  owner: Account!
+  name: String
+  isActive: Boolean!
+}
+
+# ─── Domain Event Entities ───────────────────────────────────────────────────
+
+type DomainTransfer {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  owner: Account!
+}
+
+type NewOwner {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  owner: Account!
+  parentDomain: Domain!
+}
+
+type NewResolverEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  resolver_id: String!
+}
+
+type NewTTL {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  ttl: BigInt!
+}
+
+type WrappedTransfer {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  owner: Account!
+}
+
+type NameWrappedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  name: String
+  fuses: Int!
+  owner: Account!
+  expiryDate: BigInt!
+}
+
+type NameUnwrappedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  owner: Account!
+}
+
+type FusesSetEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  fuses: Int!
+}
+
+type ExpiryExtendedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  domain: Domain!
+  expiryDate: BigInt!
+}
+
+# ─── Registration Event Entities ─────────────────────────────────────────────
+
+type NameRegisteredEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  registration: Registration!
+  registrant: Account!
+  expiryDate: BigInt!
+}
+
+type NameRenewedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  registration: Registration!
+  expiryDate: BigInt!
+}
+
+type NameTransferredEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  registration: Registration!
+  newOwner: Account!
+}
+
+# ─── Resolver Event Entities ─────────────────────────────────────────────────
+
+type AddrChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  addr: Account!
+}
+
+type MulticoinAddrChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  coinType: BigInt!
+  addr: String!
+}
+
+type NameChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  name: String!
+}
+
+type AbiChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  contentType: BigInt!
+}
+
+type PubkeyChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  x: String!
+  y: String!
+}
+
+type TextChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  key: String!
+  value: String
+}
+
+type ContenthashChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  hash: String!
+}
+
+type InterfaceChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  interfaceID: String!
+  implementer: String!
+}
+
+type AuthorisationChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  owner: String!
+  target: String!
+  isAuthorized: Boolean!
+}
+
+type VersionChangedEvent {
+  id: ID!
+  blockNumber: Int!
+  transactionID: String!
+  resolver: Resolver!
+  version: BigInt!
+}

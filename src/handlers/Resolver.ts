@@ -1,0 +1,298 @@
+import { Resolver, type handlerContext } from "generated";
+import {
+  makeResolverId,
+  upsertAccount,
+  upsertResolver,
+  sharedEventValues,
+  uniq,
+  hasNullByte,
+  stripNullBytes,
+} from "../lib/helpers";
+
+// ─── AddrChanged ─────────────────────────────────────────────────────────────
+// Emitted when the ETH address for a node changes.
+
+Resolver.AddrChanged.handler(async ({ event, context }) => {
+  const { node, a } = event.params;
+
+  // upsert Account for the ETH address
+  upsertAccount(context, a);
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver with the new addr
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+    addr_id: a,
+  });
+
+  // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
+  const domain = await context.Domain.get(node);
+  if (domain && domain.resolver_id === resolverId) {
+    context.Domain.set({
+      ...domain,
+      resolvedAddress_id: a,
+    });
+  }
+
+  // log AddrChangedEvent
+  context.AddrChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    addr_id: a,
+  });
+});
+
+// ─── AddressChanged (multicoin) ──────────────────────────────────────────────
+// Emitted when a multicoin address changes for a node.
+
+Resolver.AddressChanged.handler(async ({ event, context }) => {
+  const { node, coinType, newAddress } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  const resolver = await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // add coinType to resolver's coinTypes array
+  context.Resolver.set({
+    ...resolver,
+    coinTypes: uniq([...(resolver.coinTypes ?? []), coinType]),
+  });
+
+  // log MulticoinAddrChangedEvent
+  context.MulticoinAddrChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    coinType,
+    addr: newAddress,
+  });
+});
+
+// ─── NameChanged ─────────────────────────────────────────────────────────────
+// Emitted when the name for a node changes.
+
+Resolver.NameChanged.handler(async ({ event, context }) => {
+  const { node, name } = event.params;
+
+  // skip if name contains null bytes
+  if (hasNullByte(name)) return;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // log NameChangedEvent
+  context.NameChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    name,
+  });
+});
+
+// ─── ABIChanged ──────────────────────────────────────────────────────────────
+// Emitted when the ABI for a node changes.
+
+Resolver.ABIChanged.handler(async ({ event, context }) => {
+  const { node, contentType } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // log AbiChangedEvent
+  context.AbiChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    contentType,
+  });
+});
+
+// ─── PubkeyChanged ──────────────────────────────────────────────────────────
+// Emitted when the public key for a node changes.
+
+Resolver.PubkeyChanged.handler(async ({ event, context }) => {
+  const { node, x, y } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // log PubkeyChangedEvent
+  context.PubkeyChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    x,
+    y,
+  });
+});
+
+// ─── TextChanged ─────────────────────────────────────────────────────────────
+// Emitted when a text record for a node changes.
+
+Resolver.TextChanged.handler(async ({ event, context }) => {
+  const { node, key, value } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  const resolver = await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // sanitize key and value (strip null bytes)
+  const sanitizedKey = stripNullBytes(key);
+
+  // empty or undefined value becomes undefined
+  const sanitizedValue =
+    value === undefined || value === ""
+      ? undefined
+      : stripNullBytes(value) || undefined;
+
+  // add sanitized key to resolver's texts array
+  context.Resolver.set({
+    ...resolver,
+    texts: uniq([...(resolver.texts ?? []), sanitizedKey]),
+  });
+
+  // log TextChangedEvent
+  context.TextChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    key: sanitizedKey,
+    value: sanitizedValue,
+  });
+});
+
+// ─── ContenthashChanged ─────────────────────────────────────────────────────
+// Emitted when the content hash for a node changes.
+
+Resolver.ContenthashChanged.handler(async ({ event, context }) => {
+  const { node, hash } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver with the new contentHash
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+    contentHash: hash,
+  });
+
+  // log ContenthashChangedEvent
+  context.ContenthashChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    hash,
+  });
+});
+
+// ─── InterfaceChanged ────────────────────────────────────────────────────────
+// Emitted when the EIP-165 interface support changes for a node.
+
+Resolver.InterfaceChanged.handler(async ({ event, context }) => {
+  const { node, interfaceID, implementer } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // log InterfaceChangedEvent
+  context.InterfaceChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    interfaceID,
+    implementer,
+  });
+});
+
+// ─── AuthorisationChanged ───────────────────────────────────────────────────
+// Emitted when an authorisation for a node changes.
+
+Resolver.AuthorisationChanged.handler(async ({ event, context }) => {
+  const { node, owner, target, isAuthorised } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // upsert Resolver
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+  });
+
+  // log AuthorisationChangedEvent
+  // NOTE: the spelling difference is kept for subgraph backwards-compatibility
+  context.AuthorisationChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    owner,
+    target,
+    isAuthorized: isAuthorised,
+  });
+});
+
+// ─── VersionChanged ─────────────────────────────────────────────────────────
+// Emitted when the resolver version changes, clearing all stored data.
+
+Resolver.VersionChanged.handler(async ({ event, context }) => {
+  const { node, newVersion } = event.params;
+
+  const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
+
+  // materialize Domain.resolvedAddress_id to undefined if Domain.resolver_id matches
+  const domain = await context.Domain.get(node);
+  if (domain && domain.resolver_id === resolverId) {
+    context.Domain.set({
+      ...domain,
+      resolvedAddress_id: undefined,
+    });
+  }
+
+  // upsert Resolver with ALL fields cleared
+  await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: event.srcAddress,
+    addr_id: undefined,
+    contentHash: undefined,
+    coinTypes: undefined,
+    texts: undefined,
+  });
+
+  // log VersionChangedEvent
+  context.VersionChangedEvent.set({
+    ...sharedEventValues(event.chainId, event),
+    resolver_id: resolverId,
+    version: newVersion,
+  });
+});
