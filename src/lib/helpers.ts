@@ -27,6 +27,9 @@ export const LINEA_ETH_NODE =
 // Set of all managed registrar nodes (for NameWrapper expiryDate preservation)
 export const MANAGED_NODES = new Set([ETH_NODE, BASE_ETH_NODE, LINEA_ETH_NODE]);
 
+// ThreeDNS hardcoded protocol-wide resolver (same on Optimism + Base)
+export const THREEDNS_RESOLVER = "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8";
+
 // ─── Token / Label Helpers ──────────────────────────────────────────────────
 
 /**
@@ -283,4 +286,63 @@ export function hasNullByte(str: string): boolean {
 
 export function stripNullBytes(str: string): string {
   return str.replace(/\0/g, "");
+}
+
+// ─── DNS Decoding ──────────────────────────────────────────────────────────
+
+/**
+ * Decode a DNS wire-format encoded name (hex bytes) into an array of labels.
+ * e.g. 0x03666f6f03657468​00 → ["foo", "eth"]
+ */
+export function decodeDnsEncodedName(data: string): string[] {
+  const hex = data.startsWith("0x") ? data.slice(2) : data;
+  const bytes = Buffer.from(hex, "hex");
+  const labels: string[] = [];
+  let offset = 0;
+
+  while (offset < bytes.length) {
+    const labelLen = bytes[offset]!;
+    offset += 1;
+    if (labelLen === 0) break;
+    if (offset + labelLen > bytes.length) break;
+
+    const labelBytes = bytes.subarray(offset, offset + labelLen);
+    offset += labelLen;
+    labels.push(labelBytes.toString("utf8"));
+  }
+
+  return labels;
+}
+
+// ─── Root Domain ───────────────────────────────────────────────────────────
+
+/**
+ * Ensure the root domain (0x000...000) exists. Idempotent — skips if
+ * the root domain has already been created.
+ */
+export async function ensureRootDomain(
+  context: handlerContext,
+  timestamp: bigint,
+): Promise<void> {
+  const existingRoot = await context.Domain.get(ROOT_NODE);
+  if (!existingRoot) {
+    upsertAccount(context, ZERO_ADDRESS);
+    context.Domain.set({
+      id: ROOT_NODE,
+      name: undefined,
+      labelName: undefined,
+      labelhash: undefined,
+      parent_id: undefined,
+      subdomainCount: 0,
+      resolvedAddress_id: undefined,
+      resolver_id: undefined,
+      ttl: undefined,
+      isMigrated: true,
+      createdAt: timestamp,
+      owner_id: ZERO_ADDRESS,
+      registrant_id: undefined,
+      wrappedOwner_id: undefined,
+      expiryDate: undefined,
+    });
+  }
 }

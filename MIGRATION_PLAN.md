@@ -36,7 +36,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 2 | Tests for Phase 1 | DONE | — |
 | 3a | Basenames (Base L2) | DONE | — |
 | 3b | Lineanames (Linea L2) | DONE | — |
-| 3c | ThreeDNS (Optimism + Base) | NOT STARTED | Medium |
+| 3c | ThreeDNS (Optimism + Base) | DONE | — |
 | 4 | Protocol Acceleration | NOT STARTED | High |
 | 5 | Registrars | NOT STARTED | Medium |
 | 6 | TokenScope | NOT STARTED | Medium |
@@ -48,20 +48,20 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 
 ### What's Done
 
-The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), and **Lineanames on Linea L2** (Phase 3b):
+The HyperIndex indexer covers the **Subgraph Plugin for Ethereum Mainnet** (Phase 1), **Basenames on Base L2** (Phase 3a), **Lineanames on Linea L2** (Phase 3b), and **ThreeDNS on Optimism + Base** (Phase 3c):
 
-- **3 chains**: Ethereum Mainnet (1), Base (8453), and Linea (59144)
-- **16 contracts** configured in `config.yaml` (10 mainnet + 4 Base + 2 Linea, with Registry, Resolver, and NameWrapper reused cross-chain)
-- **6 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`
-- **1 helper library**: `helpers.ts` (17 utility functions including shared `setNamePreimage`, `tokenIdToLabelHash`, `MANAGED_NODES`)
+- **4 chains**: Ethereum Mainnet (1), Base (8453), Linea (59144), and Optimism (10)
+- **18 contracts** configured in `config.yaml` (10 mainnet + 6 Base + 2 Linea + ThreeDNSToken shared, with Registry, Resolver, and NameWrapper reused cross-chain)
+- **7 handler files**: `Registry.ts`, `Registrar.ts`, `NameWrapper.ts`, `Resolver.ts`, `BaseRegistrar.ts`, `LineaRegistrar.ts`, `ThreeDNS.ts`
+- **1 helper library**: `helpers.ts` (20 utility functions including shared `setNamePreimage`, `tokenIdToLabelHash`, `decodeDnsEncodedName`, `ensureRootDomain`, `MANAGED_NODES`)
 - **25 schema entities** (7 core + 18 event logs)
-- **~42 event types** handled (26 mainnet + 9 Base + 7 Linea)
+- **~46 event types** handled (26 mainnet + 9 Base + 7 Linea + 4 ThreeDNS)
 - All handlers are production-quality — no TODOs, stubs, or placeholders
 
 ### What's Missing
 
-- **3 additional chains** (Optimism, Arbitrum, Scroll)
-- **~24 additional contracts**
+- **2 additional chains** (Arbitrum, Scroll)
+- **~20 additional contracts**
 - **~25+ additional entities** (ensv2, registrars, protocol-acceleration, tokenscope schemas)
 - **5 remaining plugins** worth of handler logic
 
@@ -118,14 +118,15 @@ Full test suite using Vitest + Envio's `createTestIndexer()` framework with real
 
 | File | Tests | Type | Description |
 |------|-------|------|-------------|
-| `test/helpers.test.ts` | 41 | Unit | Pure function tests for `src/lib/helpers.ts` — constants (incl. BASE_ETH_NODE, LINEA_ETH_NODE), node computation, ID generators, encoding, tokenIdToLabelHash, sanitization |
+| `test/helpers.test.ts` | 49 | Unit | Pure function tests for `src/lib/helpers.ts` — constants (incl. BASE_ETH_NODE, LINEA_ETH_NODE, THREEDNS_RESOLVER), node computation, ID generators, encoding, tokenIdToLabelHash, decodeDnsEncodedName, sanitization |
 | `test/Registry.test.ts` | 5 | Integration | RegistryOld root init, new Registry migration, Transfer, NewResolver + dynamic registration, NewTTL |
 | `test/Registrar.test.ts` | 6 | Integration | BaseRegistrar NameRegistered/NameRenewed/Transfer, LegacyController + WrappedController label reveals, full registration flow |
 | `test/NameWrapper.test.ts` | 7 | Integration | NameWrapped + TransferSingle, WrappedDomain creation, FusesSet, ExpiryExtended, wrappedOwner, kitchen sink block |
 | `test/Resolver.test.ts` | 8 | Integration | AddrChanged, AddressChanged (multicoin), TextChanged, ContenthashChanged, VersionChanged, resolver ID format, dynamic registration, full resolver flow |
 | `test/BaseRegistrar.test.ts` | 2 | Integration | Base L2 BaseRegistrar_Base NameRegistered + EAController_Base label preimage with cost=0 |
 | `test/LineaRegistrar.test.ts` | 2 | Integration | Linea L2 BaseRegistrar_Linea NameRegistered + EthController_Linea label preimage |
-| **Total** | **71** | | |
+| `test/ThreeDNS.test.ts` | 2 | Integration | ThreeDNS NewOwner + RegistrationCreated on Optimism and Base |
+| **Total** | **79** | | |
 
 ### Key Test Blocks (real on-chain data)
 
@@ -275,50 +276,53 @@ Lineanames is the `.linea.eth` subregistry on Linea L2. Unlike Base, Linea has a
 
 ### Phase 3c: ThreeDNS (Optimism + Base)
 
-**Status: NOT STARTED**
-**Priority: Medium**
+**Status: DONE**
+**Priority: —**
 **Effort: Medium**
 **Source:** `ensnode/apps/ensindexer/src/plugins/subgraph/plugins/threedns/`
 
 ThreeDNS is a third-party DNS integration for ENS, deployed on both Optimism and Base with identical contract addresses. It uses a completely different architecture from the standard ENS Registry model — ERC1155-based tokens with a hardcoded protocol-wide resolver.
 
-#### Contracts to Add
+#### Contracts Added
 
-| Contract | Chain | Address | Start Block |
-|----------|-------|---------|-------------|
-| ThreeDNSToken | Optimism (10) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 110,393,959 |
-| ThreeDNSResolver | Optimism (10) | `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` | 110,393,959 |
-| ThreeDNSToken | Base (8453) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 17,522,624 |
-| ThreeDNSResolver | Base (8453) | `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` | 17,522,624 |
+| Contract | HyperIndex Name | Chain | Address | Start Block |
+|----------|----------------|-------|---------|-------------|
+| ThreeDNSToken | `ThreeDNSToken` | Optimism (10) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 110,393,959 |
+| ThreeDNSResolver | `Resolver` (reused, static) | Optimism (10) | `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` | 110,393,959 |
+| ThreeDNSToken | `ThreeDNSToken` | Base (8453) | `0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17` | 17,522,624 |
+| ThreeDNSResolver | `Resolver` (reused, static) | Base (8453) | `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` | 17,522,624 |
 
-#### Handler Work
+#### Implementation Summary
 
-- [ ] Add Optimism chain (10) to `config.yaml` (Base 8453 already added in Phase 3a)
-- [ ] Add ThreeDNS contract definitions and ABIs (`ThreeDNSToken.ts`)
-- [ ] Migrate `ThreeDNSToken.ts` handlers (shared handler at `shared-handlers/ThreeDNSToken.ts`):
-  - `setup` → `setupRootNode`
-  - `NewOwner` → `handleNewOwner` (domain ownership updates)
-  - `Transfer` → `handleTransfer` (ERC1155 transfers)
-  - `RegistrationCreated` → `handleRegistrationCreated` (new domain registration with expiry)
-  - `RegistrationExtended` → `handleRegistrationExtended` (renewal/extension)
-- [ ] Migrate `ThreeDNSResolver.ts` handlers — standard ENS Resolver events PLUS DNS-specific events:
-  - Standard: AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged (2 signatures), ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged
-  - **DNS-specific (unique to ThreeDNS):**
-    - `DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, uint32 ttl, bytes record)` — includes TTL parameter
-    - `DNSRecordDeleted(bytes32 indexed node, bytes name, uint16 resource)`
-    - `DNSZonehashChanged(bytes32 indexed node, bytes lastzonehash, bytes zonehash)`
-    - `ZoneCreated(bytes32 indexed node)`
-- [ ] Handle **hardcoded resolver**: ThreeDNS uses a fixed protocol-wide resolver address per chain (NOT dynamic registration). The resolver address is read from the ThreeDNSToken contract config, not from NewResolver events.
-- [ ] Implement FQDN decoding and on-chain metadata reading for domain name resolution
+**Files changed:**
 
-#### Key Differences
+| File | Action | Changes |
+|------|--------|---------|
+| `src/lib/helpers.ts` | Modified | Added `THREEDNS_RESOLVER` constant, `decodeDnsEncodedName()` function, `ensureRootDomain()` function |
+| `src/handlers/Registry.ts` | Modified | Refactored to use shared `ensureRootDomain()` from helpers, removed local `createRootDomain` |
+| `config.yaml` | Modified | Added ThreeDNSToken contract definition, Optimism chain (10), ThreeDNSToken + static Resolver to Base chain |
+| `src/handlers/ThreeDNS.ts` | Created | All ThreeDNS event handlers (~200 lines) |
+| `test/helpers.test.ts` | Modified | Added `THREEDNS_RESOLVER` + `decodeDnsEncodedName` tests (+8 tests) |
+| `test/ThreeDNS.test.ts` | Created | Integration tests for ThreeDNS on Optimism + Base |
 
-- **ERC1155-based** (NOT ERC721) — uses TransferSingle/TransferBatch for ownership
-- **Hardcoded resolver** — single protocol-wide resolver per chain, not dynamically registered per domain
-- **Custom domain lifecycle**: Uses `RegistrationCreated`/`RegistrationExtended` events instead of standard BaseRegistrar patterns
-- **DNS-specific resolver events**: `DNSRecordChanged` (with TTL), `DNSRecordDeleted`, `DNSZonehashChanged`, `ZoneCreated` not present in standard ENS
-- **Multi-chain**: Same contract addresses on both Optimism and Base
-- **Own shared handler**: Uses `shared-handlers/ThreeDNSToken.ts` (320 lines), NOT the standard Registry/Registrar shared handlers
+**Handlers registered (4 total):**
+- `ThreeDNSToken.NewOwner` — creates/updates domain with hardcoded ThreeDNS resolver, handles root node init per chain
+- `ThreeDNSToken.Transfer` — updates domain ownership
+- `ThreeDNSToken.RegistrationCreated` — decodes DNS-encoded FQDN, sets labelName/name/expiryDate, creates Registration
+- `ThreeDNSToken.RegistrationExtended` — extends expiry on Domain and Registration
+
+**Key design decisions:**
+- **Resolver reuse**: ThreeDNS resolver at `0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8` is registered as a static address for the existing `Resolver` contract on both Optimism and Base. Standard Resolver.ts handlers (AddrChanged, TextChanged, etc.) fire automatically.
+- **No Registry on Optimism**: Optimism only has ThreeDNSToken + static Resolver. Root domain init handled by ThreeDNS NewOwner handler via shared `ensureRootDomain()`.
+- **DNS name decoding**: New `decodeDnsEncodedName()` function decodes DNS wire-format FQDNs from RegistrationCreated events to extract labels and construct domain names.
+- **Hardcoded resolver**: ThreeDNS NewOwner handler creates Resolver entities with the hardcoded `THREEDNS_RESOLVER` address and sets `domain.resolver_id` automatically (no dynamic NewResolver registration needed).
+- **No grace period**: ThreeDNS uses raw expiry values (unlike mainnet/Base/Linea registrars which add GRACE_PERIOD_SECONDS).
+- **DNS-specific resolver events (DNSRecordChanged, DNSRecordDeleted, etc.) skipped**: Not handled in subgraph-compatible mode per the Ponder reference implementation.
+
+#### Remaining items (deferred)
+
+- DNS-specific resolver events (DNSRecordChanged with TTL, DNSRecordDeleted, DNSZonehashChanged, ZoneCreated) — deferred, not handled in subgraph mode
+- On-chain metadata reading for label healing via ThreeDNSToken.uri() — deferred to Protocol Acceleration plugin
 
 ---
 

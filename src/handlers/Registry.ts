@@ -17,6 +17,7 @@ import {
   sharedEventValues,
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
   makeEventId,
+  ensureRootDomain,
 } from "../lib/helpers";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
@@ -24,27 +25,6 @@ import {
 // the very first NewOwner event from the old registry.
 
 const rootNodeInitializedChains = new Set<number>();
-
-function createRootDomain(context: handlerContext, timestamp: bigint): void {
-  upsertAccount(context, ZERO_ADDRESS);
-  context.Domain.set({
-    id: ROOT_NODE,
-    name: undefined,
-    labelName: undefined,
-    labelhash: undefined,
-    parent_id: undefined,
-    subdomainCount: 0,
-    resolvedAddress_id: undefined,
-    resolver_id: undefined,
-    ttl: undefined,
-    isMigrated: true,
-    createdAt: timestamp,
-    owner_id: ZERO_ADDRESS,
-    registrant_id: undefined,
-    wrappedOwner_id: undefined,
-    expiryDate: undefined,
-  });
-}
 
 // ─── Dynamic Contract Registration ──────────────────────────────────────────
 // Register Resolver contract addresses dynamically from NewResolver events so
@@ -84,10 +64,7 @@ async function handleNewOwner(
   // Ensure the root domain exists on the first event per chain
   if (!rootNodeInitializedChains.has(event.chainId)) {
     rootNodeInitializedChains.add(event.chainId);
-    const existingRoot = await context.Domain.get(ROOT_NODE);
-    if (!existingRoot) {
-      createRootDomain(context, BigInt(event.block.timestamp));
-    }
+    await ensureRootDomain(context, BigInt(event.block.timestamp));
   }
 
   // Upsert account for the new owner

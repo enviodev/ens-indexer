@@ -11,6 +11,7 @@ import {
   stripNullBytes,
   sharedEventValues,
   tokenIdToLabelHash,
+  decodeDnsEncodedName,
   ROOT_NODE,
   ETH_NODE,
   BASE_ETH_NODE,
@@ -18,6 +19,7 @@ import {
   ADDR_REVERSE_NODE,
   ZERO_ADDRESS,
   GRACE_PERIOD_SECONDS,
+  THREEDNS_RESOLVER,
 } from "../src/lib/helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -70,6 +72,12 @@ describe("Constants", () => {
     const lineaLabelHash = keccak256(encodePacked(["string"], ["linea"]));
     const computed = makeSubdomainNode(lineaLabelHash, ETH_NODE);
     expect(LINEA_ETH_NODE).toBe(computed);
+  });
+
+  it("THREEDNS_RESOLVER is the correct address", () => {
+    expect(THREEDNS_RESOLVER).toBe(
+      "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8",
+    );
   });
 });
 
@@ -283,5 +291,46 @@ describe("stripNullBytes", () => {
 
   it("returns normal string unchanged", () => {
     expect(stripNullBytes("hello")).toBe("hello");
+  });
+});
+
+// ─── decodeDnsEncodedName ──────────────────────────────────────────────────
+
+describe("decodeDnsEncodedName", () => {
+  it("decodes a simple two-label name", () => {
+    // "foo.eth" → \x03foo\x03eth\x00
+    const hex = "0x" + "03" + "666f6f" + "03" + "657468" + "00";
+    expect(decodeDnsEncodedName(hex)).toEqual(["foo", "eth"]);
+  });
+
+  it("decodes a three-label name", () => {
+    // "sub.foo.eth" → \x03sub\x03foo\x03eth\x00
+    const hex = "0x" + "03" + "737562" + "03" + "666f6f" + "03" + "657468" + "00";
+    expect(decodeDnsEncodedName(hex)).toEqual(["sub", "foo", "eth"]);
+  });
+
+  it("decodes a single-label TLD", () => {
+    // "com" → \x03com\x00
+    const hex = "0x" + "03" + "636f6d" + "00";
+    expect(decodeDnsEncodedName(hex)).toEqual(["com"]);
+  });
+
+  it("returns empty array for root (just null terminator)", () => {
+    expect(decodeDnsEncodedName("0x00")).toEqual([]);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(decodeDnsEncodedName("0x")).toEqual([]);
+  });
+
+  it("handles input without 0x prefix", () => {
+    const hex = "03" + "666f6f" + "03" + "657468" + "00";
+    expect(decodeDnsEncodedName(hex)).toEqual(["foo", "eth"]);
+  });
+
+  it("decodes longer labels correctly", () => {
+    // "example.com" → \x07example\x03com\x00
+    const hex = "0x" + "07" + "6578616d706c65" + "03" + "636f6d" + "00";
+    expect(decodeDnsEncodedName(hex)).toEqual(["example", "com"]);
   });
 });
