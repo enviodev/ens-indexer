@@ -1,31 +1,42 @@
 # ENS Indexer
 
-A multichain ENS Protocol indexer built with [Envio HyperIndex](https://docs.envio.dev). Indexes registrations, renewals, name wrapping, resolver records, and domain transfers across the ENS deployments on Ethereum, Optimism, Base, Arbitrum, Linea, and Scroll.
+ENS Protocol Indexer. Built with [Envio HyperIndex](https://docs.envio.dev).
 
 ## Chains
 
-| Chain | ID |
+| Network | Chain ID |
 |---|---|
 | Ethereum Mainnet | 1 |
-| Optimism | 10 |
 | Base | 8453 |
-| Arbitrum | 42161 |
 | Linea | 59144 |
+| Optimism | 10 |
+| Arbitrum | 42161 |
 | Scroll | 534352 |
 
-## What it indexes
+## Contracts
 
-- **Registry contracts** (`Registry`, `RegistryOld`): owner, resolver, and TTL changes for every node
-- **BaseRegistrar** and per-chain BaseRegistrar deployments: `.eth` name registrations, renewals, and transfers
-- **NameWrapper**: wrapped names, fuses, expiry extensions, ERC-1155 transfers
-- **Registrar Controllers** (`LegacyController`, `EthController_Linea`, `EAController_Base`, `RegController_Base`, `UnwrappedController`, `UpgController_Base`, `UniversalRenewal`): name registrations and renewals via the various controller versions
-- **Resolver**: address records, multicoin addresses, name changes, content hash, text records
-- **StandaloneReverseRegistrar**: reverse name resolution
-- **ThreeDNSToken** and **Seaport**: third-party integrations relevant to ENS
+- **`RegistryOld`**: `NewOwner`, `Transfer`, `NewResolver`, `NewTTL`
+- **`Registry`**: `NewOwner`, `Transfer`, `NewResolver`, `NewTTL`
+- **`BaseRegistrar`**: `NameRegistered`, `NameRenewed`, `Transfer`
+- **`NameWrapper`**: `NameWrapped`, `NameUnwrapped`, `FusesSet`, `ExpiryExtended`, `TransferSingle`, `TransferBatch`
+- **`LegacyController`**: `NameRegistered`, `NameRenewed`
+- **`WrappedController`**: `NameRegistered`, `NameRenewed`
+- **`UnwrappedController`**: `NameRegistered`, `NameRenewed`
+- **`BaseRegistrar_Base`**: `NameRegistered`, `NameRegisteredWithRecord`, `NameRenewed`, `Transfer`
+- **`EAController_Base`**: `NameRegistered`
+- **`RegController_Base`**: `NameRegistered`, `NameRenewed`
+- **`UpgController_Base`**: `NameRegistered`, `NameRenewed`
+- **`BaseRegistrar_Linea`**: `NameRegistered`, `NameRenewed`, `Transfer`
+- **`EthController_Linea`**: `NameRegistered`, `NameRenewed`, `OwnerNameRegistered`, `PohNameRegistered`
+- **`ThreeDNSToken`**: `NewOwner`, `Transfer`, `RegistrationCreated`, `RegistrationExtended`, `TransferSingle`, `TransferBatch`
+- **`Resolver`**: `AddrChanged`, `AddressChanged`, `NameChanged`, `ABIChanged`, `PubkeyChanged`, `TextChanged`, `ContenthashChanged`, `InterfaceChanged`, `AuthorisationChanged`, `VersionChanged`, `DNSRecordChanged4`, `DNSRecordChanged5`, `DNSRecordDeleted`
+- **`UniversalRenewal`**: `RenewalReferred`
+- **`Seaport`**: `OrderFulfilled`
+- **`StandaloneReverseRegistrar`**: `NameForAddrChanged`
 
-## Schema
+## Schema entities (40)
 
-40 GraphQL entities including `Domain`, `Account`, `Resolver`, `Registration`, `WrappedDomain`, plus event-level entities (`NameRegisteredEvent`, `NameWrappedEvent`, `AddrChangedEvent`, etc.).
+`Domain`, `Account`, `Resolver`, `Registration`, `WrappedDomain`, `DomainTransfer`, `NewOwner`, `NewResolverEvent`, `NewTTL`, `WrappedTransfer`, `NameWrappedEvent`, `NameUnwrappedEvent`, `FusesSetEvent`, `ExpiryExtendedEvent`, `NameRegisteredEvent`, `NameRenewedEvent`, `NameTransferredEvent`, `AddrChangedEvent`, `MulticoinAddrChangedEvent`, `NameChangedEvent`, `AbiChangedEvent`, `PubkeyChangedEvent`, `TextChangedEvent`, `ContenthashChangedEvent`, `InterfaceChangedEvent`, `AuthorisationChangedEvent`, `VersionChangedEvent`, `PAResolver`, `PAResolverRecords`, `PAResolverAddressRecord`, `PAResolverTextRecord`, `DomainResolverRelation`, `ReverseNameRecord`, `MigratedNode`, `Subregistry`, `RegistrationLifecycle`, `RegistrarAction`, `RegistrarActionMetadata`, `NameToken`, `NameSale`
 
 ## Run locally
 
