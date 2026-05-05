@@ -1,6 +1,6 @@
 import { isAddress, isAddressEqual, zeroAddress } from "viem";
 import { normalize } from "viem/ens";
-import type { handlerContext } from "generated";
+import type { handlerContext } from "./helpers";
 import { hasNullByte } from "./helpers";
 
 // ─── Coin Type Constants ─────────────────────────────────────────────────────

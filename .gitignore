@@ -33,3 +33,6 @@ cache
 *.res.mjs
 generated
 .env
+
+# Envio V3 codegen output
+.envio/

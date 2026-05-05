@@ -1,4 +1,5 @@
-import { Resolver, type handlerContext } from "generated";
+import { indexer } from "envio";
+import type { handlerContext } from "../lib/helpers";
 import {
   makeResolverId,
   upsertAccount,
@@ -27,7 +28,9 @@ import dnsPacket, { type Answer } from "dns-packet";
 // ─── AddrChanged ─────────────────────────────────────────────────────────────
 // Emitted when the ETH address for a node changes.
 
-Resolver.AddrChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "AddrChanged" },
+  async ({ event, context }) => {
   const { node, a } = event.params;
 
   // upsert Account for the ETH address
@@ -63,12 +66,15 @@ Resolver.AddrChanged.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePAAddressRecordUpdate(context, event.chainId, event.srcAddress, node, ETH_COIN_TYPE, a);
-});
+  },
+);
 
 // ─── AddressChanged (multicoin) ──────────────────────────────────────────────
 // Emitted when a multicoin address changes for a node.
 
-Resolver.AddressChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "AddressChanged" },
+  async ({ event, context }) => {
   const { node, coinType, newAddress } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -101,12 +107,15 @@ Resolver.AddressChanged.handler(async ({ event, context }) => {
     ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
     handlePAAddressRecordUpdate(context, event.chainId, event.srcAddress, node, paCoinType, newAddress);
   }
-});
+  },
+);
 
 // ─── NameChanged ─────────────────────────────────────────────────────────────
 // Emitted when the name for a node changes.
 
-Resolver.NameChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "NameChanged" },
+  async ({ event, context }) => {
   const { node, name } = event.params;
 
   // skip if name contains null bytes
@@ -132,12 +141,15 @@ Resolver.NameChanged.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   await handlePANameUpdate(context, event.chainId, event.srcAddress, node, name);
-});
+  },
+);
 
 // ─── ABIChanged ──────────────────────────────────────────────────────────────
 // Emitted when the ABI for a node changes.
 
-Resolver.ABIChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "ABIChanged" },
+  async ({ event, context }) => {
   const { node, contentType } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -155,12 +167,15 @@ Resolver.ABIChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     contentType,
   });
-});
+  },
+);
 
 // ─── PubkeyChanged ──────────────────────────────────────────────────────────
 // Emitted when the public key for a node changes.
 
-Resolver.PubkeyChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "PubkeyChanged" },
+  async ({ event, context }) => {
   const { node, x, y } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -179,12 +194,15 @@ Resolver.PubkeyChanged.handler(async ({ event, context }) => {
     x,
     y,
   });
-});
+  },
+);
 
 // ─── TextChanged ─────────────────────────────────────────────────────────────
 // Emitted when a text record for a node changes.
 
-Resolver.TextChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "TextChanged" },
+  async ({ event, context }) => {
   const { node, key, value } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -223,12 +241,15 @@ Resolver.TextChanged.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value ?? null);
-});
+  },
+);
 
 // ─── ContenthashChanged ─────────────────────────────────────────────────────
 // Emitted when the content hash for a node changes.
 
-Resolver.ContenthashChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "ContenthashChanged" },
+  async ({ event, context }) => {
   const { node, hash } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -247,12 +268,15 @@ Resolver.ContenthashChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     hash,
   });
-});
+  },
+);
 
 // ─── InterfaceChanged ────────────────────────────────────────────────────────
 // Emitted when the EIP-165 interface support changes for a node.
 
-Resolver.InterfaceChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "InterfaceChanged" },
+  async ({ event, context }) => {
   const { node, interfaceID, implementer } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -271,12 +295,15 @@ Resolver.InterfaceChanged.handler(async ({ event, context }) => {
     interfaceID,
     implementer,
   });
-});
+  },
+);
 
 // ─── AuthorisationChanged ───────────────────────────────────────────────────
 // Emitted when an authorisation for a node changes.
 
-Resolver.AuthorisationChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "AuthorisationChanged" },
+  async ({ event, context }) => {
   const { node, owner, target, isAuthorised } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -297,12 +324,15 @@ Resolver.AuthorisationChanged.handler(async ({ event, context }) => {
     target,
     isAuthorized: isAuthorised,
   });
-});
+  },
+);
 
 // ─── VersionChanged ─────────────────────────────────────────────────────────
 // Emitted when the resolver version changes, clearing all stored data.
 
-Resolver.VersionChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "VersionChanged" },
+  async ({ event, context }) => {
   const { node, newVersion } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -333,7 +363,8 @@ Resolver.VersionChanged.handler(async ({ event, context }) => {
     resolver_id: resolverId,
     version: newVersion,
   });
-});
+  },
+);
 
 // ─── DNS Record Helpers (PA only) ──────────────────────────────────────────
 
@@ -408,7 +439,9 @@ function parseDnsTxtRecordArgs({
 // ─── DNSRecordChanged (4-arg: without ttl) ──────────────────────────────────
 // PA-only: indexes DNS TXT records as PA text records.
 
-Resolver.DNSRecordChanged4.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "DNSRecordChanged4" },
+  async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
@@ -416,12 +449,15 @@ Resolver.DNSRecordChanged4.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value);
-});
+  },
+);
 
 // ─── DNSRecordChanged (5-arg: with ttl) ─────────────────────────────────────
 // PA-only: indexes DNS TXT records as PA text records.
 
-Resolver.DNSRecordChanged5.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "DNSRecordChanged5" },
+  async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
@@ -429,12 +465,15 @@ Resolver.DNSRecordChanged5.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value);
-});
+  },
+);
 
 // ─── DNSRecordDeleted ───────────────────────────────────────────────────────
 // PA-only: deletes DNS TXT records from PA text records.
 
-Resolver.DNSRecordDeleted.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "Resolver", event: "DNSRecordDeleted" },
+  async ({ event, context }) => {
   const { node, name, resource } = event.params;
   const { key } = parseDnsTxtRecordArgs({ name, resource });
   if (key === null) return;
@@ -442,4 +481,5 @@ Resolver.DNSRecordDeleted.handler(async ({ event, context }) => {
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, null);
-});
+  },
+);

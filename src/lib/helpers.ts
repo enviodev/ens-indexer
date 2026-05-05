@@ -1,5 +1,8 @@
 import { keccak256, encodePacked, zeroAddress } from "viem";
-import type { handlerContext, Domain } from "generated";
+import type { EvmOnEventContext, Entity } from "envio";
+
+export type handlerContext = EvmOnEventContext;
+export type Domain = Entity<"Domain">;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

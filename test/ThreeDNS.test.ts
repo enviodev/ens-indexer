@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestIndexer } from "generated";
+import { createTestIndexer } from "envio";
 import { THREEDNS_RESOLVER } from "../src/lib/helpers";
 
 // ─── ThreeDNS Tests ─────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { type Address, isAddressEqual, zeroAddress } from "viem";
-import type { handlerContext } from "generated";
+import type { handlerContext } from "./helpers";
 
 import {
   ETH_NODE,
@@ -353,11 +353,22 @@ enum ItemType {
   ERC1155_WITH_CRITERIA = 5,
 }
 
-// HyperIndex generates tuple arrays for Seaport struct arrays:
-// offer: [itemType, token, identifier, amount]
-// consideration: [itemType, token, identifier, amount, recipient]
-export type OfferTuple = readonly [bigint, string, bigint, bigint];
-export type ConsiderationTuple = readonly [bigint, string, bigint, bigint, string];
+// HyperIndex generates positional tuple objects for Seaport unnamed-tuple struct arrays:
+// offer: { 0: itemType, 1: token, 2: identifier, 3: amount }
+// consideration: { 0: itemType, 1: token, 2: identifier, 3: amount, 4: recipient }
+export type OfferTuple = {
+  readonly 0: bigint;
+  readonly 1: `0x${string}` | string;
+  readonly 2: bigint;
+  readonly 3: bigint;
+};
+export type ConsiderationTuple = {
+  readonly 0: bigint;
+  readonly 1: `0x${string}` | string;
+  readonly 2: bigint;
+  readonly 3: bigint;
+  readonly 4: `0x${string}` | string;
+};
 
 interface ParsedItem {
   itemType: number;

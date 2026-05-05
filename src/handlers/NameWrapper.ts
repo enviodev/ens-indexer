@@ -1,9 +1,5 @@
-import {
-  NameWrapper,
-  type WrappedDomain,
-  type Domain,
-  type handlerContext,
-} from "generated";
+import { indexer } from "envio";
+import type { handlerContext } from "../lib/helpers";
 
 import {
   makeEventId,
@@ -136,7 +132,9 @@ async function handleTransfer(
 
 // ─── TransferSingle ─────────────────────────────────────────────────────────
 
-NameWrapper.TransferSingle.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "TransferSingle" },
+  async ({ event, context }) => {
   const { id: tokenId, to, from, value } = event.params;
 
   await handleTransfer(
@@ -156,11 +154,14 @@ NameWrapper.TransferSingle.handler(async ({ event, context }) => {
     (tid) => "0x" + tid.toString(16).padStart(64, "0"),
   );
   await handleERC1155Transfer(context, from, to, false, nft, value);
-});
+  },
+);
 
 // ─── TransferBatch ──────────────────────────────────────────────────────────
 
-NameWrapper.TransferBatch.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "TransferBatch" },
+  async ({ event, context }) => {
   const { ids: tokenIds, values, to, from } = event.params;
 
   for (let i = 0; i < tokenIds.length; i++) {
@@ -184,11 +185,14 @@ NameWrapper.TransferBatch.handler(async ({ event, context }) => {
     );
     await handleERC1155Transfer(context, from, to, false, nft, value);
   }
-});
+  },
+);
 
 // ─── NameWrapped ────────────────────────────────────────────────────────────
 
-NameWrapper.NameWrapped.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "NameWrapped" },
+  async ({ event, context }) => {
   const { node, name, owner, fuses, expiry } = event.params;
 
   // Upsert account for the owner
@@ -263,11 +267,14 @@ NameWrapper.NameWrapped.handler(async ({ event, context }) => {
     owner_id: owner,
     expiryDate: expiry,
   });
-});
+  },
+);
 
 // ─── NameUnwrapped ──────────────────────────────────────────────────────────
 
-NameWrapper.NameUnwrapped.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "NameUnwrapped" },
+  async ({ event, context }) => {
   const { node, owner } = event.params;
 
   // Upsert account for the owner
@@ -304,11 +311,14 @@ NameWrapper.NameUnwrapped.handler(async ({ event, context }) => {
     domain_id: node,
     owner_id: owner,
   });
-});
+  },
+);
 
 // ─── FusesSet ───────────────────────────────────────────────────────────────
 
-NameWrapper.FusesSet.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "FusesSet" },
+  async ({ event, context }) => {
   const { node, fuses } = event.params;
   const fusesNum = Number(fuses);
 
@@ -331,11 +341,14 @@ NameWrapper.FusesSet.handler(async ({ event, context }) => {
     domain_id: node,
     fuses: fusesNum,
   });
-});
+  },
+);
 
 // ─── ExpiryExtended ─────────────────────────────────────────────────────────
 
-NameWrapper.ExpiryExtended.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "NameWrapper", event: "ExpiryExtended" },
+  async ({ event, context }) => {
   const { node, expiry } = event.params;
 
   // Only update if the WrappedDomain exists and is active
@@ -357,4 +370,5 @@ NameWrapper.ExpiryExtended.handler(async ({ event, context }) => {
     domain_id: node,
     expiryDate: expiry,
   });
-});
+  },
+);

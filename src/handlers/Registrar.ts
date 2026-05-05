@@ -1,10 +1,4 @@
-import {
-  BaseRegistrar,
-  LegacyController,
-  WrappedController,
-  UnwrappedController,
-  UniversalRenewal,
-} from "generated";
+import { indexer } from "envio";
 
 import {
   ETH_NODE,
@@ -42,7 +36,9 @@ const managedName = "eth";
 
 // ─── BaseRegistrar Handlers ─────────────────────────────────────────────────
 
-BaseRegistrar.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const owner = event.params.owner;
   const expires = event.params.expires;
@@ -116,11 +112,14 @@ BaseRegistrar.NameRegistered.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar.NameRenewed ──────────────────────────────────────────────
 
-BaseRegistrar.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const expires = event.params.expires;
 
@@ -165,11 +164,14 @@ BaseRegistrar.NameRenewed.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar.Transfer ─────────────────────────────────────────────────
 
-BaseRegistrar.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar", event: "Transfer" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.tokenId);
   const to = event.params.to;
 
@@ -215,7 +217,8 @@ BaseRegistrar.Transfer.handler(async ({ event, context }) => {
     (tokenId) => makeSubdomainNode(tokenIdToLabelHash(tokenId), managedNode),
   );
   await handleNFTTransfer(context, event.params.from, to, false, nft);
-});
+  },
+);
 
 // ─── LegacyController Handlers ─────────────────────────────────────────────
 
@@ -223,7 +226,9 @@ BaseRegistrar.Transfer.handler(async ({ event, context }) => {
  * LegacyController.NameRegistered provides the plaintext name.
  * event.params: { name: string (label), label: string (labelHash), owner, cost, expires }
  */
-LegacyController.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LegacyController", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
@@ -242,13 +247,16 @@ LegacyController.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 /**
  * LegacyController.NameRenewed provides the plaintext name on renewal.
  * event.params: { name: string (label), label: string (labelHash), cost, expires }
  */
-LegacyController.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "LegacyController", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
@@ -267,7 +275,8 @@ LegacyController.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── WrappedController Handlers ─────────────────────────────────────────────
 
@@ -276,7 +285,9 @@ LegacyController.NameRenewed.handler(async ({ event, context }) => {
  * event.params: { name, label (labelHash), owner, baseCost, premium, expires }
  * cost = baseCost + premium
  */
-WrappedController.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "WrappedController", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const baseCost = event.params.baseCost;
@@ -297,13 +308,16 @@ WrappedController.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 /**
  * WrappedController.NameRenewed provides the plaintext name on renewal.
  * event.params: { name, label (labelHash), cost, expires }
  */
-WrappedController.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "WrappedController", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
@@ -322,7 +336,8 @@ WrappedController.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── UnwrappedController Handlers ───────────────────────────────────────────
 
@@ -331,7 +346,9 @@ WrappedController.NameRenewed.handler(async ({ event, context }) => {
  * event.params: { label (plaintext), labelhash (bytes32), owner, baseCost, premium, expires, referrer }
  * cost = baseCost + premium
  */
-UnwrappedController.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "UnwrappedController", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.label; // plaintext label
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const baseCost = event.params.baseCost;
@@ -355,13 +372,16 @@ UnwrappedController.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 /**
  * UnwrappedController.NameRenewed provides the plaintext name on renewal.
  * event.params: { label (plaintext), labelhash (bytes32), cost, expires, referrer }
  */
-UnwrappedController.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "UnwrappedController", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.label; // plaintext label
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const cost = event.params.cost;
@@ -383,11 +403,14 @@ UnwrappedController.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── UniversalRenewal Handler ───────────────────────────────────────────────
 
-UniversalRenewal.RenewalReferred.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "UniversalRenewal", event: "RenewalReferred" },
+  async ({ event, context }) => {
   const labelHash = event.params.labelHash;
   const node = makeSubdomainNode(labelHash, managedNode);
   const encodedReferrer = event.params.referrer;
@@ -400,4 +423,5 @@ UniversalRenewal.RenewalReferred.handler(async ({ event, context }) => {
     decodedReferrer,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);

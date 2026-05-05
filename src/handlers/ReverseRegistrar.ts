@@ -1,4 +1,4 @@
-import { StandaloneReverseRegistrar } from "generated";
+import { indexer } from "envio";
 
 import {
   upsertReverseNameRecord,
@@ -9,7 +9,9 @@ import {
 // ─── StandaloneReverseRegistrar.NameForAddrChanged ──────────────────────────
 // PA-only: indexes ENSIP-19 reverse name records per address and coinType.
 
-StandaloneReverseRegistrar.NameForAddrChanged.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "StandaloneReverseRegistrar", event: "NameForAddrChanged" },
+  async ({ event, context }) => {
   const { addr, name } = event.params;
 
   // ENS Root Chain → DEFAULT_EVM_COIN_TYPE, others → chain-specific
@@ -18,4 +20,5 @@ StandaloneReverseRegistrar.NameForAddrChanged.handler(async ({ event, context })
     : evmChainIdToCoinType(event.chainId);
 
   upsertReverseNameRecord(context, addr, coinType, name);
-});
+  },
+);

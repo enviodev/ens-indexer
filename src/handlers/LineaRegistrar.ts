@@ -1,7 +1,4 @@
-import {
-  BaseRegistrar_Linea,
-  EthController_Linea,
-} from "generated";
+import { indexer } from "envio";
 
 import {
   LINEA_ETH_NODE,
@@ -37,7 +34,9 @@ const managedName = "linea.eth";
 
 // ─── BaseRegistrar_Linea.NameRegistered ─────────────────────────────────────
 
-BaseRegistrar_Linea.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Linea", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const owner = event.params.owner;
   const expires = event.params.expires;
@@ -104,11 +103,14 @@ BaseRegistrar_Linea.NameRegistered.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar_Linea.NameRenewed ────────────────────────────────────────
 
-BaseRegistrar_Linea.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Linea", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const expires = event.params.expires;
 
@@ -150,11 +152,14 @@ BaseRegistrar_Linea.NameRenewed.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar_Linea.Transfer ───────────────────────────────────────────
 
-BaseRegistrar_Linea.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Linea", event: "Transfer" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.tokenId);
   const to = event.params.to;
 
@@ -194,13 +199,16 @@ BaseRegistrar_Linea.Transfer.handler(async ({ event, context }) => {
     (tokenId) => makeSubdomainNode(tokenIdToLabelHash(tokenId), managedNode),
   );
   await handleNFTTransfer(context, event.params.from, to, false, nft);
-});
+  },
+);
 
 // ─── EthController_Linea.NameRegistered (paid registration) ─────────────────
 // Controller arg remapping: event.params.name = plaintext label,
 // event.params.label = labelHash. Cost = baseCost + premium.
 
-EthController_Linea.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EthController_Linea", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const baseCost = event.params.baseCost;
@@ -221,11 +229,14 @@ EthController_Linea.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── EthController_Linea.NameRenewed ────────────────────────────────────────
 
-EthController_Linea.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EthController_Linea", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
@@ -244,11 +255,14 @@ EthController_Linea.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── EthController_Linea.OwnerNameRegistered (free for controller owner) ────
 
-EthController_Linea.OwnerNameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EthController_Linea", event: "OwnerNameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -266,11 +280,14 @@ EthController_Linea.OwnerNameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── EthController_Linea.PohNameRegistered (free for PoH holders) ───────────
 
-EthController_Linea.PohNameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EthController_Linea", event: "PohNameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -288,4 +305,5 @@ EthController_Linea.PohNameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
