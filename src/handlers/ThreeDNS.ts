@@ -1,4 +1,5 @@
-import { ThreeDNSToken } from "generated";
+import { indexer } from "envio";
+import type { handlerContext } from "../lib/helpers";
 
 import { keccak256, encodePacked } from "viem";
 
@@ -37,7 +38,7 @@ const rootInitialized = new Set<number>();
 
 async function ensureRoot(
   chainId: number,
-  context: Parameters<Parameters<typeof ThreeDNSToken.NewOwner.handler>[0]>[0]["context"],
+  context: handlerContext,
   timestamp: bigint,
 ): Promise<void> {
   if (!rootInitialized.has(chainId)) {
@@ -50,7 +51,9 @@ async function ensureRoot(
 // Creates/updates domain ownership. Sets the hardcoded ThreeDNS resolver
 // on every domain since ThreeDNS doesn't use Registry.NewResolver.
 
-ThreeDNSToken.NewOwner.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "NewOwner" },
+  async ({ event, context }) => {
   const { label: labelHash, node: parentNode, owner } = event.params;
   const node = makeSubdomainNode(labelHash, parentNode);
 
@@ -130,12 +133,15 @@ ThreeDNSToken.NewOwner.handler(async ({ event, context }) => {
     node,
     THREEDNS_RESOLVER,
   );
-});
+  },
+);
 
 // ─── ThreeDNSToken.Transfer ─────────────────────────────────────────────────
 // Updates domain ownership on ERC1155-style transfers.
 
-ThreeDNSToken.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "Transfer" },
+  async ({ event, context }) => {
   const { node, owner } = event.params;
 
   upsertAccount(context, owner);
@@ -158,13 +164,16 @@ ThreeDNSToken.Transfer.handler(async ({ event, context }) => {
     domain_id: node,
     owner_id: owner,
   });
-});
+  },
+);
 
 // ─── ThreeDNSToken.RegistrationCreated ──────────────────────────────────────
 // Fired for TLD and 2LD registrations. Decodes the DNS-encoded FQDN to
 // populate the domain's labelName and name, and creates a Registration entity.
 
-ThreeDNSToken.RegistrationCreated.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "RegistrationCreated" },
+  async ({ event, context }) => {
   const { node, tld: parentNode, fqdn, registrant, expiry } = event.params;
 
   upsertAccount(context, registrant);
@@ -235,12 +244,15 @@ ThreeDNSToken.RegistrationCreated.handler(async ({ event, context }) => {
     registrant_id: registrant,
     expiryDate: expiry,
   });
-});
+  },
+);
 
 // ─── ThreeDNSToken.RegistrationExtended ─────────────────────────────────────
 // Updates expiry dates on both Domain and Registration entities.
 
-ThreeDNSToken.RegistrationExtended.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "RegistrationExtended" },
+  async ({ event, context }) => {
   const { node, newExpiry } = event.params;
 
   // Update domain expiry
@@ -268,11 +280,14 @@ ThreeDNSToken.RegistrationExtended.handler(async ({ event, context }) => {
     registration_id: registrationId,
     expiryDate: newExpiry,
   });
-});
+  },
+);
 
 // ─── ThreeDNSToken.TransferSingle (TokenScope: ERC1155 NFT tracking) ──────
 
-ThreeDNSToken.TransferSingle.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "TransferSingle" },
+  async ({ event, context }) => {
   const { id: tokenId, from, to, value } = event.params;
 
   // 3DNS allows non-standard minted remint (mint over already-minted token)
@@ -286,11 +301,14 @@ ThreeDNSToken.TransferSingle.handler(async ({ event, context }) => {
     (tid) => "0x" + tid.toString(16).padStart(64, "0"),
   );
   await handleERC1155Transfer(context, from, to, allowMintedRemint, nft, value);
-});
+  },
+);
 
 // ─── ThreeDNSToken.TransferBatch (TokenScope: ERC1155 NFT tracking) ───────
 
-ThreeDNSToken.TransferBatch.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "ThreeDNSToken", event: "TransferBatch" },
+  async ({ event, context }) => {
   const { ids: tokenIds, values, from, to } = event.params;
 
   if (tokenIds.length !== values.length) {
@@ -315,4 +333,5 @@ ThreeDNSToken.TransferBatch.handler(async ({ event, context }) => {
     );
     await handleERC1155Transfer(context, from, to, allowMintedRemint, nft, value);
   }
-});
+  },
+);

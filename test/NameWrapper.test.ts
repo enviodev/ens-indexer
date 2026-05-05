@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestIndexer } from "generated";
+import { createTestIndexer } from "envio";
 import { ROOT_NODE, ETH_NODE } from "../src/lib/helpers";
 
 // ─── NameWrapper Tests ──────────────────────────────────────────────────────

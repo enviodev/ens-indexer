@@ -1,9 +1,5 @@
-import {
-  RegistryOld,
-  Registry,
-  type Domain,
-  type handlerContext,
-} from "generated";
+import { indexer } from "envio";
+import type { handlerContext } from "../lib/helpers";
 
 import {
   makeSubdomainNode,
@@ -36,17 +32,23 @@ const rootNodeInitializedChains = new Set<number>();
 // Register Resolver contract addresses dynamically from NewResolver events so
 // that the Resolver handler can process events from those addresses.
 
-RegistryOld.NewResolver.contractRegister(({ event, context }) => {
-  if (event.params.resolver !== ZERO_ADDRESS) {
-    context.addResolver(event.params.resolver);
-  }
-});
+indexer.contractRegister(
+  { contract: "RegistryOld", event: "NewResolver" },
+  async ({ event, context }) => {
+    if (event.params.resolver !== ZERO_ADDRESS) {
+      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
+    }
+  },
+);
 
-Registry.NewResolver.contractRegister(({ event, context }) => {
-  if (event.params.resolver !== ZERO_ADDRESS) {
-    context.addResolver(event.params.resolver);
-  }
-});
+indexer.contractRegister(
+  { contract: "Registry", event: "NewResolver" },
+  async ({ event, context }) => {
+    if (event.params.resolver !== ZERO_ADDRESS) {
+      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
+    }
+  },
+);
 
 // ─── Shared NewOwner Handler ────────────────────────────────────────────────
 
@@ -152,15 +154,21 @@ async function handleNewOwner(
 
 // ─── RegistryOld.NewOwner ───────────────────────────────────────────────────
 
-RegistryOld.NewOwner.handler(async ({ event, context }) => {
-  await handleNewOwner(event, context, false);
-});
+indexer.onEvent(
+  { contract: "RegistryOld", event: "NewOwner" },
+  async ({ event, context }) => {
+    await handleNewOwner(event, context, false);
+  },
+);
 
 // ─── Registry.NewOwner ──────────────────────────────────────────────────────
 
-Registry.NewOwner.handler(async ({ event, context }) => {
-  await handleNewOwner(event, context, true);
-});
+indexer.onEvent(
+  { contract: "Registry", event: "NewOwner" },
+  async ({ event, context }) => {
+    await handleNewOwner(event, context, true);
+  },
+);
 
 // ─── Shared Transfer Handler ────────────────────────────────────────────────
 
@@ -223,15 +231,21 @@ async function handleTransfer(
 
 // ─── RegistryOld.Transfer ───────────────────────────────────────────────────
 
-RegistryOld.Transfer.handler(async ({ event, context }) => {
-  await handleTransfer(event, context);
-});
+indexer.onEvent(
+  { contract: "RegistryOld", event: "Transfer" },
+  async ({ event, context }) => {
+    await handleTransfer(event, context);
+  },
+);
 
 // ─── Registry.Transfer ──────────────────────────────────────────────────────
 
-Registry.Transfer.handler(async ({ event, context }) => {
-  await handleTransfer(event, context);
-});
+indexer.onEvent(
+  { contract: "Registry", event: "Transfer" },
+  async ({ event, context }) => {
+    await handleTransfer(event, context);
+  },
+);
 
 // ─── Shared NewResolver Handler ─────────────────────────────────────────────
 
@@ -313,15 +327,21 @@ async function handleNewResolver(
 
 // ─── RegistryOld.NewResolver ────────────────────────────────────────────────
 
-RegistryOld.NewResolver.handler(async ({ event, context }) => {
-  await handleNewResolver(event, context, true);
-});
+indexer.onEvent(
+  { contract: "RegistryOld", event: "NewResolver" },
+  async ({ event, context }) => {
+    await handleNewResolver(event, context, true);
+  },
+);
 
 // ─── Registry.NewResolver ───────────────────────────────────────────────────
 
-Registry.NewResolver.handler(async ({ event, context }) => {
-  await handleNewResolver(event, context, false);
-});
+indexer.onEvent(
+  { contract: "Registry", event: "NewResolver" },
+  async ({ event, context }) => {
+    await handleNewResolver(event, context, false);
+  },
+);
 
 // ─── Shared NewTTL Handler ──────────────────────────────────────────────────
 
@@ -357,12 +377,18 @@ async function handleNewTTL(
 
 // ─── RegistryOld.NewTTL ────────────────────────────────────────────────────
 
-RegistryOld.NewTTL.handler(async ({ event, context }) => {
-  await handleNewTTL(event, context);
-});
+indexer.onEvent(
+  { contract: "RegistryOld", event: "NewTTL" },
+  async ({ event, context }) => {
+    await handleNewTTL(event, context);
+  },
+);
 
 // ─── Registry.NewTTL ───────────────────────────────────────────────────────
 
-Registry.NewTTL.handler(async ({ event, context }) => {
-  await handleNewTTL(event, context);
-});
+indexer.onEvent(
+  { contract: "Registry", event: "NewTTL" },
+  async ({ event, context }) => {
+    await handleNewTTL(event, context);
+  },
+);

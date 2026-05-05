@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createTestIndexer } from "generated";
+import { createTestIndexer } from "envio";
 import {
   LINEA_ETH_NODE,
   GRACE_PERIOD_SECONDS,

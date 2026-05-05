@@ -1,5 +1,5 @@
 import { getAddress, pad, size, slice, zeroAddress } from "viem";
-import type { handlerContext } from "generated";
+import type { handlerContext } from "./helpers";
 import { makeSubdomainNode, makeEventId } from "./helpers";
 
 // ─── Constants ──────────────────────────────────────────────────────────────

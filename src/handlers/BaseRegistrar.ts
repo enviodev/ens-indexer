@@ -1,9 +1,4 @@
-import {
-  BaseRegistrar_Base,
-  EAController_Base,
-  RegController_Base,
-  UpgController_Base,
-} from "generated";
+import { indexer } from "envio";
 
 import {
   BASE_ETH_NODE,
@@ -39,7 +34,9 @@ const managedName = "base.eth";
 
 // ─── BaseRegistrar_Base.NameRegistered ──────────────────────────────────────
 
-BaseRegistrar_Base.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Base", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const owner = event.params.owner;
   const expires = event.params.expires;
@@ -106,11 +103,13 @@ BaseRegistrar_Base.NameRegistered.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar_Base.NameRegisteredWithRecord ────────────────────────────
 
-BaseRegistrar_Base.NameRegisteredWithRecord.handler(
+indexer.onEvent(
+  { contract: "BaseRegistrar_Base", event: "NameRegisteredWithRecord" },
   async ({ event, context }) => {
     // Delegates to same logic as NameRegistered (extra resolver/ttl args
     // ignored per Ponder subgraph behavior)
@@ -184,7 +183,9 @@ BaseRegistrar_Base.NameRegisteredWithRecord.handler(
 
 // ─── BaseRegistrar_Base.NameRenewed ─────────────────────────────────────────
 
-BaseRegistrar_Base.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Base", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.id);
   const expires = event.params.expires;
 
@@ -226,11 +227,14 @@ BaseRegistrar_Base.NameRenewed.handler(async ({ event, context }) => {
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── BaseRegistrar_Base.Transfer ────────────────────────────────────────────
 
-BaseRegistrar_Base.Transfer.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "BaseRegistrar_Base", event: "Transfer" },
+  async ({ event, context }) => {
   const labelHash = tokenIdToLabelHash(event.params.tokenId);
   const to = event.params.to;
 
@@ -270,13 +274,16 @@ BaseRegistrar_Base.Transfer.handler(async ({ event, context }) => {
     (tokenId) => makeSubdomainNode(tokenIdToLabelHash(tokenId), managedNode),
   );
   await handleNFTTransfer(context, event.params.from, to, false, nft);
-});
+  },
+);
 
 // ─── EAController_Base.NameRegistered ───────────────────────────────────────
 // Controller arg remapping: event.params.name = plaintext label,
 // event.params.label = labelHash
 
-EAController_Base.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "EAController_Base", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -294,11 +301,14 @@ EAController_Base.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── RegController_Base.NameRegistered ──────────────────────────────────────
 
-RegController_Base.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "RegController_Base", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -316,11 +326,14 @@ RegController_Base.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── RegController_Base.NameRenewed ─────────────────────────────────────────
 
-RegController_Base.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "RegController_Base", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -338,11 +351,14 @@ RegController_Base.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── UpgController_Base.NameRegistered ──────────────────────────────────────
 
-UpgController_Base.NameRegistered.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "UpgController_Base", event: "NameRegistered" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -360,11 +376,14 @@ UpgController_Base.NameRegistered.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);
 
 // ─── UpgController_Base.NameRenewed ─────────────────────────────────────────
 
-UpgController_Base.NameRenewed.handler(async ({ event, context }) => {
+indexer.onEvent(
+  { contract: "UpgController_Base", event: "NameRenewed" },
+  async ({ event, context }) => {
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
@@ -382,4 +401,5 @@ UpgController_Base.NameRenewed.handler(async ({ event, context }) => {
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
   });
-});
+  },
+);

@@ -1,4 +1,4 @@
-import { Seaport } from "generated";
+import { indexer } from "envio";
 
 import {
   makeEventId,
@@ -12,7 +12,7 @@ import {
 
 // ─── Seaport.OrderFulfilled (secondary market sales) ────────────────────────
 
-Seaport.OrderFulfilled.handler(async ({ event, context }) => {
+indexer.onEvent({ contract: "Seaport", event: "OrderFulfilled" }, async ({ event, context }) => {
   const sale = getSupportedSaleFromOrderFulfilledEvent(
     event.chainId,
     event.params.orderHash,
