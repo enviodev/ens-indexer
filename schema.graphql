@@ -225,7 +225,7 @@ type ContenthashChanged {
   hash: String!
 }
 
-type InterfaceChangedEvent {
+type InterfaceChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!

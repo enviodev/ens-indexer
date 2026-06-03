@@ -288,8 +288,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log InterfaceChangedEvent
-  context.InterfaceChangedEvent.set({
+  // log InterfaceChanged
+  context.InterfaceChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     interfaceID,
