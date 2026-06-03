@@ -364,8 +364,8 @@ indexer.onEvent(
     await materializeDomainExpiryDate(context, node);
   }
 
-  // Log ExpiryExtendedEvent (always logged, even if WrappedDomain doesn't exist)
-  context.ExpiryExtendedEvent.set({
+  // Log ExpiryExtended (always logged, even if WrappedDomain doesn't exist)
+  context.ExpiryExtended.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     expiryDate: expiry,

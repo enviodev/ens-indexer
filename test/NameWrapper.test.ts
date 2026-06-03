@@ -170,7 +170,7 @@ describe("NameWrapper", () => {
   // ─── ExpiryExtended ───────────────────────────────────────────────────
 
   describe("ExpiryExtended", () => {
-    it("logs ExpiryExtendedEvent entities", async () => {
+    it("logs ExpiryExtended entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -187,7 +187,7 @@ describe("NameWrapper", () => {
       });
 
       const expiryEvents = result.changes.flatMap(
-        (c) => c.ExpiryExtendedEvent?.sets ?? [],
+        (c) => c.ExpiryExtended?.sets ?? [],
       );
 
       for (const evt of expiryEvents) {

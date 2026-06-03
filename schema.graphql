@@ -129,7 +129,7 @@ type FusesSet {
   fuses: Int!
 }
 
-type ExpiryExtendedEvent {
+type ExpiryExtended {
   id: ID!
   blockNumber: Int!
   transactionID: String!
