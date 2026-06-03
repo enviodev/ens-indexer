@@ -36,3 +36,5 @@ generated
 
 # Envio V3 codegen output
 .envio/
+
+SCHEMA_COMPARISON.md

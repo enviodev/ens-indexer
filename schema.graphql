@@ -25,6 +25,7 @@ type Domain {
 type Account {
   id: ID!
   domains: [Domain!]! @derivedFrom(field: "owner")
+  wrappedDomains: [WrappedDomain!]! @derivedFrom(field: "owner")
   registrations: [Registration!]! @derivedFrom(field: "registrant")
 }
 
