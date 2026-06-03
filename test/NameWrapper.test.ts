@@ -138,7 +138,7 @@ describe("NameWrapper", () => {
   // ─── FusesSet ─────────────────────────────────────────────────────────
 
   describe("FusesSet", () => {
-    it("logs FusesSetEvent entities", async () => {
+    it("logs FusesSet entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -155,7 +155,7 @@ describe("NameWrapper", () => {
       });
 
       const fusesEvents = result.changes.flatMap(
-        (c) => c.FusesSetEvent?.sets ?? [],
+        (c) => c.FusesSet?.sets ?? [],
       );
 
       for (const evt of fusesEvents) {

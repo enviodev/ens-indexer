@@ -121,7 +121,7 @@ type NameUnwrapped {
   owner: Account!
 }
 
-type FusesSetEvent {
+type FusesSet {
   id: ID!
   blockNumber: Int!
   transactionID: String!

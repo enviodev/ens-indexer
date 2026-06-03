@@ -335,8 +335,8 @@ indexer.onEvent(
     await materializeDomainExpiryDate(context, node);
   }
 
-  // Log FusesSetEvent (always logged, even if WrappedDomain doesn't exist)
-  context.FusesSetEvent.set({
+  // Log FusesSet (always logged, even if WrappedDomain doesn't exist)
+  context.FusesSet.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     fuses: fusesNum,
