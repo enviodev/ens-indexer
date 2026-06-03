@@ -161,8 +161,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log AbiChangedEvent
-  context.AbiChangedEvent.set({
+  // log AbiChanged
+  context.AbiChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     contentType,

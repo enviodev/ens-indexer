@@ -191,7 +191,7 @@ type NameChanged {
   name: String!
 }
 
-type AbiChangedEvent {
+type AbiChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!
