@@ -315,9 +315,9 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log AuthorisationChangedEvent
+  // log AuthorisationChanged
   // NOTE: the spelling difference is kept for subgraph backwards-compatibility
-  context.AuthorisationChangedEvent.set({
+  context.AuthorisationChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     owner,

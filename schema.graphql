@@ -234,7 +234,7 @@ type InterfaceChanged {
   implementer: String!
 }
 
-type AuthorisationChangedEvent {
+type AuthorisationChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!
