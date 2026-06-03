@@ -100,7 +100,7 @@ describe("Registrar", () => {
       });
 
       const renewEvents = result.changes.flatMap(
-        (c) => c.NameRenewedEvent?.sets ?? [],
+        (c) => c.NameRenewed?.sets ?? [],
       );
 
       // Validate structure if any found

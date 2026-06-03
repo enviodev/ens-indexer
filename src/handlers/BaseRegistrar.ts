@@ -208,7 +208,7 @@ indexer.onEvent(
     });
   }
 
-  context.NameRenewedEvent.set({
+  context.NameRenewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
