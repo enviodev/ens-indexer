@@ -130,8 +130,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log NameChangedEvent
-  context.NameChangedEvent.set({
+  // log NameChanged
+  context.NameChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     name,

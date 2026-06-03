@@ -183,7 +183,7 @@ type MulticoinAddrChanged {
   addr: String!
 }
 
-type NameChangedEvent {
+type NameChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!
