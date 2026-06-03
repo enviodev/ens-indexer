@@ -92,8 +92,8 @@ indexer.onEvent(
     coinTypes: uniq([...(resolver.coinTypes ?? []), coinType]),
   });
 
-  // log MulticoinAddrChangedEvent
-  context.MulticoinAddrChangedEvent.set({
+  // log MulticoinAddrChanged
+  context.MulticoinAddrChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     coinType,

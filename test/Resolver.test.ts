@@ -81,7 +81,7 @@ describe("Resolver", () => {
       });
 
       const multicoinEvents = result.changes.flatMap(
-        (c) => c.MulticoinAddrChangedEvent?.sets ?? [],
+        (c) => c.MulticoinAddrChanged?.sets ?? [],
       );
 
       if (multicoinEvents.length > 0) {
@@ -324,7 +324,7 @@ describe("Resolver", () => {
       for (const change of result.changes) {
         if (change.AddrChangedEvent?.sets?.length)
           resolverEventTypes.add("AddrChanged");
-        if (change.MulticoinAddrChangedEvent?.sets?.length)
+        if (change.MulticoinAddrChanged?.sets?.length)
           resolverEventTypes.add("MulticoinAddrChanged");
         if (change.TextChangedEvent?.sets?.length)
           resolverEventTypes.add("TextChanged");
