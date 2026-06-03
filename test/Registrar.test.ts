@@ -137,7 +137,7 @@ describe("Registrar", () => {
         (c) => c.NameTransferred?.sets ?? [],
       );
 
-      // Validate structure if any found
+      expect(transferEvents.length).toBeGreaterThan(0);
       for (const evt of transferEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.registration_id).toBeDefined();

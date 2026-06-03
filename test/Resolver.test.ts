@@ -21,11 +21,10 @@ describe("Resolver", () => {
         },
       });
 
-      // Block 12,062,607 — "buytaert.eth" registration includes
-      // NewResolver (registers resolver) + AddrChanged (sets ETH address)
+      // Range with resolver AddrChanged events (sets ETH address)
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 12_062_607, endBlock: 12_062_607 },
+          1: { startBlock: 16_925_700, endBlock: 16_925_800 },
         },
       });
 
@@ -34,13 +33,12 @@ describe("Resolver", () => {
         (c) => c.AddrChanged?.sets ?? [],
       );
 
-      if (addrEvents.length > 0) {
-        for (const evt of addrEvents) {
-          expect(evt.id).toBeDefined();
-          expect(evt.resolver_id).toBeDefined();
-          expect(evt.addr_id).toBeDefined();
-          expect(evt.transactionID).toBeDefined();
-        }
+      expect(addrEvents.length).toBeGreaterThan(0);
+      for (const evt of addrEvents) {
+        expect(evt.id).toBeDefined();
+        expect(evt.resolver_id).toBeDefined();
+        expect(evt.addr_id).toBeDefined();
+        expect(evt.transactionID).toBeDefined();
       }
 
       // Check Resolver entities have addr_id set
@@ -73,10 +71,10 @@ describe("Resolver", () => {
         },
       });
 
-      // Block 12,062,607 has AddressChanged events
+      // Range with multicoin AddressChanged events
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 12_062_607, endBlock: 12_062_607 },
+          1: { startBlock: 16_925_700, endBlock: 16_925_800 },
         },
       });
 
@@ -84,13 +82,12 @@ describe("Resolver", () => {
         (c) => c.MulticoinAddrChanged?.sets ?? [],
       );
 
-      if (multicoinEvents.length > 0) {
-        for (const evt of multicoinEvents) {
-          expect(evt.id).toBeDefined();
-          expect(evt.resolver_id).toBeDefined();
-          expect(evt.coinType).toBeDefined();
-          expect(evt.addr).toBeDefined();
-        }
+      expect(multicoinEvents.length).toBeGreaterThan(0);
+      for (const evt of multicoinEvents) {
+        expect(evt.id).toBeDefined();
+        expect(evt.resolver_id).toBeDefined();
+        expect(evt.coinType).toBeDefined();
+        expect(evt.addr).toBeDefined();
       }
 
       // Verify coinTypes array is being built on resolver
@@ -134,14 +131,13 @@ describe("Resolver", () => {
         (c) => c.TextChanged?.sets ?? [],
       );
 
-      if (textEvents.length > 0) {
-        for (const evt of textEvents) {
-          expect(evt.id).toBeDefined();
-          expect(evt.resolver_id).toBeDefined();
-          expect(evt.key).toBeDefined();
-          expect(typeof evt.key).toBe("string");
-          // value can be undefined (when cleared)
-        }
+      expect(textEvents.length).toBeGreaterThan(0);
+      for (const evt of textEvents) {
+        expect(evt.id).toBeDefined();
+        expect(evt.resolver_id).toBeDefined();
+        expect(evt.key).toBeDefined();
+        expect(typeof evt.key).toBe("string");
+        // value can be undefined (when cleared)
       }
 
       // Verify texts array is being built on resolver

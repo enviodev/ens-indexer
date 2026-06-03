@@ -147,10 +147,10 @@ describe("NameWrapper", () => {
         },
       });
 
-      // Scan a range after NameWrapper deployment for FusesSet events
+      // Block 17,001,944 — first NameWrapper FusesSet event
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 16_925_700, endBlock: 16_925_800 },
+          1: { startBlock: 17_001_944, endBlock: 17_001_944 },
         },
       });
 
@@ -158,6 +158,7 @@ describe("NameWrapper", () => {
         (c) => c.FusesSet?.sets ?? [],
       );
 
+      expect(fusesEvents.length).toBeGreaterThan(0);
       for (const evt of fusesEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
@@ -179,10 +180,10 @@ describe("NameWrapper", () => {
         },
       });
 
-      // Scan a range after NameWrapper deployment
+      // Block 17,002,313 — NameWrapper ExpiryExtended event
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 16_926_000, endBlock: 16_926_200 },
+          1: { startBlock: 17_002_313, endBlock: 17_002_313 },
         },
       });
 
@@ -190,6 +191,7 @@ describe("NameWrapper", () => {
         (c) => c.ExpiryExtended?.sets ?? [],
       );
 
+      expect(expiryEvents.length).toBeGreaterThan(0);
       for (const evt of expiryEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
