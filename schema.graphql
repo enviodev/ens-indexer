@@ -7,17 +7,17 @@ type Domain {
   id: ID!
   name: String
   labelName: String
-  labelhash: String
-  parent: Domain
+  labelhash: String @index
+  parent: Domain @index
   subdomainCount: Int!
-  resolvedAddress: Account
+  resolvedAddress: Account @index
   resolver: Resolver
   ttl: BigInt
   isMigrated: Boolean!
   createdAt: BigInt!
-  owner: Account!
-  registrant: Account
-  wrappedOwner: Account
+  owner: Account! @index
+  registrant: Account @index
+  wrappedOwner: Account @index
   expiryDate: BigInt
   subdomains: [Domain!]! @derivedFrom(field: "parent")
 }
@@ -31,7 +31,7 @@ type Account {
 
 type Resolver {
   id: ID!
-  domain: Domain!
+  domain: Domain! @index
   address: String!
   addr: Account
   contentHash: String
@@ -41,9 +41,9 @@ type Resolver {
 
 type Registration {
   id: ID!
-  domain: Domain!
-  registrationDate: BigInt!
-  expiryDate: BigInt!
+  domain: Domain! @index
+  registrationDate: BigInt! @index
+  expiryDate: BigInt! @index
   cost: BigInt
   registrant: Account!
   labelName: String
@@ -51,7 +51,7 @@ type Registration {
 
 type WrappedDomain {
   id: ID!
-  domain: Domain!
+  domain: Domain! @index
   expiryDate: BigInt!
   fuses: Int!
   owner: Account!
@@ -61,206 +61,206 @@ type WrappedDomain {
 
 # ─── Domain Event Entities ───────────────────────────────────────────────────
 
-type Transfer {
+type Transfer @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   owner: Account!
 }
 
-type NewOwner {
+type NewOwner @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   owner: Account!
   parentDomain: Domain!
 }
 
-type NewResolver {
+type NewResolver @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   resolver_id: String!
 }
 
-type NewTTL {
+type NewTTL @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   ttl: BigInt!
 }
 
-type WrappedTransfer {
+type WrappedTransfer @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   owner: Account!
 }
 
-type NameWrapped {
+type NameWrapped @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   name: String
   fuses: Int!
   owner: Account!
   expiryDate: BigInt!
 }
 
-type NameUnwrapped {
+type NameUnwrapped @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   owner: Account!
 }
 
-type FusesSet {
+type FusesSet @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   fuses: Int!
 }
 
-type ExpiryExtended {
+type ExpiryExtended @index(fields: ["domain", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  domain: Domain!
+  domain: Domain! @index
   expiryDate: BigInt!
 }
 
 # ─── Registration Event Entities ─────────────────────────────────────────────
 
-type NameRegistered {
+type NameRegistered @index(fields: ["registration", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  registration: Registration!
+  registration: Registration! @index
   registrant: Account!
   expiryDate: BigInt!
 }
 
-type NameRenewed {
+type NameRenewed @index(fields: ["registration", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  registration: Registration!
+  registration: Registration! @index
   expiryDate: BigInt!
 }
 
-type NameTransferred {
+type NameTransferred @index(fields: ["registration", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  registration: Registration!
+  registration: Registration! @index
   newOwner: Account!
 }
 
 # ─── Resolver Event Entities ─────────────────────────────────────────────────
 
-type AddrChanged {
+type AddrChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   addr: Account!
 }
 
-type MulticoinAddrChanged {
+type MulticoinAddrChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   coinType: BigInt!
   addr: String!
 }
 
-type NameChanged {
+type NameChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   name: String!
 }
 
-type AbiChanged {
+type AbiChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   contentType: BigInt!
 }
 
-type PubkeyChanged {
+type PubkeyChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   x: String!
   y: String!
 }
 
-type TextChanged {
+type TextChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   key: String!
   value: String
 }
 
-type ContenthashChanged {
+type ContenthashChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   hash: String!
 }
 
-type InterfaceChanged {
+type InterfaceChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   interfaceID: String!
   implementer: String!
 }
 
-type AuthorisationChanged {
+type AuthorisationChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   owner: String!
   target: String!
   isAuthorized: Boolean!
 }
 
-type VersionChanged {
+type VersionChanged @index(fields: ["resolver", "id"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
-  resolver: Resolver!
+  resolver: Resolver! @index
   version: BigInt!
 }
 
 # ─── Protocol Acceleration Entities ─────────────────────────────────────────
 
-type PAResolver {
+type PAResolver @index(fields: ["chainId", "address"]) {
   id: ID!
   chainId: Int!
   address: String!
 }
 
-type PAResolverRecords {
+type PAResolverRecords @index(fields: ["chainId", "address", "node"]) {
   id: ID!
   chainId: Int!
   address: String!
@@ -269,7 +269,7 @@ type PAResolverRecords {
   resolver: PAResolver!
 }
 
-type PAResolverAddressRecord {
+type PAResolverAddressRecord @index(fields: ["chainId", "address", "node", "coinType"]) {
   id: ID!
   chainId: Int!
   address: String!
@@ -279,7 +279,7 @@ type PAResolverAddressRecord {
   resolverRecords: PAResolverRecords!
 }
 
-type PAResolverTextRecord {
+type PAResolverTextRecord @index(fields: ["chainId", "address", "node", "key"]) {
   id: ID!
   chainId: Int!
   address: String!
@@ -289,7 +289,7 @@ type PAResolverTextRecord {
   resolverRecords: PAResolverRecords!
 }
 
-type DomainResolverRelation {
+type DomainResolverRelation @index(fields: ["chainId", "address", "domainId"]) {
   id: ID!
   chainId: Int!
   address: String!
@@ -297,7 +297,7 @@ type DomainResolverRelation {
   resolver: String!
 }
 
-type ReverseNameRecord {
+type ReverseNameRecord @index(fields: ["address", "coinType"]) {
   id: ID!
   address: String!
   coinType: BigInt!
@@ -317,12 +317,12 @@ enum RegistrarActionType {
 
 type Subregistry {
   id: ID!                    # CAIP-10: "eip155:{chainId}:{address}"
-  node: String!              # namehash of managed name (e.g. ETH_NODE)
+  node: String! @index       # namehash of managed name (e.g. ETH_NODE)
 }
 
 type RegistrationLifecycle {
   id: ID!                    # node hash (domain namehash)
-  subregistryId: String!     # FK to Subregistry
+  subregistryId: String! @index  # FK to Subregistry
   expiresAt: BigInt!         # Unix timestamp
 }
 
@@ -337,9 +337,9 @@ type RegistrarAction {
   total: BigInt              # nullable
   registrant: String!        # transaction.from address
   encodedReferrer: String    # nullable, raw bytes32
-  decodedReferrer: String    # nullable, decoded address
+  decodedReferrer: String @index  # nullable, decoded address
   blockNumber: BigInt!
-  timestamp: BigInt!
+  timestamp: BigInt! @index
   transactionHash: String!
   eventIds: [String!]!       # array of contributing event IDs
 }
@@ -354,12 +354,12 @@ type RegistrarActionMetadata {
 
 type NameToken {
   id: ID!                    # CAIP-19 Asset ID
-  domainId: String!          # namehash (node) of the ENS domain
+  domainId: String! @index   # namehash (node) of the ENS domain
   chainId: Int!              # chain managing the token
   contractAddress: String!   # NFT contract address
   tokenId: BigInt!           # token ID in the contract
   assetNamespace: String!    # "erc721" or "erc1155"
-  owner: String!             # current owner (zeroAddress if burned)
+  owner: String! @index      # current owner (zeroAddress if burned)
   mintStatus: String!        # "minted" or "burned"
 }
 
@@ -373,11 +373,11 @@ type NameSale {
   contractAddress: String!
   tokenId: BigInt!
   assetNamespace: String!
-  assetId: String!           # CAIP-19 Asset ID
-  domainId: String!          # namehash (node)
-  buyer: String!
-  seller: String!
+  assetId: String! @index    # CAIP-19 Asset ID
+  domainId: String! @index   # namehash (node)
+  buyer: String! @index
+  seller: String! @index
   currency: String!          # "ETH", "USDC", "DAI"
   amount: BigInt!            # smallest unit
-  timestamp: BigInt!
+  timestamp: BigInt! @index
 }
