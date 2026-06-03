@@ -121,7 +121,7 @@ describe("Registry", () => {
   // ─── NewResolver + dynamic contract registration ──────────────────────
 
   describe("Registry — NewResolver + dynamic contract registration", () => {
-    it("registers resolver addresses dynamically and creates NewResolverEvent", async () => {
+    it("registers resolver addresses dynamically and creates NewResolver", async () => {
       const indexer = createTestIndexer();
 
       // Initialize root
@@ -138,9 +138,9 @@ describe("Registry", () => {
         },
       });
 
-      // Check for NewResolverEvent entities
+      // Check for NewResolver entities
       const resolverEvents = result.changes.flatMap(
-        (c) => c.NewResolverEvent?.sets ?? [],
+        (c) => c.NewResolver?.sets ?? [],
       );
 
       if (resolverEvents.length > 0) {

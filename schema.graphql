@@ -78,7 +78,7 @@ type NewOwner {
   parentDomain: Domain!
 }
 
-type NewResolverEvent {
+type NewResolver {
   id: ID!
   blockNumber: Int!
   transactionID: String!
