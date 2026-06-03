@@ -55,8 +55,8 @@ indexer.onEvent(
     });
   }
 
-  // log AddrChangedEvent
-  context.AddrChangedEvent.set({
+  // log AddrChanged
+  context.AddrChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     addr_id: a,
@@ -92,8 +92,8 @@ indexer.onEvent(
     coinTypes: uniq([...(resolver.coinTypes ?? []), coinType]),
   });
 
-  // log MulticoinAddrChangedEvent
-  context.MulticoinAddrChangedEvent.set({
+  // log MulticoinAddrChanged
+  context.MulticoinAddrChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     coinType,
@@ -130,8 +130,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log NameChangedEvent
-  context.NameChangedEvent.set({
+  // log NameChanged
+  context.NameChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     name,
@@ -161,8 +161,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log AbiChangedEvent
-  context.AbiChangedEvent.set({
+  // log AbiChanged
+  context.AbiChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     contentType,
@@ -187,8 +187,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log PubkeyChangedEvent
-  context.PubkeyChangedEvent.set({
+  // log PubkeyChanged
+  context.PubkeyChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     x,
@@ -229,8 +229,8 @@ indexer.onEvent(
     texts: uniq([...(resolver.texts ?? []), sanitizedKey]),
   });
 
-  // log TextChangedEvent
-  context.TextChangedEvent.set({
+  // log TextChanged
+  context.TextChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     key: sanitizedKey,
@@ -262,8 +262,8 @@ indexer.onEvent(
     contentHash: hash,
   });
 
-  // log ContenthashChangedEvent
-  context.ContenthashChangedEvent.set({
+  // log ContenthashChanged
+  context.ContenthashChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     hash,
@@ -288,8 +288,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log InterfaceChangedEvent
-  context.InterfaceChangedEvent.set({
+  // log InterfaceChanged
+  context.InterfaceChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     interfaceID,
@@ -315,9 +315,9 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log AuthorisationChangedEvent
+  // log AuthorisationChanged
   // NOTE: the spelling difference is kept for subgraph backwards-compatibility
-  context.AuthorisationChangedEvent.set({
+  context.AuthorisationChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     owner,
@@ -357,8 +357,8 @@ indexer.onEvent(
     texts: undefined,
   });
 
-  // log VersionChangedEvent
-  context.VersionChangedEvent.set({
+  // log VersionChanged
+  context.VersionChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     version: newVersion,

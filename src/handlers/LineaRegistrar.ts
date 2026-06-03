@@ -83,7 +83,7 @@ indexer.onEvent(
     registrant_id: owner,
   });
 
-  context.NameRegisteredEvent.set({
+  context.NameRegistered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: owner,
@@ -133,7 +133,7 @@ indexer.onEvent(
     });
   }
 
-  context.NameRenewedEvent.set({
+  context.NameRenewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
@@ -184,7 +184,7 @@ indexer.onEvent(
     });
   }
 
-  context.NameTransferredEvent.set({
+  context.NameTransferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,

@@ -91,8 +91,8 @@ indexer.onEvent(
     registrant_id: owner,
   });
 
-  // Log NameRegisteredEvent
-  context.NameRegisteredEvent.set({
+  // Log NameRegistered
+  context.NameRegistered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: owner,
@@ -144,8 +144,8 @@ indexer.onEvent(
     });
   }
 
-  // Log NameRenewedEvent
-  context.NameRenewedEvent.set({
+  // Log NameRenewed
+  context.NameRenewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
@@ -201,8 +201,8 @@ indexer.onEvent(
     });
   }
 
-  // Log NameTransferredEvent
-  context.NameTransferredEvent.set({
+  // Log NameTransferred
+  context.NameTransferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,

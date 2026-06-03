@@ -221,8 +221,8 @@ async function handleTransfer(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  // Log the DomainTransfer event entity
-  context.DomainTransfer.set({
+  // Log the Transfer event entity
+  context.Transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -299,11 +299,11 @@ async function handleNewResolver(
     }
   }
 
-  // Log the NewResolverEvent entity
+  // Log the NewResolver entity
   // NOTE: for subgraph compatibility, when the resolver is the zero address
   // we still log a resolver_id pointing to the zero address string, matching
   // the original subgraph behavior (even though no Resolver entity exists for it).
-  context.NewResolverEvent.set({
+  context.NewResolver.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     resolver_id: isZeroResolver ? ZERO_ADDRESS : resolverId,

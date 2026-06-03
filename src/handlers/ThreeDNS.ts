@@ -159,7 +159,7 @@ indexer.onEvent(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  context.DomainTransfer.set({
+  context.Transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -238,7 +238,7 @@ indexer.onEvent(
   });
 
   // Log NameRegistered event
-  context.NameRegisteredEvent.set({
+  context.NameRegistered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: registrant,
@@ -275,7 +275,7 @@ indexer.onEvent(
   }
 
   // Log NameRenewed event
-  context.NameRenewedEvent.set({
+  context.NameRenewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: newExpiry,

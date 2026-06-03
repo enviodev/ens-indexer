@@ -252,10 +252,15 @@ export async function handleRegistrarRenewal(
   const node = makeSubdomainNode(params.labelHash, params.managedNode);
   const subregistryId = makeSubregistryId(params.chainId, params.contractAddress);
 
-  // Get existing lifecycle to compute incremental duration
+  // Get existing lifecycle to compute incremental duration. Missing means the
+  // renewal predates the registration we've indexed (e.g. indexer started
+  // mid-history); skip rather than crash the worker.
   const currentLifecycle = await context.RegistrationLifecycle.get(node);
   if (!currentLifecycle) {
-    throw new Error(`Current Registration Lifecycle record was not found for node '${node}'`);
+    context.log.warn(
+      `Registrar renewal skipped: no RegistrationLifecycle for node '${node}'.`,
+    );
+    return;
   }
 
   // Calculate incremental duration (extension amount)
@@ -300,27 +305,24 @@ export async function handleRegistrarControllerEvent(
 ): Promise<void> {
   const logicalEventKey = makeLogicalEventKey(params.node, params.transactionHash);
 
-  // Read metadata singleton
+  // Read metadata singleton. Missing/mismatched means the paired BaseRegistrar
+  // action was not indexed (e.g. indexer started mid-history); skip rather than
+  // crash the worker.
   const metadata = await context.RegistrarActionMetadata.get(METADATA_ID);
-  if (!metadata) {
-    throw new Error(
-      `The required "logical registrar action" ID could not be found for logical event key: '${logicalEventKey}'.`,
+  if (!metadata || metadata.logicalEventKey !== logicalEventKey) {
+    context.log.warn(
+      `Controller event skipped: no matching registrar action for key '${logicalEventKey}'.`,
     );
-  }
-
-  // Verify stored key matches
-  if (metadata.logicalEventKey !== logicalEventKey) {
-    throw new Error(
-      `The logical event key ('${metadata.logicalEventKey}') must match current key ('${logicalEventKey}').`,
-    );
+    return;
   }
 
   // Read existing registrar action
   const action = await context.RegistrarAction.get(metadata.logicalEventId);
   if (!action) {
-    throw new Error(
-      `The "logical registrar action" record not found for logical event ID: '${metadata.logicalEventId}'.`,
+    context.log.warn(
+      `Controller event skipped: registrar action '${metadata.logicalEventId}' not found.`,
     );
+    return;
   }
 
   // Update with pricing, referral, and appended eventId
@@ -353,27 +355,24 @@ export async function handleUniversalRenewalEvent(
 ): Promise<void> {
   const logicalEventKey = makeLogicalEventKey(params.node, params.transactionHash);
 
-  // Read metadata singleton
+  // Read metadata singleton. Missing/mismatched means the paired BaseRegistrar
+  // action was not indexed (e.g. indexer started mid-history); skip rather than
+  // crash the worker.
   const metadata = await context.RegistrarActionMetadata.get(METADATA_ID);
-  if (!metadata) {
-    throw new Error(
-      `The required "logical registrar action" ID could not be found for logical event key: '${logicalEventKey}'.`,
+  if (!metadata || metadata.logicalEventKey !== logicalEventKey) {
+    context.log.warn(
+      `Universal renewal skipped: no matching registrar action for key '${logicalEventKey}'.`,
     );
-  }
-
-  // Verify stored key matches
-  if (metadata.logicalEventKey !== logicalEventKey) {
-    throw new Error(
-      `The logical event key ('${metadata.logicalEventKey}') must match current key ('${logicalEventKey}').`,
-    );
+    return;
   }
 
   // Read existing registrar action
   const action = await context.RegistrarAction.get(metadata.logicalEventId);
   if (!action) {
-    throw new Error(
-      `The "logical registrar action" record not found for logical event ID: '${metadata.logicalEventId}'.`,
+    context.log.warn(
+      `Universal renewal skipped: registrar action '${metadata.logicalEventId}' not found.`,
     );
+    return;
   }
 
   // Update with referral data and appended eventId

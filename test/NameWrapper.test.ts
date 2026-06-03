@@ -48,7 +48,7 @@ describe("NameWrapper", () => {
       }
     }, 60_000);
 
-    it("logs NameWrappedEvent entities", async () => {
+    it("logs NameWrapped entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -64,7 +64,7 @@ describe("NameWrapper", () => {
       });
 
       const wrappedEvents = result.changes.flatMap(
-        (c) => c.NameWrappedEvent?.sets ?? [],
+        (c) => c.NameWrapped?.sets ?? [],
       );
       expect(wrappedEvents.length).toBeGreaterThan(0);
 
@@ -138,7 +138,7 @@ describe("NameWrapper", () => {
   // ─── FusesSet ─────────────────────────────────────────────────────────
 
   describe("FusesSet", () => {
-    it("logs FusesSetEvent entities", async () => {
+    it("logs FusesSet entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -147,17 +147,18 @@ describe("NameWrapper", () => {
         },
       });
 
-      // Scan a range after NameWrapper deployment for FusesSet events
+      // Block 17,001,944 — first NameWrapper FusesSet event
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 16_925_700, endBlock: 16_925_800 },
+          1: { startBlock: 17_001_944, endBlock: 17_001_944 },
         },
       });
 
       const fusesEvents = result.changes.flatMap(
-        (c) => c.FusesSetEvent?.sets ?? [],
+        (c) => c.FusesSet?.sets ?? [],
       );
 
+      expect(fusesEvents.length).toBeGreaterThan(0);
       for (const evt of fusesEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
@@ -170,7 +171,7 @@ describe("NameWrapper", () => {
   // ─── ExpiryExtended ───────────────────────────────────────────────────
 
   describe("ExpiryExtended", () => {
-    it("logs ExpiryExtendedEvent entities", async () => {
+    it("logs ExpiryExtended entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -179,17 +180,18 @@ describe("NameWrapper", () => {
         },
       });
 
-      // Scan a range after NameWrapper deployment
+      // Block 17,002,313 — NameWrapper ExpiryExtended event
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 16_926_000, endBlock: 16_926_200 },
+          1: { startBlock: 17_002_313, endBlock: 17_002_313 },
         },
       });
 
       const expiryEvents = result.changes.flatMap(
-        (c) => c.ExpiryExtendedEvent?.sets ?? [],
+        (c) => c.ExpiryExtended?.sets ?? [],
       );
 
+      expect(expiryEvents.length).toBeGreaterThan(0);
       for (const evt of expiryEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
@@ -231,7 +233,7 @@ describe("NameWrapper", () => {
 
       // This block should produce changes across multiple entity types
       // Expected: Domain, Account, Registration, WrappedDomain, NewOwner,
-      //           NameRegisteredEvent, WrappedTransfer, NameWrappedEvent, etc.
+      //           NameRegistered, WrappedTransfer, NameWrapped, etc.
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
     }, 60_000);
   });

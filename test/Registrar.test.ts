@@ -37,9 +37,9 @@ describe("Registrar", () => {
       );
       expect(registrations.length).toBeGreaterThan(0);
 
-      // Check that NameRegisteredEvent entities were created
+      // Check that NameRegistered entities were created
       const regEvents = result.changes.flatMap(
-        (c) => c.NameRegisteredEvent?.sets ?? [],
+        (c) => c.NameRegistered?.sets ?? [],
       );
       expect(regEvents.length).toBeGreaterThan(0);
 
@@ -100,7 +100,7 @@ describe("Registrar", () => {
       });
 
       const renewEvents = result.changes.flatMap(
-        (c) => c.NameRenewedEvent?.sets ?? [],
+        (c) => c.NameRenewed?.sets ?? [],
       );
 
       // Validate structure if any found
@@ -134,10 +134,10 @@ describe("Registrar", () => {
       });
 
       const transferEvents = result.changes.flatMap(
-        (c) => c.NameTransferredEvent?.sets ?? [],
+        (c) => c.NameTransferred?.sets ?? [],
       );
 
-      // Validate structure if any found
+      expect(transferEvents.length).toBeGreaterThan(0);
       for (const evt of transferEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.registration_id).toBeDefined();

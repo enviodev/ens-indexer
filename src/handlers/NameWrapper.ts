@@ -258,8 +258,8 @@ indexer.onEvent(
   // Materialize domain expiryDate if PCC fuse is set
   await materializeDomainExpiryDate(context, node);
 
-  // Log NameWrappedEvent
-  context.NameWrappedEvent.set({
+  // Log NameWrapped
+  context.NameWrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     name: decodedName,
@@ -305,8 +305,8 @@ indexer.onEvent(
   // Delete the WrappedDomain
   context.WrappedDomain.deleteUnsafe(node);
 
-  // Log NameUnwrappedEvent
-  context.NameUnwrappedEvent.set({
+  // Log NameUnwrapped
+  context.NameUnwrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -335,8 +335,8 @@ indexer.onEvent(
     await materializeDomainExpiryDate(context, node);
   }
 
-  // Log FusesSetEvent (always logged, even if WrappedDomain doesn't exist)
-  context.FusesSetEvent.set({
+  // Log FusesSet (always logged, even if WrappedDomain doesn't exist)
+  context.FusesSet.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     fuses: fusesNum,
@@ -364,8 +364,8 @@ indexer.onEvent(
     await materializeDomainExpiryDate(context, node);
   }
 
-  // Log ExpiryExtendedEvent (always logged, even if WrappedDomain doesn't exist)
-  context.ExpiryExtendedEvent.set({
+  // Log ExpiryExtended (always logged, even if WrappedDomain doesn't exist)
+  context.ExpiryExtended.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     expiryDate: expiry,

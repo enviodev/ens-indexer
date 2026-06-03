@@ -85,7 +85,7 @@ describe("Registry", () => {
   // ─── Transfer events ──────────────────────────────────────────────────
 
   describe("Registry — Transfer events", () => {
-    it("updates domain ownership and logs DomainTransfer events", async () => {
+    it("updates domain ownership and logs Transfer events", async () => {
       const indexer = createTestIndexer();
 
       // Initialize root
@@ -95,25 +95,24 @@ describe("Registry", () => {
         },
       });
 
-      // Block 12,062,607 — "buytaert.eth" registration includes registry Transfer
+      // Range with registry Transfer events (ownership transfers)
       const result = await indexer.process({
         chains: {
-          1: { startBlock: 12_062_607, endBlock: 12_062_607 },
+          1: { startBlock: 16_926_000, endBlock: 16_926_200 },
         },
       });
 
-      // Check for DomainTransfer event entities
+      // Check for Transfer event entities
       const transfers = result.changes.flatMap(
-        (c) => c.DomainTransfer?.sets ?? [],
+        (c) => c.Transfer?.sets ?? [],
       );
 
-      if (transfers.length > 0) {
-        for (const transfer of transfers) {
-          expect(transfer.id).toBeDefined();
-          expect(transfer.domain_id).toBeDefined();
-          expect(transfer.owner_id).toBeDefined();
-          expect(transfer.transactionID).toBeDefined();
-        }
+      expect(transfers.length).toBeGreaterThan(0);
+      for (const transfer of transfers) {
+        expect(transfer.id).toBeDefined();
+        expect(transfer.domain_id).toBeDefined();
+        expect(transfer.owner_id).toBeDefined();
+        expect(transfer.transactionID).toBeDefined();
       }
     }, 30_000);
   });
@@ -121,7 +120,7 @@ describe("Registry", () => {
   // ─── NewResolver + dynamic contract registration ──────────────────────
 
   describe("Registry — NewResolver + dynamic contract registration", () => {
-    it("registers resolver addresses dynamically and creates NewResolverEvent", async () => {
+    it("registers resolver addresses dynamically and creates NewResolver", async () => {
       const indexer = createTestIndexer();
 
       // Initialize root
@@ -138,18 +137,17 @@ describe("Registry", () => {
         },
       });
 
-      // Check for NewResolverEvent entities
+      // Check for NewResolver entities
       const resolverEvents = result.changes.flatMap(
-        (c) => c.NewResolverEvent?.sets ?? [],
+        (c) => c.NewResolver?.sets ?? [],
       );
 
-      if (resolverEvents.length > 0) {
-        for (const evt of resolverEvents) {
-          expect(evt.id).toBeDefined();
-          expect(evt.domain_id).toBeDefined();
-          expect(evt.resolver_id).toBeDefined();
-          expect(evt.transactionID).toBeDefined();
-        }
+      expect(resolverEvents.length).toBeGreaterThan(0);
+      for (const evt of resolverEvents) {
+        expect(evt.id).toBeDefined();
+        expect(evt.domain_id).toBeDefined();
+        expect(evt.resolver_id).toBeDefined();
+        expect(evt.transactionID).toBeDefined();
       }
 
       // Resolver dynamic addresses should have been registered
