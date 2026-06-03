@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "dns-packet": "^5.6.1",
-    "envio": "3.0.2",
+    "envio": "3.0.0-rc.0",
     "viem": "^2.46.3"
   },
   "engines": {
