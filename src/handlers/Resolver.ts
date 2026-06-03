@@ -55,8 +55,8 @@ indexer.onEvent(
     });
   }
 
-  // log AddrChangedEvent
-  context.AddrChangedEvent.set({
+  // log AddrChanged
+  context.AddrChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     addr_id: a,

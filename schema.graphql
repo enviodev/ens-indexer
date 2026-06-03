@@ -166,7 +166,7 @@ type NameTransferred {
 
 # ─── Resolver Event Entities ─────────────────────────────────────────────────
 
-type AddrChangedEvent {
+type AddrChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!

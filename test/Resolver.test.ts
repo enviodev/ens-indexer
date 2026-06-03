@@ -29,9 +29,9 @@ describe("Resolver", () => {
         },
       });
 
-      // Check for AddrChangedEvent entities
+      // Check for AddrChanged entities
       const addrEvents = result.changes.flatMap(
-        (c) => c.AddrChangedEvent?.sets ?? [],
+        (c) => c.AddrChanged?.sets ?? [],
       );
 
       if (addrEvents.length > 0) {
@@ -322,7 +322,7 @@ describe("Resolver", () => {
       // Collect resolver-related event types present
       const resolverEventTypes = new Set<string>();
       for (const change of result.changes) {
-        if (change.AddrChangedEvent?.sets?.length)
+        if (change.AddrChanged?.sets?.length)
           resolverEventTypes.add("AddrChanged");
         if (change.MulticoinAddrChanged?.sets?.length)
           resolverEventTypes.add("MulticoinAddrChanged");
