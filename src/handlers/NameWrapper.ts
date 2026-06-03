@@ -305,8 +305,8 @@ indexer.onEvent(
   // Delete the WrappedDomain
   context.WrappedDomain.deleteUnsafe(node);
 
-  // Log NameUnwrappedEvent
-  context.NameUnwrappedEvent.set({
+  // Log NameUnwrapped
+  context.NameUnwrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,

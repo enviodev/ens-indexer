@@ -113,7 +113,7 @@ type NameWrapped {
   expiryDate: BigInt!
 }
 
-type NameUnwrappedEvent {
+type NameUnwrapped {
   id: ID!
   blockNumber: Int!
   transactionID: String!
