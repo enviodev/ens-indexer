@@ -217,7 +217,7 @@ type TextChanged {
   value: String
 }
 
-type ContenthashChangedEvent {
+type ContenthashChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!

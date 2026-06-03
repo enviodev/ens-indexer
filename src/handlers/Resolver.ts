@@ -262,8 +262,8 @@ indexer.onEvent(
     contentHash: hash,
   });
 
-  // log ContenthashChangedEvent
-  context.ContenthashChangedEvent.set({
+  // log ContenthashChanged
+  context.ContenthashChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     hash,

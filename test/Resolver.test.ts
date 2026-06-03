@@ -164,7 +164,7 @@ describe("Resolver", () => {
   // ─── ContenthashChanged ───────────────────────────────────────────────
 
   describe("ContenthashChanged", () => {
-    it("stores content hash on resolver and logs ContenthashChangedEvent", async () => {
+    it("stores content hash on resolver and logs ContenthashChanged", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -181,7 +181,7 @@ describe("Resolver", () => {
       });
 
       const chEvents = result.changes.flatMap(
-        (c) => c.ContenthashChangedEvent?.sets ?? [],
+        (c) => c.ContenthashChanged?.sets ?? [],
       );
 
       for (const evt of chEvents) {
@@ -328,7 +328,7 @@ describe("Resolver", () => {
           resolverEventTypes.add("MulticoinAddrChanged");
         if (change.TextChanged?.sets?.length)
           resolverEventTypes.add("TextChanged");
-        if (change.ContenthashChangedEvent?.sets?.length)
+        if (change.ContenthashChanged?.sets?.length)
           resolverEventTypes.add("ContenthashChanged");
       }
 
