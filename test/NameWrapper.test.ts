@@ -48,7 +48,7 @@ describe("NameWrapper", () => {
       }
     }, 60_000);
 
-    it("logs NameWrappedEvent entities", async () => {
+    it("logs NameWrapped entities", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -64,7 +64,7 @@ describe("NameWrapper", () => {
       });
 
       const wrappedEvents = result.changes.flatMap(
-        (c) => c.NameWrappedEvent?.sets ?? [],
+        (c) => c.NameWrapped?.sets ?? [],
       );
       expect(wrappedEvents.length).toBeGreaterThan(0);
 
@@ -231,7 +231,7 @@ describe("NameWrapper", () => {
 
       // This block should produce changes across multiple entity types
       // Expected: Domain, Account, Registration, WrappedDomain, NewOwner,
-      //           NameRegisteredEvent, WrappedTransfer, NameWrappedEvent, etc.
+      //           NameRegisteredEvent, WrappedTransfer, NameWrapped, etc.
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
     }, 60_000);
   });

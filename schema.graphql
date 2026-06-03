@@ -102,7 +102,7 @@ type WrappedTransfer {
   owner: Account!
 }
 
-type NameWrappedEvent {
+type NameWrapped {
   id: ID!
   blockNumber: Int!
   transactionID: String!

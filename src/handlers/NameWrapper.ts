@@ -258,8 +258,8 @@ indexer.onEvent(
   // Materialize domain expiryDate if PCC fuse is set
   await materializeDomainExpiryDate(context, node);
 
-  // Log NameWrappedEvent
-  context.NameWrappedEvent.set({
+  // Log NameWrapped
+  context.NameWrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     name: decodedName,
