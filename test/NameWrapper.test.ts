@@ -231,7 +231,7 @@ describe("NameWrapper", () => {
 
       // This block should produce changes across multiple entity types
       // Expected: Domain, Account, Registration, WrappedDomain, NewOwner,
-      //           NameRegisteredEvent, WrappedTransfer, NameWrapped, etc.
+      //           NameRegistered, WrappedTransfer, NameWrapped, etc.
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
     }, 60_000);
   });

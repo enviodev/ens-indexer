@@ -238,7 +238,7 @@ indexer.onEvent(
   });
 
   // Log NameRegistered event
-  context.NameRegisteredEvent.set({
+  context.NameRegistered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: registrant,

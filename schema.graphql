@@ -139,7 +139,7 @@ type ExpiryExtended {
 
 # ─── Registration Event Entities ─────────────────────────────────────────────
 
-type NameRegisteredEvent {
+type NameRegistered {
   id: ID!
   blockNumber: Int!
   transactionID: String!

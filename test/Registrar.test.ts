@@ -37,9 +37,9 @@ describe("Registrar", () => {
       );
       expect(registrations.length).toBeGreaterThan(0);
 
-      // Check that NameRegisteredEvent entities were created
+      // Check that NameRegistered entities were created
       const regEvents = result.changes.flatMap(
-        (c) => c.NameRegisteredEvent?.sets ?? [],
+        (c) => c.NameRegistered?.sets ?? [],
       );
       expect(regEvents.length).toBeGreaterThan(0);
 
