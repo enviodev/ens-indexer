@@ -134,7 +134,7 @@ describe("Registrar", () => {
       });
 
       const transferEvents = result.changes.flatMap(
-        (c) => c.NameTransferredEvent?.sets ?? [],
+        (c) => c.NameTransferred?.sets ?? [],
       );
 
       // Validate structure if any found

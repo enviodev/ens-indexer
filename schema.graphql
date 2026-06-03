@@ -156,7 +156,7 @@ type NameRenewed {
   expiryDate: BigInt!
 }
 
-type NameTransferredEvent {
+type NameTransferred {
   id: ID!
   blockNumber: Int!
   transactionID: String!

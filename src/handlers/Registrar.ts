@@ -201,8 +201,8 @@ indexer.onEvent(
     });
   }
 
-  // Log NameTransferredEvent
-  context.NameTransferredEvent.set({
+  // Log NameTransferred
+  context.NameTransferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,

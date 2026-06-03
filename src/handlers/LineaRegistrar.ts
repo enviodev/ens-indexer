@@ -184,7 +184,7 @@ indexer.onEvent(
     });
   }
 
-  context.NameTransferredEvent.set({
+  context.NameTransferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,
