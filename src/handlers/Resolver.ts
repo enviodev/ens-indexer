@@ -187,8 +187,8 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // log PubkeyChangedEvent
-  context.PubkeyChangedEvent.set({
+  // log PubkeyChanged
+  context.PubkeyChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     x,
