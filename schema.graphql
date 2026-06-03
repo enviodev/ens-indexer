@@ -208,7 +208,7 @@ type PubkeyChanged {
   y: String!
 }
 
-type TextChangedEvent {
+type TextChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!

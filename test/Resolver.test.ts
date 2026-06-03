@@ -113,7 +113,7 @@ describe("Resolver", () => {
   // ─── TextChanged ──────────────────────────────────────────────────────
 
   describe("TextChanged", () => {
-    it("accumulates text keys on resolver and logs TextChangedEvent", async () => {
+    it("accumulates text keys on resolver and logs TextChanged", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -131,7 +131,7 @@ describe("Resolver", () => {
       });
 
       const textEvents = result.changes.flatMap(
-        (c) => c.TextChangedEvent?.sets ?? [],
+        (c) => c.TextChanged?.sets ?? [],
       );
 
       if (textEvents.length > 0) {
@@ -326,7 +326,7 @@ describe("Resolver", () => {
           resolverEventTypes.add("AddrChanged");
         if (change.MulticoinAddrChanged?.sets?.length)
           resolverEventTypes.add("MulticoinAddrChanged");
-        if (change.TextChangedEvent?.sets?.length)
+        if (change.TextChanged?.sets?.length)
           resolverEventTypes.add("TextChanged");
         if (change.ContenthashChangedEvent?.sets?.length)
           resolverEventTypes.add("ContenthashChanged");

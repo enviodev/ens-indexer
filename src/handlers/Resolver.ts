@@ -229,8 +229,8 @@ indexer.onEvent(
     texts: uniq([...(resolver.texts ?? []), sanitizedKey]),
   });
 
-  // log TextChangedEvent
-  context.TextChangedEvent.set({
+  // log TextChanged
+  context.TextChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     key: sanitizedKey,
