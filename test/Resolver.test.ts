@@ -213,7 +213,7 @@ describe("Resolver", () => {
       });
 
       const versionEvents = result.changes.flatMap(
-        (c) => c.VersionChangedEvent?.sets ?? [],
+        (c) => c.VersionChanged?.sets ?? [],
       );
 
       for (const evt of versionEvents) {

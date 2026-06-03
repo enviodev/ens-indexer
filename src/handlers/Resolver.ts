@@ -357,8 +357,8 @@ indexer.onEvent(
     texts: undefined,
   });
 
-  // log VersionChangedEvent
-  context.VersionChangedEvent.set({
+  // log VersionChanged
+  context.VersionChanged.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     version: newVersion,

@@ -244,7 +244,7 @@ type AuthorisationChanged {
   isAuthorized: Boolean!
 }
 
-type VersionChangedEvent {
+type VersionChanged {
   id: ID!
   blockNumber: Int!
   transactionID: String!
