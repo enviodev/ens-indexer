@@ -61,7 +61,7 @@ type WrappedDomain {
 
 # ─── Domain Event Entities ───────────────────────────────────────────────────
 
-type DomainTransfer {
+type Transfer {
   id: ID!
   blockNumber: Int!
   transactionID: String!

@@ -221,8 +221,8 @@ async function handleTransfer(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  // Log the DomainTransfer event entity
-  context.DomainTransfer.set({
+  // Log the Transfer event entity
+  context.Transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,

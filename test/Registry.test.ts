@@ -85,7 +85,7 @@ describe("Registry", () => {
   // ─── Transfer events ──────────────────────────────────────────────────
 
   describe("Registry — Transfer events", () => {
-    it("updates domain ownership and logs DomainTransfer events", async () => {
+    it("updates domain ownership and logs Transfer events", async () => {
       const indexer = createTestIndexer();
 
       // Initialize root
@@ -102,9 +102,9 @@ describe("Registry", () => {
         },
       });
 
-      // Check for DomainTransfer event entities
+      // Check for Transfer event entities
       const transfers = result.changes.flatMap(
-        (c) => c.DomainTransfer?.sets ?? [],
+        (c) => c.Transfer?.sets ?? [],
       );
 
       if (transfers.length > 0) {

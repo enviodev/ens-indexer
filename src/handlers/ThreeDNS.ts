@@ -159,7 +159,7 @@ indexer.onEvent(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  context.DomainTransfer.set({
+  context.Transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
