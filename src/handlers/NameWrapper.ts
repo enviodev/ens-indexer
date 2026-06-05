@@ -50,13 +50,13 @@ async function materializeDomainExpiryDate(
   context: handlerContext,
   node: string,
 ): Promise<void> {
-  const wrappedDomain = await context.WrappedDomain.get(node);
+  const wrappedDomain = await context.subgraph_wrapped_domain.get(node);
   if (!wrappedDomain) return;
 
   if (isPccFuseSet(wrappedDomain.fuses)) {
-    const domain = await context.Domain.get(node);
+    const domain = await context.subgraph_domain.get(node);
     if (domain) {
-      context.Domain.set({
+      context.subgraph_domain.set({
         ...domain,
         expiryDate: bigintMax(domain.expiryDate ?? 0n, wrappedDomain.expiryDate),
       });
@@ -88,7 +88,7 @@ async function handleTransfer(
   upsertAccount(context, to);
 
   // Domain must already exist (created by Registry NewOwner event)
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (!domain) {
     context.log.error(
       `NameWrapper:handleTransfer called before domain '${node}' exists.`,
@@ -97,14 +97,14 @@ async function handleTransfer(
   }
 
   // Upsert the WrappedDomain: if exists update owner, otherwise create with placeholders
-  const existingWrapped = await context.WrappedDomain.get(node);
+  const existingWrapped = await context.subgraph_wrapped_domain.get(node);
   if (existingWrapped) {
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       ...existingWrapped,
       owner_id: to,
     });
   } else {
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       id: node,
       domain_id: node,
       owner_id: to,
@@ -116,13 +116,13 @@ async function handleTransfer(
   }
 
   // Materialize Domain.wrappedOwner
-  context.Domain.set({
+  context.subgraph_domain.set({
     ...domain,
     wrappedOwner_id: to,
   });
 
   // Log WrappedTransfer event
-  context.WrappedTransfer.set({
+  context.subgraph_wrapped_transfer.set({
     ...sharedEventValues(event.chainId, event),
     id: eventId,
     domain_id: node,
@@ -199,7 +199,7 @@ indexer.onEvent(
   upsertAccount(context, owner);
 
   // Domain must already exist
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (!domain) {
     context.log.error(
       `NameWrapper:NameWrapped called before domain '${node}' exists.`,
@@ -229,13 +229,13 @@ indexer.onEvent(
     ...updatedDomain,
     wrappedOwner_id: owner,
   };
-  context.Domain.set(updatedDomain);
+  context.subgraph_domain.set(updatedDomain);
 
   // Update the WrappedDomain that was created in handleTransfer
   const fusesNum = Number(fuses);
-  const existingWrapped = await context.WrappedDomain.get(node);
+  const existingWrapped = await context.subgraph_wrapped_domain.get(node);
   if (existingWrapped) {
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       ...existingWrapped,
       name: decodedName,
       expiryDate: expiry,
@@ -244,7 +244,7 @@ indexer.onEvent(
     });
   } else {
     // Fallback: create if handleTransfer didn't run first (shouldn't happen normally)
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       id: node,
       domain_id: node,
       owner_id: owner,
@@ -259,7 +259,7 @@ indexer.onEvent(
   await materializeDomainExpiryDate(context, node);
 
   // Log NameWrapped
-  context.NameWrapped.set({
+  context.subgraph_name_wrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     name: decodedName,
@@ -281,7 +281,7 @@ indexer.onEvent(
   upsertAccount(context, owner);
 
   // Get the domain
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (!domain) {
     context.log.error(
       `NameWrapper:NameUnwrapped called before domain '${node}' exists.`,
@@ -296,17 +296,17 @@ indexer.onEvent(
   const expiryDate = (domain.parent_id && MANAGED_NODES.has(domain.parent_id)) ? domain.expiryDate : undefined;
 
   // Clear wrappedOwner and conditionally reset expiryDate
-  context.Domain.set({
+  context.subgraph_domain.set({
     ...domain,
     wrappedOwner_id: undefined,
     expiryDate,
   });
 
   // Delete the WrappedDomain
-  context.WrappedDomain.deleteUnsafe(node);
+  context.subgraph_wrapped_domain.deleteUnsafe(node);
 
   // Log NameUnwrapped
-  context.NameUnwrapped.set({
+  context.subgraph_name_unwrapped.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -323,10 +323,10 @@ indexer.onEvent(
   const fusesNum = Number(fuses);
 
   // Only update if the WrappedDomain exists and is active
-  const wrappedDomain = await context.WrappedDomain.get(node);
+  const wrappedDomain = await context.subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update fuses on the WrappedDomain
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       ...wrappedDomain,
       fuses: fusesNum,
     });
@@ -336,7 +336,7 @@ indexer.onEvent(
   }
 
   // Log FusesSet (always logged, even if WrappedDomain doesn't exist)
-  context.FusesSet.set({
+  context.subgraph_fuses_set.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     fuses: fusesNum,
@@ -352,10 +352,10 @@ indexer.onEvent(
   const { node, expiry } = event.params;
 
   // Only update if the WrappedDomain exists and is active
-  const wrappedDomain = await context.WrappedDomain.get(node);
+  const wrappedDomain = await context.subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update expiryDate on the WrappedDomain
-    context.WrappedDomain.set({
+    context.subgraph_wrapped_domain.set({
       ...wrappedDomain,
       expiryDate: expiry,
     });
@@ -365,7 +365,7 @@ indexer.onEvent(
   }
 
   // Log ExpiryExtended (always logged, even if WrappedDomain doesn't exist)
-  context.ExpiryExtended.set({
+  context.subgraph_expiry_extended.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     expiryDate: expiry,

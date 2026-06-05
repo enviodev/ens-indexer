@@ -33,7 +33,7 @@ describe("NameWrapper", () => {
 
       // Check WrappedDomain entities were created
       const wrappedDomains = result.changes.flatMap(
-        (c) => c.WrappedDomain?.sets ?? [],
+        (c) => c.subgraph_wrapped_domain?.sets ?? [],
       );
       expect(wrappedDomains.length).toBeGreaterThan(0);
 
@@ -64,7 +64,7 @@ describe("NameWrapper", () => {
       });
 
       const wrappedEvents = result.changes.flatMap(
-        (c) => c.NameWrapped?.sets ?? [],
+        (c) => c.subgraph_name_wrapped?.sets ?? [],
       );
       expect(wrappedEvents.length).toBeGreaterThan(0);
 
@@ -94,7 +94,7 @@ describe("NameWrapper", () => {
       });
 
       const transfers = result.changes.flatMap(
-        (c) => c.WrappedTransfer?.sets ?? [],
+        (c) => c.subgraph_wrapped_transfer?.sets ?? [],
       );
       expect(transfers.length).toBeGreaterThan(0);
 
@@ -123,7 +123,7 @@ describe("NameWrapper", () => {
       });
 
       // Check domains that have wrappedOwner set in the changes
-      const domains = result.changes.flatMap((c) => c.Domain?.sets ?? []);
+      const domains = result.changes.flatMap((c) => c.subgraph_domain?.sets ?? []);
       const domainsWithWrappedOwner = domains.filter(
         (d) => d.wrappedOwner_id !== undefined,
       );
@@ -155,7 +155,7 @@ describe("NameWrapper", () => {
       });
 
       const fusesEvents = result.changes.flatMap(
-        (c) => c.FusesSet?.sets ?? [],
+        (c) => c.subgraph_fuses_set?.sets ?? [],
       );
 
       expect(fusesEvents.length).toBeGreaterThan(0);
@@ -188,7 +188,7 @@ describe("NameWrapper", () => {
       });
 
       const expiryEvents = result.changes.flatMap(
-        (c) => c.ExpiryExtended?.sets ?? [],
+        (c) => c.subgraph_expiry_extended?.sets ?? [],
       );
 
       expect(expiryEvents.length).toBeGreaterThan(0);

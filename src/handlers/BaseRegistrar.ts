@@ -46,7 +46,7 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
 
   // Get or create the domain (preminting support)
-  let domain = await context.Domain.get(node);
+  let domain = await context.subgraph_domain.get(node);
   if (!domain) {
     domain = {
       id: node,
@@ -65,9 +65,9 @@ indexer.onEvent(
       wrappedOwner_id: undefined,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
     };
-    context.Domain.set(domain);
+    context.subgraph_domain.set(domain);
   } else {
-    context.Domain.set({
+    context.subgraph_domain.set({
       ...domain,
       registrant_id: owner,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
@@ -83,7 +83,7 @@ indexer.onEvent(
     registrant_id: owner,
   });
 
-  context.NameRegistered.set({
+  context.subgraph_name_registered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: owner,
@@ -121,7 +121,7 @@ indexer.onEvent(
 
     const node = makeSubdomainNode(labelHash, managedNode);
 
-    let domain = await context.Domain.get(node);
+    let domain = await context.subgraph_domain.get(node);
     if (!domain) {
       domain = {
         id: node,
@@ -140,9 +140,9 @@ indexer.onEvent(
         wrappedOwner_id: undefined,
         expiryDate: expires + GRACE_PERIOD_SECONDS,
       };
-      context.Domain.set(domain);
+      context.subgraph_domain.set(domain);
     } else {
-      context.Domain.set({
+      context.subgraph_domain.set({
         ...domain,
         registrant_id: owner,
         expiryDate: expires + GRACE_PERIOD_SECONDS,
@@ -158,7 +158,7 @@ indexer.onEvent(
       registrant_id: owner,
     });
 
-    context.NameRegistered.set({
+    context.subgraph_name_registered.set({
       ...sharedEventValues(event.chainId, event),
       registration_id: registrationId,
       registrant_id: owner,
@@ -192,23 +192,23 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
   const registrationId = makeRegistrationId(labelHash, node);
 
-  const registration = await context.Registration.get(registrationId);
+  const registration = await context.subgraph_registration.get(registrationId);
   if (registration) {
-    context.Registration.set({
+    context.subgraph_registration.set({
       ...registration,
       expiryDate: expires,
     });
   }
 
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (domain) {
-    context.Domain.set({
+    context.subgraph_domain.set({
       ...domain,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
     });
   }
 
-  context.NameRenewed.set({
+  context.subgraph_name_renewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
@@ -243,23 +243,23 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
   const registrationId = makeRegistrationId(labelHash, node);
 
-  const registration = await context.Registration.get(registrationId);
+  const registration = await context.subgraph_registration.get(registrationId);
   if (!registration) return;
 
-  context.Registration.set({
+  context.subgraph_registration.set({
     ...registration,
     registrant_id: to,
   });
 
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (domain) {
-    context.Domain.set({
+    context.subgraph_domain.set({
       ...domain,
       registrant_id: to,
     });
   }
 
-  context.NameTransferred.set({
+  context.subgraph_name_transferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,

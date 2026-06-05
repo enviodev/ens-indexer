@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "codegen": "envio codegen",
+    "codegen": "envio codegen && node scripts/patch-generated-types.mjs",
+    "postdev": "node scripts/patch-generated-types.mjs",
     "dev": "envio dev",
     "start": "envio start",
     "test": "vitest run"

@@ -80,7 +80,7 @@ export function upsertSubregistry(
   managedNode: string,
 ): void {
   const id = makeSubregistryId(chainId, contractAddress);
-  context.Subregistry.set({
+  context.subregistry.set({
     id,
     node: managedNode,
   });
@@ -97,15 +97,15 @@ export async function getOrCreateRegistrationLifecycle(
   node: string,
   expiresAt: bigint,
 ): Promise<void> {
-  const existing = await context.RegistrationLifecycle.get(node);
+  const existing = await context.registration_lifecycle.get(node);
   if (existing) {
     // Update expiresAt for re-registration after expiry
-    context.RegistrationLifecycle.set({
+    context.registration_lifecycle.set({
       ...existing,
       expiresAt,
     });
   } else {
-    context.RegistrationLifecycle.set({
+    context.registration_lifecycle.set({
       id: node,
       subregistryId,
       expiresAt,
@@ -121,9 +121,9 @@ export async function updateRegistrationLifecycleExpiry(
   node: string,
   expiresAt: bigint,
 ): Promise<void> {
-  const existing = await context.RegistrationLifecycle.get(node);
+  const existing = await context.registration_lifecycle.get(node);
   if (existing) {
-    context.RegistrationLifecycle.set({
+    context.registration_lifecycle.set({
       ...existing,
       expiresAt,
     });
@@ -154,19 +154,19 @@ export async function insertRegistrarAction(
   const logicalEventKey = makeLogicalEventKey(params.node, params.transactionHash);
 
   // Store metadata singleton mapping
-  context.RegistrarActionMetadata.set({
+  context.internal_registrar_action_metadata.set({
     id: METADATA_ID,
     logicalEventKey,
     logicalEventId: params.id,
   });
 
   // Store initial registrar action record
-  context.RegistrarAction.set({
+  context.registrar_action.set({
     id: params.id,
     type: params.type,
     subregistryId: params.subregistryId,
     node: params.node,
-    incrementalDuration: params.incrementalDuration,
+    incremental_duration: params.incrementalDuration,
     baseCost: undefined,
     premium: undefined,
     total: undefined,
@@ -255,7 +255,7 @@ export async function handleRegistrarRenewal(
   // Get existing lifecycle to compute incremental duration. Missing means the
   // renewal predates the registration we've indexed (e.g. indexer started
   // mid-history); skip rather than crash the worker.
-  const currentLifecycle = await context.RegistrationLifecycle.get(node);
+  const currentLifecycle = await context.registration_lifecycle.get(node);
   if (!currentLifecycle) {
     context.log.warn(
       `Registrar renewal skipped: no RegistrationLifecycle for node '${node}'.`,
@@ -308,7 +308,7 @@ export async function handleRegistrarControllerEvent(
   // Read metadata singleton. Missing/mismatched means the paired BaseRegistrar
   // action was not indexed (e.g. indexer started mid-history); skip rather than
   // crash the worker.
-  const metadata = await context.RegistrarActionMetadata.get(METADATA_ID);
+  const metadata = await context.internal_registrar_action_metadata.get(METADATA_ID);
   if (!metadata || metadata.logicalEventKey !== logicalEventKey) {
     context.log.warn(
       `Controller event skipped: no matching registrar action for key '${logicalEventKey}'.`,
@@ -317,7 +317,7 @@ export async function handleRegistrarControllerEvent(
   }
 
   // Read existing registrar action
-  const action = await context.RegistrarAction.get(metadata.logicalEventId);
+  const action = await context.registrar_action.get(metadata.logicalEventId);
   if (!action) {
     context.log.warn(
       `Controller event skipped: registrar action '${metadata.logicalEventId}' not found.`,
@@ -326,7 +326,7 @@ export async function handleRegistrarControllerEvent(
   }
 
   // Update with pricing, referral, and appended eventId
-  context.RegistrarAction.set({
+  context.registrar_action.set({
     ...action,
     baseCost: params.baseCost,
     premium: params.premium,
@@ -358,7 +358,7 @@ export async function handleUniversalRenewalEvent(
   // Read metadata singleton. Missing/mismatched means the paired BaseRegistrar
   // action was not indexed (e.g. indexer started mid-history); skip rather than
   // crash the worker.
-  const metadata = await context.RegistrarActionMetadata.get(METADATA_ID);
+  const metadata = await context.internal_registrar_action_metadata.get(METADATA_ID);
   if (!metadata || metadata.logicalEventKey !== logicalEventKey) {
     context.log.warn(
       `Universal renewal skipped: no matching registrar action for key '${logicalEventKey}'.`,
@@ -367,7 +367,7 @@ export async function handleUniversalRenewalEvent(
   }
 
   // Read existing registrar action
-  const action = await context.RegistrarAction.get(metadata.logicalEventId);
+  const action = await context.registrar_action.get(metadata.logicalEventId);
   if (!action) {
     context.log.warn(
       `Universal renewal skipped: registrar action '${metadata.logicalEventId}' not found.`,
@@ -376,7 +376,7 @@ export async function handleUniversalRenewalEvent(
   }
 
   // Update with referral data and appended eventId
-  context.RegistrarAction.set({
+  context.registrar_action.set({
     ...action,
     encodedReferrer: params.encodedReferrer,
     decodedReferrer: params.decodedReferrer,

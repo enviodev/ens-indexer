@@ -28,7 +28,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
 
       // Verify domains were created
@@ -67,10 +67,10 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const registrations = result.changes.flatMap(
-        (c) => c.Registration?.sets ?? [],
+        (c) => c.subgraph_registration?.sets ?? [],
       );
 
       // Verify domains and registrations were created
