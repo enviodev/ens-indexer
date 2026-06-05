@@ -34,12 +34,12 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Check that Registration entities were created
       const registrations = result.changes.flatMap(
-        (c) => c.Registration?.sets ?? [],
+        (c) => c.subgraph_registration?.sets ?? [],
       );
 
       // Check that Domain entities were created under BASE_ETH_NODE
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const baseSubdomains = domains.filter(
         (d) => d.parent_id === BASE_ETH_NODE,
@@ -82,7 +82,7 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Check registrations have cost = 0n (Base controllers use no cost)
       const registrations = result.changes.flatMap(
-        (c) => c.Registration?.sets ?? [],
+        (c) => c.subgraph_registration?.sets ?? [],
       );
       const regsWithCost = registrations.filter(
         (r) => r.cost !== undefined,
@@ -93,7 +93,7 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Check that domains have labelName set
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
         (d) => d.labelName !== undefined,

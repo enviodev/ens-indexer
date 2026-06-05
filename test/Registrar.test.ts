@@ -33,13 +33,13 @@ describe("Registrar", () => {
 
       // Check that Registration entities were created
       const registrations = result.changes.flatMap(
-        (c) => c.Registration?.sets ?? [],
+        (c) => c.subgraph_registration?.sets ?? [],
       );
       expect(registrations.length).toBeGreaterThan(0);
 
       // Check that NameRegistered entities were created
       const regEvents = result.changes.flatMap(
-        (c) => c.NameRegistered?.sets ?? [],
+        (c) => c.subgraph_name_registered?.sets ?? [],
       );
       expect(regEvents.length).toBeGreaterThan(0);
 
@@ -61,7 +61,7 @@ describe("Registrar", () => {
 
       // Domain expiry should include grace period (registration expiry + 90 days)
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const domainsWithExpiry = domains.filter(
         (d) => d.expiryDate !== undefined,
@@ -100,7 +100,7 @@ describe("Registrar", () => {
       });
 
       const renewEvents = result.changes.flatMap(
-        (c) => c.NameRenewed?.sets ?? [],
+        (c) => c.subgraph_name_renewed?.sets ?? [],
       );
 
       // Validate structure if any found
@@ -134,7 +134,7 @@ describe("Registrar", () => {
       });
 
       const transferEvents = result.changes.flatMap(
-        (c) => c.NameTransferred?.sets ?? [],
+        (c) => c.subgraph_name_transferred?.sets ?? [],
       );
 
       expect(transferEvents.length).toBeGreaterThan(0);
@@ -169,7 +169,7 @@ describe("Registrar", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
         (d) => d.labelName !== undefined,
@@ -210,7 +210,7 @@ describe("Registrar", () => {
 
       // Check Registration entities have cost set
       const registrations = result.changes.flatMap(
-        (c) => c.Registration?.sets ?? [],
+        (c) => c.subgraph_registration?.sets ?? [],
       );
       const regsWithCost = registrations.filter(
         (r) => r.cost !== undefined,

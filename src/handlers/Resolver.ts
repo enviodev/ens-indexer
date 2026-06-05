@@ -47,16 +47,16 @@ indexer.onEvent(
   });
 
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Domain.set({
+    context.subgraph_domain.set({
       ...domain,
       resolvedAddress_id: a,
     });
   }
 
   // log AddrChanged
-  context.AddrChanged.set({
+  context.subgraph_addr_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     addr_id: a,
@@ -87,13 +87,13 @@ indexer.onEvent(
   });
 
   // add coinType to resolver's coinTypes array
-  context.Resolver.set({
+  context.subgraph_resolver.set({
     ...resolver,
     coinTypes: uniq([...(resolver.coinTypes ?? []), coinType]),
   });
 
   // log MulticoinAddrChanged
-  context.MulticoinAddrChanged.set({
+  context.subgraph_multicoin_addr_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     coinType,
@@ -131,7 +131,7 @@ indexer.onEvent(
   });
 
   // log NameChanged
-  context.NameChanged.set({
+  context.subgraph_name_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     name,
@@ -162,7 +162,7 @@ indexer.onEvent(
   });
 
   // log AbiChanged
-  context.AbiChanged.set({
+  context.subgraph_abi_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     contentType,
@@ -188,7 +188,7 @@ indexer.onEvent(
   });
 
   // log PubkeyChanged
-  context.PubkeyChanged.set({
+  context.subgraph_pubkey_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     x,
@@ -224,13 +224,13 @@ indexer.onEvent(
       : stripNullBytes(value) || undefined;
 
   // add sanitized key to resolver's texts array
-  context.Resolver.set({
+  context.subgraph_resolver.set({
     ...resolver,
     texts: uniq([...(resolver.texts ?? []), sanitizedKey]),
   });
 
   // log TextChanged
-  context.TextChanged.set({
+  context.subgraph_text_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     key: sanitizedKey,
@@ -263,7 +263,7 @@ indexer.onEvent(
   });
 
   // log ContenthashChanged
-  context.ContenthashChanged.set({
+  context.subgraph_contenthash_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     hash,
@@ -289,7 +289,7 @@ indexer.onEvent(
   });
 
   // log InterfaceChanged
-  context.InterfaceChanged.set({
+  context.subgraph_interface_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     interfaceID,
@@ -317,7 +317,7 @@ indexer.onEvent(
 
   // log AuthorisationChanged
   // NOTE: the spelling difference is kept for subgraph backwards-compatibility
-  context.AuthorisationChanged.set({
+  context.subgraph_authorisation_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     owner,
@@ -338,9 +338,9 @@ indexer.onEvent(
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
   // materialize Domain.resolvedAddress_id to undefined if Domain.resolver_id matches
-  const domain = await context.Domain.get(node);
+  const domain = await context.subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Domain.set({
+    context.subgraph_domain.set({
       ...domain,
       resolvedAddress_id: undefined,
     });
@@ -358,7 +358,7 @@ indexer.onEvent(
   });
 
   // log VersionChanged
-  context.VersionChanged.set({
+  context.subgraph_version_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
     version: newVersion,

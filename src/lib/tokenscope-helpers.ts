@@ -270,7 +270,7 @@ export async function handleNFTTransfer(
 ): Promise<void> {
   const assetIdString = formatAssetId(nft);
 
-  const previous = await context.NameToken.get(assetIdString);
+  const previous = await context.name_token.get(assetIdString);
   const transferType = getNFTTransferType(
     from,
     to,
@@ -281,7 +281,7 @@ export async function handleNFTTransfer(
   switch (transferType) {
     case NFTTransferTypes.Mint:
       upsertAccount(context, to);
-      context.NameToken.set({
+      context.name_token.set({
         id: assetIdString,
         chainId: nft.chainId,
         contractAddress: nft.contractAddress,
@@ -295,7 +295,7 @@ export async function handleNFTTransfer(
 
     case NFTTransferTypes.MintBurn:
       upsertAccount(context, zeroAddress);
-      context.NameToken.set({
+      context.name_token.set({
         id: assetIdString,
         chainId: nft.chainId,
         contractAddress: nft.contractAddress,
@@ -309,7 +309,7 @@ export async function handleNFTTransfer(
 
     case NFTTransferTypes.Remint:
       upsertAccount(context, to);
-      context.NameToken.set({
+      context.name_token.set({
         ...previous!,
         owner: to,
         mintStatus: NFTMintStatuses.Minted,
@@ -319,7 +319,7 @@ export async function handleNFTTransfer(
     case NFTTransferTypes.Burn:
     case NFTTransferTypes.MintedRemintBurn:
       upsertAccount(context, zeroAddress);
-      context.NameToken.set({
+      context.name_token.set({
         ...previous!,
         owner: zeroAddress,
         mintStatus: NFTMintStatuses.Burned,
@@ -329,7 +329,7 @@ export async function handleNFTTransfer(
     case NFTTransferTypes.Transfer:
     case NFTTransferTypes.MintedRemint:
       upsertAccount(context, to);
-      context.NameToken.set({
+      context.name_token.set({
         ...previous!,
         owner: to,
       });

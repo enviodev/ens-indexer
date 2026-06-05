@@ -24,7 +24,7 @@ describe("Registry", () => {
       });
 
       // The root domain should be created on first NewOwner event
-      const rootDomain = await indexer.Domain.get(ROOT_NODE);
+      const rootDomain = await indexer.subgraph_domain.get(ROOT_NODE);
       expect(rootDomain).toBeDefined();
       expect(rootDomain?.owner_id).toBeDefined();
       expect(rootDomain?.subdomainCount).toBeGreaterThanOrEqual(0);
@@ -32,13 +32,13 @@ describe("Registry", () => {
       // Events were processed and produced domain changes
       expect(result.changes.length).toBeGreaterThan(0);
       const domains = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       expect(domains.length).toBeGreaterThan(0);
 
       // Validate NewOwner event structure if present in changes
       const newOwnerEvents = result.changes.flatMap(
-        (c) => c.NewOwner?.sets ?? [],
+        (c) => c.subgraph_new_owner?.sets ?? [],
       );
       for (const event of newOwnerEvents) {
         expect(event.id).toBeDefined();
@@ -75,7 +75,7 @@ describe("Registry", () => {
 
       // Domains created/updated by the new registry should have isMigrated=true
       const domainSets = result.changes.flatMap(
-        (c) => c.Domain?.sets ?? [],
+        (c) => c.subgraph_domain?.sets ?? [],
       );
       const migratedDomains = domainSets.filter((d) => d.isMigrated === true);
       expect(migratedDomains.length).toBeGreaterThan(0);
@@ -104,7 +104,7 @@ describe("Registry", () => {
 
       // Check for Transfer event entities
       const transfers = result.changes.flatMap(
-        (c) => c.Transfer?.sets ?? [],
+        (c) => c.subgraph_transfer?.sets ?? [],
       );
 
       expect(transfers.length).toBeGreaterThan(0);
@@ -139,7 +139,7 @@ describe("Registry", () => {
 
       // Check for NewResolver entities
       const resolverEvents = result.changes.flatMap(
-        (c) => c.NewResolver?.sets ?? [],
+        (c) => c.subgraph_new_resolver?.sets ?? [],
       );
 
       expect(resolverEvents.length).toBeGreaterThan(0);
@@ -177,7 +177,7 @@ describe("Registry", () => {
       });
 
       const ttlEvents = result.changes.flatMap(
-        (c) => c.NewTTL?.sets ?? [],
+        (c) => c.subgraph_new_ttl?.sets ?? [],
       );
 
       // TTL events may or may not appear in this range — validate structure if present

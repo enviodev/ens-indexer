@@ -30,7 +30,7 @@ describe("Resolver", () => {
 
       // Check for AddrChanged entities
       const addrEvents = result.changes.flatMap(
-        (c) => c.AddrChanged?.sets ?? [],
+        (c) => c.subgraph_addr_changed?.sets ?? [],
       );
 
       expect(addrEvents.length).toBeGreaterThan(0);
@@ -43,7 +43,7 @@ describe("Resolver", () => {
 
       // Check Resolver entities have addr_id set
       const resolvers = result.changes.flatMap(
-        (c) => c.Resolver?.sets ?? [],
+        (c) => c.subgraph_resolver?.sets ?? [],
       );
       const resolversWithAddr = resolvers.filter(
         (r) => r.addr_id !== undefined,
@@ -79,7 +79,7 @@ describe("Resolver", () => {
       });
 
       const multicoinEvents = result.changes.flatMap(
-        (c) => c.MulticoinAddrChanged?.sets ?? [],
+        (c) => c.subgraph_multicoin_addr_changed?.sets ?? [],
       );
 
       expect(multicoinEvents.length).toBeGreaterThan(0);
@@ -92,7 +92,7 @@ describe("Resolver", () => {
 
       // Verify coinTypes array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.Resolver?.sets ?? [],
+        (c) => c.subgraph_resolver?.sets ?? [],
       );
       const resolversWithCoinTypes = resolvers.filter(
         (r) => r.coinTypes && r.coinTypes.length > 0,
@@ -128,7 +128,7 @@ describe("Resolver", () => {
       });
 
       const textEvents = result.changes.flatMap(
-        (c) => c.TextChanged?.sets ?? [],
+        (c) => c.subgraph_text_changed?.sets ?? [],
       );
 
       expect(textEvents.length).toBeGreaterThan(0);
@@ -142,7 +142,7 @@ describe("Resolver", () => {
 
       // Verify texts array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.Resolver?.sets ?? [],
+        (c) => c.subgraph_resolver?.sets ?? [],
       );
       const resolversWithTexts = resolvers.filter(
         (r) => r.texts && r.texts.length > 0,
@@ -177,7 +177,7 @@ describe("Resolver", () => {
       });
 
       const chEvents = result.changes.flatMap(
-        (c) => c.ContenthashChanged?.sets ?? [],
+        (c) => c.subgraph_contenthash_changed?.sets ?? [],
       );
 
       for (const evt of chEvents) {
@@ -209,7 +209,7 @@ describe("Resolver", () => {
       });
 
       const versionEvents = result.changes.flatMap(
-        (c) => c.VersionChanged?.sets ?? [],
+        (c) => c.subgraph_version_changed?.sets ?? [],
       );
 
       for (const evt of versionEvents) {
@@ -221,7 +221,7 @@ describe("Resolver", () => {
       // If a VersionChanged was processed, verify resolver was cleared
       if (versionEvents.length > 0) {
         for (const evt of versionEvents) {
-          const resolver = await indexer.Resolver.get(evt.resolver_id);
+          const resolver = await indexer.subgraph_resolver.get(evt.resolver_id);
           if (resolver) {
             expect(resolver.addr_id).toBeUndefined();
             expect(resolver.contentHash).toBeUndefined();
@@ -252,7 +252,7 @@ describe("Resolver", () => {
       });
 
       const resolvers = result.changes.flatMap(
-        (c) => c.Resolver?.sets ?? [],
+        (c) => c.subgraph_resolver?.sets ?? [],
       );
 
       for (const r of resolvers) {
@@ -318,13 +318,13 @@ describe("Resolver", () => {
       // Collect resolver-related event types present
       const resolverEventTypes = new Set<string>();
       for (const change of result.changes) {
-        if (change.AddrChanged?.sets?.length)
+        if (change.subgraph_addr_changed?.sets?.length)
           resolverEventTypes.add("AddrChanged");
-        if (change.MulticoinAddrChanged?.sets?.length)
+        if (change.subgraph_multicoin_addr_changed?.sets?.length)
           resolverEventTypes.add("MulticoinAddrChanged");
-        if (change.TextChanged?.sets?.length)
+        if (change.subgraph_text_changed?.sets?.length)
           resolverEventTypes.add("TextChanged");
-        if (change.ContenthashChanged?.sets?.length)
+        if (change.subgraph_contenthash_changed?.sets?.length)
           resolverEventTypes.add("ContenthashChanged");
       }
 
