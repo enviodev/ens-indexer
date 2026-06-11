@@ -32,19 +32,16 @@ import {
 
 // ─── Root Node Tracking ─────────────────────────────────────────────────────
 // ThreeDNS lives on chains that may not have a Registry (e.g. Optimism).
-// Ensure the root domain exists on the first event per chain.
-
-const rootInitialized = new Set<number>();
+// Ensure the root domain exists before any write. ensureRootDomain is
+// idempotent via a DB lookup — a module-level Set must NOT be used here, as
+// preload-pass writes are discarded and the Set would mask the real write.
 
 async function ensureRoot(
-  chainId: number,
+  _chainId: number,
   context: handlerContext,
-  timestamp: bigint,
+  _timestamp: bigint,
 ): Promise<void> {
-  if (!rootInitialized.has(chainId)) {
-    rootInitialized.add(chainId);
-    await ensureRootDomain(context, timestamp);
-  }
+  await ensureRootDomain(context);
 }
 
 // ─── ThreeDNSToken.NewOwner ─────────────────────────────────────────────────
@@ -69,45 +66,45 @@ indexer.onEvent(
     address: THREEDNS_RESOLVER,
   });
 
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
 
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
       owner_id: owner,
       resolver_id: resolverId,
-      resolvedAddress_id: resolver.addr_id,
-      isMigrated: true,
+      resolved_address_id: resolver.addr_id,
+      is_migrated: true,
     });
   } else {
     // Create new domain
-    const parent = await context.subgraph_domain.get(parentNode);
+    const parent = await context.subgraph_domains.get(parentNode);
     const label = encodeLabelHash(labelHash);
     const name = parent?.name ? `${label}.${parent.name}` : label;
 
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       id: node,
       name,
-      labelName: undefined,
+      label_name: undefined,
       labelhash: labelHash,
       parent_id: parentNode,
-      subdomainCount: 0,
-      resolvedAddress_id: resolver.addr_id,
+      subdomain_count: 0,
+      resolved_address_id: resolver.addr_id,
       resolver_id: resolverId,
       ttl: undefined,
-      isMigrated: true,
-      createdAt: BigInt(event.block.timestamp),
+      is_migrated: true,
+      created_at: BigInt(event.block.timestamp),
       owner_id: owner,
       registrant_id: undefined,
-      wrappedOwner_id: undefined,
-      expiryDate: undefined,
+      wrapped_owner_id: undefined,
+      expiry_date: undefined,
     });
 
     // Increment parent's subdomain count
     if (parent) {
-      context.subgraph_domain.set({
+      context.subgraph_domains.set({
         ...parent,
-        subdomainCount: parent.subdomainCount + 1,
+        subdomain_count: parent.subdomain_count + 1,
       });
     }
   }
@@ -118,9 +115,9 @@ indexer.onEvent(
   }
 
   // Log NewOwner event
-  context.subgraph_new_owner.set({
+  context.subgraph_new_owners.set({
     ...sharedEventValues(event.chainId, event),
-    parentDomain_id: parentNode,
+    parent_domain_id: parentNode,
     domain_id: node,
     owner_id: owner,
   });
@@ -146,9 +143,9 @@ indexer.onEvent(
 
   upsertAccount(context, owner);
 
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
       owner_id: owner,
     });
@@ -159,7 +156,7 @@ indexer.onEvent(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  context.subgraph_transfer.set({
+  context.subgraph_transfers.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -169,7 +166,7 @@ indexer.onEvent(
 
 // ─── ThreeDNSToken.RegistrationCreated ──────────────────────────────────────
 // Fired for TLD and 2LD registrations. Decodes the DNS-encoded FQDN to
-// populate the domain's labelName and name, and creates a Registration entity.
+// populate the domain's label_name and name, and creates a Registration entity.
 
 indexer.onEvent(
   { contract: "ThreeDNSToken", event: "RegistrationCreated" },
@@ -184,45 +181,45 @@ indexer.onEvent(
 
   // Compute labelHash and sanitize label
   let labelHash: string | undefined;
-  let labelName: string | undefined;
+  let label_name: string | undefined;
   let fullName: string | undefined;
 
   if (rawLabel) {
     labelHash = keccak256(encodePacked(["string"], [rawLabel]));
-    labelName = hasNullByte(rawLabel) ? stripNullBytes(rawLabel) : rawLabel;
+    label_name = hasNullByte(rawLabel) ? stripNullBytes(rawLabel) : rawLabel;
     fullName = labels.join(".");
   }
 
   // Update domain with registration info
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
 
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
-      labelName: labelName ?? domain.labelName,
+      label_name: label_name ?? domain.label_name,
       labelhash: labelHash ?? domain.labelhash,
       name: fullName ?? domain.name,
       registrant_id: registrant,
-      expiryDate: expiry,
+      expiry_date: expiry,
     });
   } else {
     // Domain wasn't created by a prior NewOwner — create it
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       id: node,
       name: fullName,
-      labelName,
+      label_name,
       labelhash: labelHash,
       parent_id: parentNode,
-      subdomainCount: 0,
-      resolvedAddress_id: undefined,
+      subdomain_count: 0,
+      resolved_address_id: undefined,
       resolver_id: undefined,
       ttl: undefined,
-      isMigrated: true,
-      createdAt: BigInt(event.block.timestamp),
+      is_migrated: true,
+      created_at: BigInt(event.block.timestamp),
       owner_id: registrant,
       registrant_id: registrant,
-      wrappedOwner_id: undefined,
-      expiryDate: expiry,
+      wrapped_owner_id: undefined,
+      expiry_date: expiry,
     });
   }
 
@@ -231,10 +228,10 @@ indexer.onEvent(
   await upsertRegistration(context, {
     id: registrationId,
     domain_id: node,
-    registrationDate: BigInt(event.block.timestamp),
-    expiryDate: expiry,
+    registration_date: BigInt(event.block.timestamp),
+    expiry_date: expiry,
     registrant_id: registrant,
-    labelName,
+    label_name,
   });
 
   // Log NameRegistered event
@@ -242,7 +239,7 @@ indexer.onEvent(
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: registrant,
-    expiryDate: expiry,
+    expiry_date: expiry,
   });
   },
 );
@@ -256,21 +253,21 @@ indexer.onEvent(
   const { node, newExpiry } = event.params;
 
   // Update domain expiry
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
-      expiryDate: newExpiry,
+      expiry_date: newExpiry,
     });
   }
 
   // Update registration expiry (registration ID = node)
   const registrationId = node;
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.subgraph_registrations.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.subgraph_registrations.set({
       ...registration,
-      expiryDate: newExpiry,
+      expiry_date: newExpiry,
     });
   }
 
@@ -278,7 +275,7 @@ indexer.onEvent(
   context.subgraph_name_renewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
-    expiryDate: newExpiry,
+    expiry_date: newExpiry,
   });
   },
 );

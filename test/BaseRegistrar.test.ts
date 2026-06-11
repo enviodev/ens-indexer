@@ -34,12 +34,12 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Check that Registration entities were created
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.subgraph_registrations?.sets ?? [],
       );
 
       // Check that Domain entities were created under BASE_ETH_NODE
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const baseSubdomains = domains.filter(
         (d) => d.parent_id === BASE_ETH_NODE,
@@ -47,13 +47,13 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Verify domain expiry includes grace period
       const domainsWithExpiry = baseSubdomains.filter(
-        (d) => d.expiryDate !== undefined,
+        (d) => d.expiry_date !== undefined,
       );
       if (domainsWithExpiry.length > 0) {
         for (const d of domainsWithExpiry) {
           const reg = registrations.find((r) => r.domain_id === d.id);
           if (reg) {
-            expect(d.expiryDate).toBe(reg.expiryDate + GRACE_PERIOD_SECONDS);
+            expect(d.expiry_date).toBe(reg.expiry_date + GRACE_PERIOD_SECONDS);
           }
         }
       }
@@ -82,7 +82,7 @@ describe("BaseRegistrar (Base L2)", () => {
 
       // Check registrations have cost = 0n (Base controllers use no cost)
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.subgraph_registrations?.sets ?? [],
       );
       const regsWithCost = registrations.filter(
         (r) => r.cost !== undefined,
@@ -91,15 +91,15 @@ describe("BaseRegistrar (Base L2)", () => {
         expect(r.cost).toBe(0n);
       }
 
-      // Check that domains have labelName set
+      // Check that domains have label_name set
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
-        (d) => d.labelName !== undefined,
+        (d) => d.label_name !== undefined,
       );
       for (const d of domainsWithLabels) {
-        expect(d.labelName).toBeTruthy();
+        expect(d.label_name).toBeTruthy();
         if (d.name) {
           expect(d.name).toContain(".base.eth");
         }

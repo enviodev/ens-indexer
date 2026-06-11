@@ -35,7 +35,7 @@ indexer.onEvent({ contract: "Seaport", event: "OrderFulfilled" }, async ({ event
   context.name_sale.set({
     id: makeEventId(event.chainId, event.block.number, event.logIndex),
     chainId: sale.nft.chainId,
-    blockNumber: event.block.number,
+    block_number: event.block.number,
     logIndex: event.logIndex,
     transactionHash: event.transaction.hash,
     orderHash: sale.orderHash,

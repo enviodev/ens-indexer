@@ -24,29 +24,29 @@ describe("Registry", () => {
       });
 
       // The root domain should be created on first NewOwner event
-      const rootDomain = await indexer.subgraph_domain.get(ROOT_NODE);
+      const rootDomain = await indexer.subgraph_domains.get(ROOT_NODE);
       expect(rootDomain).toBeDefined();
       expect(rootDomain?.owner_id).toBeDefined();
-      expect(rootDomain?.subdomainCount).toBeGreaterThanOrEqual(0);
+      expect(rootDomain?.subdomain_count).toBeGreaterThanOrEqual(0);
 
       // Events were processed and produced domain changes
       expect(result.changes.length).toBeGreaterThan(0);
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       expect(domains.length).toBeGreaterThan(0);
 
       // Validate NewOwner event structure if present in changes
       const newOwnerEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_owner?.sets ?? [],
+        (c) => c.subgraph_new_owners?.sets ?? [],
       );
       for (const event of newOwnerEvents) {
         expect(event.id).toBeDefined();
-        expect(event.blockNumber).toBeDefined();
-        expect(event.transactionID).toBeDefined();
+        expect(event.block_number).toBeDefined();
+        expect(event.transaction_id).toBeDefined();
         expect(event.domain_id).toBeDefined();
         expect(event.owner_id).toBeDefined();
-        expect(event.parentDomain_id).toBeDefined();
+        expect(event.parent_domain_id).toBeDefined();
       }
     }, 120_000);
   });
@@ -54,7 +54,7 @@ describe("Registry", () => {
   // ─── New Registry: Migration events ────────────────────────────────────
 
   describe("Registry — new registry activation (blocks 9,380,380+)", () => {
-    it("processes NewOwner events from the new registry with isMigrated=true", async () => {
+    it("processes NewOwner events from the new registry with is_migrated=true", async () => {
       const indexer = createTestIndexer();
 
       // Pre-populate root from old registry
@@ -73,11 +73,11 @@ describe("Registry", () => {
 
       expect(result.changes.length).toBeGreaterThan(0);
 
-      // Domains created/updated by the new registry should have isMigrated=true
+      // Domains created/updated by the new registry should have is_migrated=true
       const domainSets = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
-      const migratedDomains = domainSets.filter((d) => d.isMigrated === true);
+      const migratedDomains = domainSets.filter((d) => d.is_migrated === true);
       expect(migratedDomains.length).toBeGreaterThan(0);
     }, 60_000);
   });
@@ -104,7 +104,7 @@ describe("Registry", () => {
 
       // Check for Transfer event entities
       const transfers = result.changes.flatMap(
-        (c) => c.subgraph_transfer?.sets ?? [],
+        (c) => c.subgraph_transfers?.sets ?? [],
       );
 
       expect(transfers.length).toBeGreaterThan(0);
@@ -112,7 +112,7 @@ describe("Registry", () => {
         expect(transfer.id).toBeDefined();
         expect(transfer.domain_id).toBeDefined();
         expect(transfer.owner_id).toBeDefined();
-        expect(transfer.transactionID).toBeDefined();
+        expect(transfer.transaction_id).toBeDefined();
       }
     }, 30_000);
   });
@@ -139,7 +139,7 @@ describe("Registry", () => {
 
       // Check for NewResolver entities
       const resolverEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_resolver?.sets ?? [],
+        (c) => c.subgraph_new_resolvers?.sets ?? [],
       );
 
       expect(resolverEvents.length).toBeGreaterThan(0);
@@ -147,7 +147,7 @@ describe("Registry", () => {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
         expect(evt.resolver_id).toBeDefined();
-        expect(evt.transactionID).toBeDefined();
+        expect(evt.transaction_id).toBeDefined();
       }
 
       // Resolver dynamic addresses should have been registered
@@ -177,7 +177,7 @@ describe("Registry", () => {
       });
 
       const ttlEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_ttl?.sets ?? [],
+        (c) => c.subgraph_new_ttls?.sets ?? [],
       );
 
       // TTL events may or may not appear in this range — validate structure if present
@@ -185,7 +185,7 @@ describe("Registry", () => {
         expect(evt.id).toBeDefined();
         expect(evt.domain_id).toBeDefined();
         expect(evt.ttl).toBeDefined();
-        expect(evt.transactionID).toBeDefined();
+        expect(evt.transaction_id).toBeDefined();
       }
     }, 60_000);
   });

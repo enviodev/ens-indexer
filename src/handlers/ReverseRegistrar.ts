@@ -7,7 +7,7 @@ import {
 } from "../lib/protocol-acceleration";
 
 // ─── StandaloneReverseRegistrar.NameForAddrChanged ──────────────────────────
-// PA-only: indexes ENSIP-19 reverse name records per address and coinType.
+// PA-only: indexes ENSIP-19 reverse name records per address and coin_type.
 
 indexer.onEvent(
   { contract: "StandaloneReverseRegistrar", event: "NameForAddrChanged" },
@@ -15,10 +15,10 @@ indexer.onEvent(
   const { addr, name } = event.params;
 
   // ENS Root Chain → DEFAULT_EVM_COIN_TYPE, others → chain-specific
-  const coinType = event.chainId === 1
+  const coin_type = event.chainId === 1
     ? DEFAULT_EVM_COIN_TYPE
     : evmChainIdToCoinType(event.chainId);
 
-  upsertReverseNameRecord(context, addr, coinType, name);
+  upsertReverseNameRecord(context, addr, coin_type, name);
   },
 );

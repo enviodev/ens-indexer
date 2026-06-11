@@ -1,8 +1,14 @@
 import { keccak256, encodePacked, zeroAddress } from "viem";
 import type { EvmOnEventContext, Entity } from "envio";
 
+import {
+  IS_SUBGRAPH_COMPAT,
+  isLabelSubgraphIndexable,
+  literalLabelToInterpretedLabel,
+} from "./interpretation";
+
 export type handlerContext = EvmOnEventContext;
-export type Domain = Entity<"subgraph_domain">;
+export type Domain = Entity<"subgraph_domains">;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -27,7 +33,7 @@ export const BASE_ETH_NODE =
 export const LINEA_ETH_NODE =
   "0x527aac89ac1d1de5dd84cff89ec92c69b028ce9ce3fa3d654882474ab4402ec3";
 
-// Set of all managed registrar nodes (for NameWrapper expiryDate preservation)
+// Set of all managed registrar nodes (for NameWrapper expiry_date preservation)
 export const MANAGED_NODES = new Set([ETH_NODE, BASE_ETH_NODE, LINEA_ETH_NODE]);
 
 // ThreeDNS hardcoded protocol-wide resolver (same on Optimism + Base)
@@ -54,29 +60,34 @@ export function makeSubdomainNode(
 
 // ─── ID Generation ──────────────────────────────────────────────────────────
 
+// ID formats mirror the reference ENSIndexer (src/lib/subgraph/ids.ts):
+// chain-scoped by default; legacy subgraph formats in SUBGRAPH_COMPAT mode.
+
 export function makeResolverId(
   chainId: number,
   resolverAddress: string,
   node: string,
 ): string {
+  if (IS_SUBGRAPH_COMPAT) return `${resolverAddress}-${node}`;
   return `${chainId}-${resolverAddress}-${node}`;
 }
 
 export function makeEventId(
   chainId: number,
-  blockNumber: number,
+  block_number: number,
   logIndex: number,
   transferIndex?: number,
 ): string {
-  const parts = [chainId, blockNumber, logIndex];
-  if (transferIndex !== undefined) {
-    return `${parts.join("-")}-${transferIndex}`;
-  }
-  return parts.join("-");
+  const parts: (number | undefined)[] = IS_SUBGRAPH_COMPAT
+    ? [block_number, logIndex, transferIndex]
+    : [chainId, block_number, logIndex, transferIndex];
+  return parts.filter((p) => p !== undefined).join("-");
 }
 
 export function makeRegistrationId(labelHash: string, node: string): string {
-  // Use node for cross-registrar uniqueness
+  // Subgraph compat: the legacy subgraph keys .eth Registrations by labelHash.
+  // Otherwise use node for cross-registrar uniqueness.
+  if (IS_SUBGRAPH_COMPAT) return labelHash;
   return node;
 }
 
@@ -89,12 +100,12 @@ export function encodeLabelHash(labelHash: string): string {
 // ─── Account Upsert ─────────────────────────────────────────────────────────
 
 export function upsertAccount(context: handlerContext, address: string): void {
-  const existing = context.subgraph_account.getOrCreate({
+  const existing = context.subgraph_accounts.getOrCreate({
     id: address,
   });
   // getOrCreate handles the upsert - if exists returns existing, else creates
   // But since Account only has id, we can just set it unconditionally
-  context.subgraph_account.set({ id: address });
+  context.subgraph_accounts.set({ id: address });
 }
 
 // ─── Resolver Upsert ────────────────────────────────────────────────────────
@@ -106,8 +117,8 @@ export async function upsertResolver(
     domain_id: string;
     address: string;
     addr_id?: string | undefined;
-    contentHash?: string | undefined;
-    coinTypes?: readonly bigint[] | undefined;
+    content_hash?: string | undefined;
+    coin_types?: readonly bigint[] | undefined;
     texts?: readonly string[] | undefined;
   },
 ): Promise<{
@@ -115,17 +126,17 @@ export async function upsertResolver(
   domain_id: string;
   address: string;
   addr_id: string | undefined;
-  contentHash: string | undefined;
+  content_hash: string | undefined;
   texts: readonly string[] | undefined;
-  coinTypes: readonly bigint[] | undefined;
+  coin_types: readonly bigint[] | undefined;
 }> {
-  const existing = await context.subgraph_resolver.get(values.id);
+  const existing = await context.subgraph_resolvers.get(values.id);
   if (existing) {
     const updated = {
       ...existing,
       ...values,
     };
-    context.subgraph_resolver.set(updated);
+    context.subgraph_resolvers.set(updated);
     return updated;
   }
   const newResolver = {
@@ -133,11 +144,11 @@ export async function upsertResolver(
     domain_id: values.domain_id,
     address: values.address,
     addr_id: values.addr_id,
-    contentHash: values.contentHash,
+    content_hash: values.content_hash,
     texts: values.texts,
-    coinTypes: values.coinTypes,
+    coin_types: values.coin_types,
   };
-  context.subgraph_resolver.set(newResolver);
+  context.subgraph_resolvers.set(newResolver);
   return newResolver;
 }
 
@@ -148,27 +159,32 @@ export async function upsertRegistration(
   values: {
     id: string;
     domain_id: string;
-    registrationDate: bigint;
-    expiryDate: bigint;
+    registration_date: bigint;
+    expiry_date: bigint;
     registrant_id: string;
-    labelName?: string | undefined;
+    label_name?: string | undefined;
     cost?: bigint | undefined;
   },
 ): Promise<void> {
-  const existing = await context.subgraph_registration.get(values.id);
+  const existing = await context.subgraph_registrations.get(values.id);
   if (existing) {
-    context.subgraph_registration.set({
+    // Drop undefined-valued keys so they don't overwrite existing values —
+    // matches drizzle's update semantics in the reference (undefined = no change)
+    const defined = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => v !== undefined),
+    );
+    context.subgraph_registrations.set({
       ...existing,
-      ...values,
-    });
+      ...defined,
+    } as typeof existing);
   } else {
-    context.subgraph_registration.set({
+    context.subgraph_registrations.set({
       id: values.id,
       domain_id: values.domain_id,
-      registrationDate: values.registrationDate,
-      expiryDate: values.expiryDate,
+      registration_date: values.registration_date,
+      expiry_date: values.expiry_date,
       registrant_id: values.registrant_id,
-      labelName: values.labelName,
+      label_name: values.label_name,
       cost: values.cost,
     });
   }
@@ -186,8 +202,8 @@ export function sharedEventValues(
 ) {
   return {
     id: makeEventId(chainId, event.block.number, event.logIndex),
-    blockNumber: event.block.number,
-    transactionID: event.transaction.hash,
+    block_number: event.block.number,
+    transaction_id: event.transaction.hash,
   };
 }
 
@@ -197,7 +213,7 @@ function isDomainEmpty(domain: Domain): boolean {
   return (
     domain.resolver_id === undefined &&
     domain.owner_id === ZERO_ADDRESS &&
-    domain.subdomainCount === 0
+    domain.subdomain_count === 0
   );
 }
 
@@ -205,15 +221,15 @@ export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
   context: handlerContext,
   node: string,
 ): Promise<void> {
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
   if (!domain) return;
 
   if (isDomainEmpty(domain) && domain.parent_id !== undefined) {
-    const parent = await context.subgraph_domain.get(domain.parent_id);
+    const parent = await context.subgraph_domains.get(domain.parent_id);
     if (parent) {
-      context.subgraph_domain.set({
+      context.subgraph_domains.set({
         ...parent,
-        subdomainCount: parent.subdomainCount - 1,
+        subdomain_count: parent.subdomain_count - 1,
       });
     }
 
@@ -239,43 +255,50 @@ export function uniq<T>(arr: readonly T[]): T[] {
 
 /**
  * Shared logic for controller NameRegistered/NameRenewed events that provide
- * the plaintext label. Updates the Domain's labelName/name and the
- * Registration's labelName/cost.
+ * the plaintext label. Updates the Domain's label_name/name and the
+ * Registration's label_name/cost.
  */
 export async function setNamePreimage(
   context: handlerContext,
-  labelName: string,
+  label_name: string,
   labelHash: string,
   cost: bigint,
   managedNode: string,
   managedName: string,
 ): Promise<void> {
+  // NOTE(subgraph-compat): if the label is not subgraph-indexable, the legacy
+  // subgraph ignores the event entirely.
+  if (IS_SUBGRAPH_COMPAT && !isLabelSubgraphIndexable(label_name)) return;
+
   const node = makeSubdomainNode(labelHash, managedNode);
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
   if (!domain) return;
 
-  // Sanitize label: skip if it contains null bytes (subgraph compat)
-  const sanitizedLabel = hasNullByte(labelName)
-    ? stripNullBytes(labelName)
-    : labelName;
+  // The emitted label is a Literal Label. Subgraph compat: a subgraph-indexable
+  // Literal Label is stored as-is. Otherwise interpret it (keep if ENSIP-15
+  // normalized, else replace with the Encoded LabelHash of its literal bytes),
+  // matching the reference ENSIndexer in SUBGRAPH_COMPAT=false mode.
+  const interpretedLabel = IS_SUBGRAPH_COMPAT
+    ? label_name
+    : literalLabelToInterpretedLabel(label_name);
 
-  // Update Domain labelName and name if different
-  if (domain.labelName !== sanitizedLabel) {
-    const name = `${sanitizedLabel}.${managedName}`;
-    context.subgraph_domain.set({
+  // Update Domain label_name and name if different
+  if (domain.label_name !== interpretedLabel) {
+    const name = `${interpretedLabel}.${managedName}`;
+    context.subgraph_domains.set({
       ...domain,
-      labelName: sanitizedLabel,
+      label_name: interpretedLabel,
       name,
     });
   }
 
-  // Update Registration labelName and cost
+  // Update Registration label_name and cost
   const registrationId = makeRegistrationId(labelHash, node);
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.subgraph_registrations.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.subgraph_registrations.set({
       ...registration,
-      labelName: sanitizedLabel,
+      label_name: interpretedLabel,
       cost,
     });
   }
@@ -322,30 +345,35 @@ export function decodeDnsEncodedName(data: string): string[] {
 /**
  * Ensure the root domain (0x000...000) exists. Idempotent — skips if
  * the root domain has already been created.
+ *
+ * Matches the reference `setupRootNode`: created_at is 0, the root is
+ * considered migrated, and (in SUBGRAPH_COMPAT=false mode) its name is the
+ * ENS Root Name '' (empty string).
  */
 export async function ensureRootDomain(
   context: handlerContext,
-  timestamp: bigint,
 ): Promise<void> {
-  const existingRoot = await context.subgraph_domain.get(ROOT_NODE);
+  const existingRoot = await context.subgraph_domains.get(ROOT_NODE);
   if (!existingRoot) {
     upsertAccount(context, ZERO_ADDRESS);
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       id: ROOT_NODE,
-      name: undefined,
-      labelName: undefined,
+      // subgraph datamodel expects null for the root's name; otherwise the
+      // root's Interpreted Name is '' (empty string)
+      name: IS_SUBGRAPH_COMPAT ? undefined : "",
+      label_name: undefined,
       labelhash: undefined,
       parent_id: undefined,
-      subdomainCount: 0,
-      resolvedAddress_id: undefined,
+      subdomain_count: 0,
+      resolved_address_id: undefined,
       resolver_id: undefined,
       ttl: undefined,
-      isMigrated: true,
-      createdAt: timestamp,
+      is_migrated: true,
+      created_at: 0n,
       owner_id: ZERO_ADDRESS,
       registrant_id: undefined,
-      wrappedOwner_id: undefined,
-      expiryDate: undefined,
+      wrapped_owner_id: undefined,
+      expiry_date: undefined,
     });
   }
 }

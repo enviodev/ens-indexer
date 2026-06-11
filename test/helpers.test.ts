@@ -131,7 +131,7 @@ describe("makeResolverId", () => {
 });
 
 describe("makeEventId", () => {
-  it("formats as chainId-blockNumber-logIndex", () => {
+  it("formats as chainId-block_number-logIndex", () => {
     expect(makeEventId(1, 12345, 0)).toBe("1-12345-0");
   });
 
@@ -195,7 +195,7 @@ describe("encodeLabelHash", () => {
 // ─── sharedEventValues ──────────────────────────────────────────────────────
 
 describe("sharedEventValues", () => {
-  it("extracts id, blockNumber, and transactionID", () => {
+  it("extracts id, block_number, and transaction_id", () => {
     const event = {
       block: { number: 12345 },
       logIndex: 7,
@@ -204,8 +204,8 @@ describe("sharedEventValues", () => {
     const result = sharedEventValues(1, event);
     expect(result).toEqual({
       id: "1-12345-7",
-      blockNumber: 12345,
-      transactionID: "0xtxhash",
+      block_number: 12345,
+      transaction_id: "0xtxhash",
     });
   });
 });

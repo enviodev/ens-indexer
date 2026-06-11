@@ -47,9 +47,9 @@ export function makePAAddressRecordId(
   chainId: number,
   address: string,
   node: string,
-  coinType: number,
+  coin_type: number,
 ): string {
-  return `${chainId}-${address}-${node}-${coinType}`;
+  return `${chainId}-${address}-${node}-${coin_type}`;
 }
 
 export function makePATextRecordId(
@@ -71,9 +71,9 @@ export function makeDomainResolverRelationId(
 
 export function makeReverseNameRecordId(
   address: string,
-  coinType: number,
+  coin_type: number,
 ): string {
-  return `${address}-${coinType}`;
+  return `${address}-${coin_type}`;
 }
 
 // ─── Interpretation Functions ────────────────────────────────────────────────
@@ -177,11 +177,11 @@ export function handlePAAddressRecordUpdate(
   chainId: number,
   address: string,
   node: string,
-  coinType: number,
+  coin_type: number,
   rawValue: string,
 ): void {
   const interpretedValue = interpretAddressRecordValue(rawValue);
-  const id = makePAAddressRecordId(chainId, address, node, coinType);
+  const id = makePAAddressRecordId(chainId, address, node, coin_type);
 
   if (interpretedValue === null) {
     context.resolver_address_record.deleteUnsafe(id);
@@ -191,7 +191,7 @@ export function handlePAAddressRecordUpdate(
       chainId,
       address,
       node,
-      coinType: BigInt(coinType),
+      coin_type: BigInt(coin_type),
       value: interpretedValue,
       resolverRecords_id: makePAResolverRecordsId(chainId, address, node),
     });
@@ -306,11 +306,11 @@ export async function nodeIsMigrated(
 export function upsertReverseNameRecord(
   context: handlerContext,
   address: string,
-  coinType: number,
+  coin_type: number,
   rawName: string,
 ): void {
   const interpretedValue = interpretNameRecordValue(rawName);
-  const id = makeReverseNameRecordId(address, coinType);
+  const id = makeReverseNameRecordId(address, coin_type);
 
   if (interpretedValue === null) {
     context.reverse_name_record.deleteUnsafe(id);
@@ -318,7 +318,7 @@ export function upsertReverseNameRecord(
     context.reverse_name_record.set({
       id,
       address,
-      coinType: BigInt(coinType),
+      coin_type: BigInt(coin_type),
       value: interpretedValue,
     });
   }

@@ -29,7 +29,7 @@ import dnsPacket, { type Answer } from "dns-packet";
 // Emitted when the ETH address for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddrChanged" },
+  { contract: "Resolver", event: "AddrChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, a } = event.params;
 
@@ -46,12 +46,12 @@ indexer.onEvent(
     addr_id: a,
   });
 
-  // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
-  const domain = await context.subgraph_domain.get(node);
+  // materialize Domain.resolved_address_id if Domain.resolver_id matches
+  const domain = await context.subgraph_domains.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
-      resolvedAddress_id: a,
+      resolved_address_id: a,
     });
   }
 
@@ -73,9 +73,9 @@ indexer.onEvent(
 // Emitted when a multicoin address changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddressChanged" },
+  { contract: "Resolver", event: "AddressChanged", wildcard: true },
   async ({ event, context }) => {
-  const { node, coinType, newAddress } = event.params;
+  const { node, coinType: coin_type, newAddress } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
@@ -86,22 +86,22 @@ indexer.onEvent(
     address: event.srcAddress,
   });
 
-  // add coinType to resolver's coinTypes array
-  context.subgraph_resolver.set({
+  // add coin_type to resolver's coin_types array
+  context.subgraph_resolvers.set({
     ...resolver,
-    coinTypes: uniq([...(resolver.coinTypes ?? []), coinType]),
+    coin_types: uniq([...(resolver.coin_types ?? []), coin_type]),
   });
 
   // log MulticoinAddrChanged
   context.subgraph_multicoin_addr_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
-    coinType,
+    coin_type,
     addr: newAddress,
   });
 
   // PA: track multicoin address record
-  const paCoinType = bigintToCoinType(coinType);
+  const paCoinType = bigintToCoinType(coin_type);
   if (paCoinType !== null) {
     ensurePAResolver(context, event.chainId, event.srcAddress);
     ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
@@ -114,7 +114,7 @@ indexer.onEvent(
 // Emitted when the name for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "NameChanged" },
+  { contract: "Resolver", event: "NameChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, name } = event.params;
 
@@ -148,9 +148,9 @@ indexer.onEvent(
 // Emitted when the ABI for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ABIChanged" },
+  { contract: "Resolver", event: "ABIChanged", wildcard: true },
   async ({ event, context }) => {
-  const { node, contentType } = event.params;
+  const { node, contentType: content_type } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
@@ -165,7 +165,7 @@ indexer.onEvent(
   context.subgraph_abi_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
-    contentType,
+    content_type,
   });
   },
 );
@@ -174,7 +174,7 @@ indexer.onEvent(
 // Emitted when the public key for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "PubkeyChanged" },
+  { contract: "Resolver", event: "PubkeyChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, x, y } = event.params;
 
@@ -201,7 +201,7 @@ indexer.onEvent(
 // Emitted when a text record for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "TextChanged" },
+  { contract: "Resolver", event: "TextChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, key, value } = event.params;
 
@@ -224,7 +224,7 @@ indexer.onEvent(
       : stripNullBytes(value) || undefined;
 
   // add sanitized key to resolver's texts array
-  context.subgraph_resolver.set({
+  context.subgraph_resolvers.set({
     ...resolver,
     texts: uniq([...(resolver.texts ?? []), sanitizedKey]),
   });
@@ -248,18 +248,18 @@ indexer.onEvent(
 // Emitted when the content hash for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ContenthashChanged" },
+  { contract: "Resolver", event: "ContenthashChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, hash } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
-  // upsert Resolver with the new contentHash
+  // upsert Resolver with the new content_hash
   await upsertResolver(context, {
     id: resolverId,
     domain_id: node,
     address: event.srcAddress,
-    contentHash: hash,
+    content_hash: hash,
   });
 
   // log ContenthashChanged
@@ -275,9 +275,9 @@ indexer.onEvent(
 // Emitted when the EIP-165 interface support changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "InterfaceChanged" },
+  { contract: "Resolver", event: "InterfaceChanged", wildcard: true },
   async ({ event, context }) => {
-  const { node, interfaceID, implementer } = event.params;
+  const { node, interfaceID: interface_id, implementer } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
@@ -292,7 +292,7 @@ indexer.onEvent(
   context.subgraph_interface_changed.set({
     ...sharedEventValues(event.chainId, event),
     resolver_id: resolverId,
-    interfaceID,
+    interface_id,
     implementer,
   });
   },
@@ -302,7 +302,7 @@ indexer.onEvent(
 // Emitted when an authorisation for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AuthorisationChanged" },
+  { contract: "Resolver", event: "AuthorisationChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, owner, target, isAuthorised } = event.params;
 
@@ -322,7 +322,7 @@ indexer.onEvent(
     resolver_id: resolverId,
     owner,
     target,
-    isAuthorized: isAuthorised,
+    is_authorized: isAuthorised,
   });
   },
 );
@@ -331,18 +331,18 @@ indexer.onEvent(
 // Emitted when the resolver version changes, clearing all stored data.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "VersionChanged" },
+  { contract: "Resolver", event: "VersionChanged", wildcard: true },
   async ({ event, context }) => {
   const { node, newVersion } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
-  // materialize Domain.resolvedAddress_id to undefined if Domain.resolver_id matches
-  const domain = await context.subgraph_domain.get(node);
+  // materialize Domain.resolved_address_id to undefined if Domain.resolver_id matches
+  const domain = await context.subgraph_domains.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
-      resolvedAddress_id: undefined,
+      resolved_address_id: undefined,
     });
   }
 
@@ -352,8 +352,8 @@ indexer.onEvent(
     domain_id: node,
     address: event.srcAddress,
     addr_id: undefined,
-    contentHash: undefined,
-    coinTypes: undefined,
+    content_hash: undefined,
+    coin_types: undefined,
     texts: undefined,
   });
 
@@ -440,7 +440,7 @@ function parseDnsTxtRecordArgs({
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged4" },
+  { contract: "Resolver", event: "DNSRecordChanged4", wildcard: true },
   async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
@@ -456,7 +456,7 @@ indexer.onEvent(
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged5" },
+  { contract: "Resolver", event: "DNSRecordChanged5", wildcard: true },
   async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
@@ -472,7 +472,7 @@ indexer.onEvent(
 // PA-only: deletes DNS TXT records from PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordDeleted" },
+  { contract: "Resolver", event: "DNSRecordDeleted", wildcard: true },
   async ({ event, context }) => {
   const { node, name, resource } = event.params;
   const { key } = parseDnsTxtRecordArgs({ name, resource });

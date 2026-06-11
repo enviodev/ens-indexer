@@ -144,7 +144,7 @@ export async function insertRegistrarAction(
     node: string;
     incrementalDuration: bigint;
     registrant: string;
-    blockNumber: number;
+    block_number: number;
     timestamp: number;
     transactionHash: string;
     eventIds: string[];
@@ -173,7 +173,7 @@ export async function insertRegistrarAction(
     registrant: params.registrant,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
-    blockNumber: BigInt(params.blockNumber),
+    block_number: BigInt(params.block_number),
     timestamp: BigInt(params.timestamp),
     transactionHash: params.transactionHash,
     eventIds: params.eventIds,
@@ -196,7 +196,7 @@ export async function handleRegistrarRegistration(
     labelHash: string;
     registrant: string;
     expiresAt: bigint;
-    blockNumber: number;
+    block_number: number;
     timestamp: number;
     transactionHash: string;
   },
@@ -221,7 +221,7 @@ export async function handleRegistrarRegistration(
     node,
     incrementalDuration,
     registrant: params.registrant,
-    blockNumber: params.blockNumber,
+    block_number: params.block_number,
     timestamp: params.timestamp,
     transactionHash: params.transactionHash,
     eventIds: [params.eventId],
@@ -244,7 +244,7 @@ export async function handleRegistrarRenewal(
     labelHash: string;
     registrant: string;
     expiresAt: bigint;
-    blockNumber: number;
+    block_number: number;
     timestamp: number;
     transactionHash: string;
   },
@@ -274,7 +274,7 @@ export async function handleRegistrarRenewal(
     node,
     incrementalDuration,
     registrant: params.registrant,
-    blockNumber: params.blockNumber,
+    block_number: params.block_number,
     timestamp: params.timestamp,
     transactionHash: params.transactionHash,
     eventIds: [params.eventId],

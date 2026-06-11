@@ -33,7 +33,7 @@ describe("Registrar", () => {
 
       // Check that Registration entities were created
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.subgraph_registrations?.sets ?? [],
       );
       expect(registrations.length).toBeGreaterThan(0);
 
@@ -47,7 +47,7 @@ describe("Registrar", () => {
         expect(evt.id).toBeDefined();
         expect(evt.registration_id).toBeDefined();
         expect(evt.registrant_id).toBeDefined();
-        expect(evt.expiryDate).toBeDefined();
+        expect(evt.expiry_date).toBeDefined();
       }
 
       // Verify a registration exists with proper structure
@@ -55,23 +55,23 @@ describe("Registrar", () => {
         expect(reg.id).toBeDefined();
         expect(reg.domain_id).toBeDefined();
         expect(reg.registrant_id).toBeDefined();
-        expect(reg.registrationDate).toBeDefined();
-        expect(reg.expiryDate).toBeDefined();
+        expect(reg.registration_date).toBeDefined();
+        expect(reg.expiry_date).toBeDefined();
       }
 
       // Domain expiry should include grace period (registration expiry + 90 days)
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const domainsWithExpiry = domains.filter(
-        (d) => d.expiryDate !== undefined,
+        (d) => d.expiry_date !== undefined,
       );
       if (domainsWithExpiry.length > 0) {
         for (const d of domainsWithExpiry) {
           // Find matching registration
           const reg = registrations.find((r) => r.domain_id === d.id);
           if (reg) {
-            expect(d.expiryDate).toBe(reg.expiryDate + GRACE_PERIOD_SECONDS);
+            expect(d.expiry_date).toBe(reg.expiry_date + GRACE_PERIOD_SECONDS);
           }
         }
       }
@@ -107,8 +107,8 @@ describe("Registrar", () => {
       for (const evt of renewEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.registration_id).toBeDefined();
-        expect(evt.expiryDate).toBeDefined();
-        expect(evt.transactionID).toBeDefined();
+        expect(evt.expiry_date).toBeDefined();
+        expect(evt.transaction_id).toBeDefined();
       }
     }, 30_000);
   });
@@ -141,8 +141,8 @@ describe("Registrar", () => {
       for (const evt of transferEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.registration_id).toBeDefined();
-        expect(evt.newOwner_id).toBeDefined();
-        expect(evt.transactionID).toBeDefined();
+        expect(evt.new_owner_id).toBeDefined();
+        expect(evt.transaction_id).toBeDefined();
       }
     }, 30_000);
   });
@@ -169,16 +169,16 @@ describe("Registrar", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
-        (d) => d.labelName !== undefined,
+        (d) => d.label_name !== undefined,
       );
 
-      // The controller event should have set labelName
+      // The controller event should have set label_name
       if (domainsWithLabels.length > 0) {
         for (const d of domainsWithLabels) {
-          expect(d.labelName).toBeTruthy();
+          expect(d.label_name).toBeTruthy();
           // Name should be in format "label.eth"
           if (d.name) {
             expect(d.name).toContain(".eth");
@@ -210,7 +210,7 @@ describe("Registrar", () => {
 
       // Check Registration entities have cost set
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.subgraph_registrations?.sets ?? [],
       );
       const regsWithCost = registrations.filter(
         (r) => r.cost !== undefined,

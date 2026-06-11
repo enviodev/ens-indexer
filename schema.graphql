@@ -3,252 +3,251 @@
 
 # ─── Core Entities ───────────────────────────────────────────────────────────
 
-type subgraph_domain {
+type subgraph_domains {
   id: ID!
   name: String
-  labelName: String
+  label_name: String
   labelhash: String @index
-  parent: subgraph_domain @index
-  subdomainCount: Int!
-  resolvedAddress: subgraph_account @index
-  resolver: subgraph_resolver
+  parent: subgraph_domains @index
+  subdomain_count: Int!
+  resolved_address: subgraph_accounts @index
+  resolver: subgraph_resolvers
   ttl: BigInt
-  isMigrated: Boolean!
-  createdAt: BigInt!
-  owner: subgraph_account! @index
-  registrant: subgraph_account @index
-  wrappedOwner: subgraph_account @index
-  expiryDate: BigInt
-  subdomains: [subgraph_domain!]! @derivedFrom(field: "parent")
+  is_migrated: Boolean!
+  created_at: BigInt!
+  owner: subgraph_accounts! @index
+  registrant: subgraph_accounts @index
+  wrapped_owner: subgraph_accounts @index
+  expiry_date: BigInt
+  subdomains: [subgraph_domains!]! @derivedFrom(field: "parent")
 }
 
-type subgraph_account {
+type subgraph_accounts {
   id: ID!
-  domains: [subgraph_domain!]! @derivedFrom(field: "owner")
-  wrappedDomains: [subgraph_wrapped_domain!]! @derivedFrom(field: "owner")
-  registrations: [subgraph_registration!]! @derivedFrom(field: "registrant")
+  domains: [subgraph_domains!]! @derivedFrom(field: "owner")
+  wrapped_domains: [subgraph_wrapped_domains!]! @derivedFrom(field: "owner")
+  registrations: [subgraph_registrations!]! @derivedFrom(field: "registrant")
 }
 
-type subgraph_resolver {
+type subgraph_resolvers {
   id: ID!
-  domain: subgraph_domain! @index
+  domain: subgraph_domains! @index
   address: String!
-  addr: subgraph_account
-  contentHash: String
+  addr: subgraph_accounts
+  content_hash: String
   texts: [String!]
-  coinTypes: [BigInt!]
+  coin_types: [BigInt!]
 }
 
-type subgraph_registration {
+type subgraph_registrations {
   id: ID!
-  domain: subgraph_domain! @index
-  registrationDate: BigInt! @index
-  expiryDate: BigInt! @index
+  domain: subgraph_domains! @index
+  registration_date: BigInt! @index
+  expiry_date: BigInt! @index
   cost: BigInt
-  registrant: subgraph_account!
-  labelName: String
+  registrant: subgraph_accounts!
+  label_name: String
 }
 
-type subgraph_wrapped_domain {
+type subgraph_wrapped_domains {
   id: ID!
-  domain: subgraph_domain! @index
-  expiryDate: BigInt!
+  domain: subgraph_domains! @index
+  expiry_date: BigInt!
   fuses: Int!
-  owner: subgraph_account!
+  owner: subgraph_accounts!
   name: String
-  isActive: Boolean!
 }
 
 # ─── Domain Event Entities ───────────────────────────────────────────────────
 
-type subgraph_transfer @index(fields: ["domain", "id"]) {
+type subgraph_transfers @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
-  owner: subgraph_account!
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
+  owner: subgraph_accounts!
 }
 
-type subgraph_new_owner @index(fields: ["domain", "id"]) {
+type subgraph_new_owners @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
-  owner: subgraph_account!
-  parentDomain: subgraph_domain!
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
+  owner: subgraph_accounts!
+  parent_domain: subgraph_domains!
 }
 
-type subgraph_new_resolver @index(fields: ["domain", "id"]) {
+type subgraph_new_resolvers @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
   resolver_id: String!
 }
 
-type subgraph_new_ttl @index(fields: ["domain", "id"]) {
+type subgraph_new_ttls @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
   ttl: BigInt!
 }
 
-type subgraph_wrapped_transfer @index(fields: ["domain", "id"]) {
+type subgraph_wrapped_transfers @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
-  owner: subgraph_account!
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
+  owner: subgraph_accounts!
 }
 
 type subgraph_name_wrapped @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
   name: String
   fuses: Int!
-  owner: subgraph_account!
-  expiryDate: BigInt!
+  owner: subgraph_accounts!
+  expiry_date: BigInt!
 }
 
 type subgraph_name_unwrapped @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
-  owner: subgraph_account!
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
+  owner: subgraph_accounts!
 }
 
 type subgraph_fuses_set @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
   fuses: Int!
 }
 
 type subgraph_expiry_extended @index(fields: ["domain", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  domain: subgraph_domain! @index
-  expiryDate: BigInt!
+  block_number: Int!
+  transaction_id: String!
+  domain: subgraph_domains! @index
+  expiry_date: BigInt!
 }
 
 # ─── Registration Event Entities ─────────────────────────────────────────────
 
 type subgraph_name_registered @index(fields: ["registration", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  registration: subgraph_registration! @index
-  registrant: subgraph_account!
-  expiryDate: BigInt!
+  block_number: Int!
+  transaction_id: String!
+  registration: subgraph_registrations! @index
+  registrant: subgraph_accounts!
+  expiry_date: BigInt!
 }
 
 type subgraph_name_renewed @index(fields: ["registration", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  registration: subgraph_registration! @index
-  expiryDate: BigInt!
+  block_number: Int!
+  transaction_id: String!
+  registration: subgraph_registrations! @index
+  expiry_date: BigInt!
 }
 
 type subgraph_name_transferred @index(fields: ["registration", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  registration: subgraph_registration! @index
-  newOwner: subgraph_account!
+  block_number: Int!
+  transaction_id: String!
+  registration: subgraph_registrations! @index
+  new_owner: subgraph_accounts!
 }
 
 # ─── Resolver Event Entities ─────────────────────────────────────────────────
 
 type subgraph_addr_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
-  addr: subgraph_account!
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
+  addr: subgraph_accounts!
 }
 
 type subgraph_multicoin_addr_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
-  coinType: BigInt!
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
+  coin_type: BigInt!
   addr: String!
 }
 
 type subgraph_name_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   name: String!
 }
 
 type subgraph_abi_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
-  contentType: BigInt!
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
+  content_type: BigInt!
 }
 
 type subgraph_pubkey_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   x: String!
   y: String!
 }
 
 type subgraph_text_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   key: String!
   value: String
 }
 
 type subgraph_contenthash_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   hash: String!
 }
 
 type subgraph_interface_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
-  interfaceID: String!
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
+  interface_id: String!
   implementer: String!
 }
 
 type subgraph_authorisation_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   owner: String!
   target: String!
-  isAuthorized: Boolean!
+  is_authorized: Boolean!
 }
 
 type subgraph_version_changed @index(fields: ["resolver", "id"]) {
   id: ID!
-  blockNumber: Int!
-  transactionID: String!
-  resolver: subgraph_resolver! @index
+  block_number: Int!
+  transaction_id: String!
+  resolver: subgraph_resolvers! @index
   version: BigInt!
 }
 
@@ -269,12 +268,12 @@ type resolver_records @index(fields: ["chainId", "address", "node"]) {
   resolver: resolver!
 }
 
-type resolver_address_record @index(fields: ["chainId", "address", "node", "coinType"]) {
+type resolver_address_record @index(fields: ["chainId", "address", "node", "coin_type"]) {
   id: ID!
   chainId: Int!
   address: String!
   node: String!
-  coinType: BigInt!
+  coin_type: BigInt!
   value: String!
   resolverRecords: resolver_records!
 }
@@ -297,10 +296,10 @@ type domain_resolver_relation @index(fields: ["chainId", "address", "domainId"])
   resolver: String!
 }
 
-type reverse_name_record @index(fields: ["address", "coinType"]) {
+type reverse_name_record @index(fields: ["address", "coin_type"]) {
   id: ID!
   address: String!
-  coinType: BigInt!
+  coin_type: BigInt!
   value: String!
 }
 
@@ -338,7 +337,7 @@ type registrar_action {
   registrant: String!        # transaction.from address
   encodedReferrer: String    # nullable, raw bytes32
   decodedReferrer: String @index  # nullable, decoded address
-  blockNumber: BigInt!
+  block_number: BigInt!
   timestamp: BigInt! @index
   transactionHash: String!
   eventIds: [String!]!       # array of contributing event IDs
@@ -364,9 +363,9 @@ type name_token {
 }
 
 type name_sale {
-  id: ID!                    # "{chainId}-{blockNumber}-{logIndex}"
+  id: ID!                    # "{chainId}-{block_number}-{logIndex}"
   chainId: Int!
-  blockNumber: Int!
+  block_number: Int!
   logIndex: Int!
   transactionHash: String!
   orderHash: String!

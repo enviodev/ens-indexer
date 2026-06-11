@@ -28,7 +28,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
 
       // Verify domains were created
@@ -40,7 +40,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
       );
       if (domainsWithResolver.length > 0) {
         for (const d of domainsWithResolver) {
-          expect(d.isMigrated).toBe(true);
+          expect(d.is_migrated).toBe(true);
         }
       }
     }, 60_000);
@@ -67,10 +67,10 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.subgraph_registrations?.sets ?? [],
       );
 
       // Verify domains and registrations were created
@@ -84,10 +84,10 @@ describe("ThreeDNS (Optimism + Base)", () => {
 
       // Verify domains with labels have names
       const domainsWithLabels = domains.filter(
-        (d) => d.labelName !== undefined,
+        (d) => d.label_name !== undefined,
       );
       for (const d of domainsWithLabels) {
-        expect(d.labelName).toBeTruthy();
+        expect(d.label_name).toBeTruthy();
         if (d.name) {
           expect(d.name).toContain(".");
         }

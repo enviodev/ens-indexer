@@ -31,7 +31,7 @@ describe("LineaRegistrar (Linea L2)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const lineaSubdomains = domains.filter(
         (d) => d.parent_id === LINEA_ETH_NODE,
@@ -39,16 +39,16 @@ describe("LineaRegistrar (Linea L2)", () => {
 
       // Verify domain expiry includes grace period
       const domainsWithExpiry = lineaSubdomains.filter(
-        (d) => d.expiryDate !== undefined,
+        (d) => d.expiry_date !== undefined,
       );
       if (domainsWithExpiry.length > 0) {
         const registrations = result.changes.flatMap(
-          (c) => c.subgraph_registration?.sets ?? [],
+          (c) => c.subgraph_registrations?.sets ?? [],
         );
         for (const d of domainsWithExpiry) {
           const reg = registrations.find((r) => r.domain_id === d.id);
           if (reg) {
-            expect(d.expiryDate).toBe(reg.expiryDate + GRACE_PERIOD_SECONDS);
+            expect(d.expiry_date).toBe(reg.expiry_date + GRACE_PERIOD_SECONDS);
           }
         }
       }
@@ -76,13 +76,13 @@ describe("LineaRegistrar (Linea L2)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.subgraph_domains?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
-        (d) => d.labelName !== undefined,
+        (d) => d.label_name !== undefined,
       );
       for (const d of domainsWithLabels) {
-        expect(d.labelName).toBeTruthy();
+        expect(d.label_name).toBeTruthy();
         if (d.name) {
           expect(d.name).toContain(".linea.eth");
         }

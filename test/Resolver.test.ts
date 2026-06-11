@@ -11,7 +11,7 @@ describe("Resolver", () => {
   // ─── AddrChanged ──────────────────────────────────────────────────────
 
   describe("AddrChanged", () => {
-    it("updates resolver addr and materializes Domain.resolvedAddress_id", async () => {
+    it("updates resolver addr and materializes Domain.resolved_address_id", async () => {
       const indexer = createTestIndexer();
 
       // Initialize root
@@ -38,12 +38,12 @@ describe("Resolver", () => {
         expect(evt.id).toBeDefined();
         expect(evt.resolver_id).toBeDefined();
         expect(evt.addr_id).toBeDefined();
-        expect(evt.transactionID).toBeDefined();
+        expect(evt.transaction_id).toBeDefined();
       }
 
       // Check Resolver entities have addr_id set
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.subgraph_resolvers?.sets ?? [],
       );
       const resolversWithAddr = resolvers.filter(
         (r) => r.addr_id !== undefined,
@@ -62,7 +62,7 @@ describe("Resolver", () => {
   // ─── AddressChanged (multicoin) ───────────────────────────────────────
 
   describe("AddressChanged (multicoin)", () => {
-    it("tracks multicoin addresses and accumulates coinTypes", async () => {
+    it("tracks multicoin addresses and accumulates coin_types", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -86,23 +86,23 @@ describe("Resolver", () => {
       for (const evt of multicoinEvents) {
         expect(evt.id).toBeDefined();
         expect(evt.resolver_id).toBeDefined();
-        expect(evt.coinType).toBeDefined();
+        expect(evt.coin_type).toBeDefined();
         expect(evt.addr).toBeDefined();
       }
 
-      // Verify coinTypes array is being built on resolver
+      // Verify coin_types array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.subgraph_resolvers?.sets ?? [],
       );
       const resolversWithCoinTypes = resolvers.filter(
-        (r) => r.coinTypes && r.coinTypes.length > 0,
+        (r) => r.coin_types && r.coin_types.length > 0,
       );
 
       for (const r of resolversWithCoinTypes) {
-        expect(r.coinTypes!.length).toBeGreaterThan(0);
-        // coinTypes should be unique
-        const uniqueCoinTypes = [...new Set(r.coinTypes!.map(String))];
-        expect(uniqueCoinTypes.length).toBe(r.coinTypes!.length);
+        expect(r.coin_types!.length).toBeGreaterThan(0);
+        // coin_types should be unique
+        const uniqueCoinTypes = [...new Set(r.coin_types!.map(String))];
+        expect(uniqueCoinTypes.length).toBe(r.coin_types!.length);
       }
     }, 30_000);
   });
@@ -142,7 +142,7 @@ describe("Resolver", () => {
 
       // Verify texts array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.subgraph_resolvers?.sets ?? [],
       );
       const resolversWithTexts = resolvers.filter(
         (r) => r.texts && r.texts.length > 0,
@@ -191,7 +191,7 @@ describe("Resolver", () => {
   // ─── VersionChanged ───────────────────────────────────────────────────
 
   describe("VersionChanged", () => {
-    it("clears resolver data and resets Domain.resolvedAddress_id", async () => {
+    it("clears resolver data and resets Domain.resolved_address_id", async () => {
       const indexer = createTestIndexer();
 
       await indexer.process({
@@ -221,11 +221,11 @@ describe("Resolver", () => {
       // If a VersionChanged was processed, verify resolver was cleared
       if (versionEvents.length > 0) {
         for (const evt of versionEvents) {
-          const resolver = await indexer.subgraph_resolver.get(evt.resolver_id);
+          const resolver = await indexer.subgraph_resolvers.get(evt.resolver_id);
           if (resolver) {
             expect(resolver.addr_id).toBeUndefined();
-            expect(resolver.contentHash).toBeUndefined();
-            expect(resolver.coinTypes).toBeUndefined();
+            expect(resolver.content_hash).toBeUndefined();
+            expect(resolver.coin_types).toBeUndefined();
             expect(resolver.texts).toBeUndefined();
           }
         }
@@ -252,7 +252,7 @@ describe("Resolver", () => {
       });
 
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.subgraph_resolvers?.sets ?? [],
       );
 
       for (const r of resolvers) {

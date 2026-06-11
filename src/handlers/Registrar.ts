@@ -24,6 +24,13 @@ import {
 } from "../lib/registrar-helpers";
 
 import {
+  IS_SUBGRAPH_COMPAT,
+  isLabelSubgraphIndexable,
+  healLabelByLabelHash,
+  interpretHealedLabel,
+} from "../lib/interpretation";
+
+import {
   handleNFTTransfer,
   buildDomainAssetId,
   AssetNamespaces,
@@ -50,45 +57,57 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
 
   // Get or create the domain
-  let domain = await context.subgraph_domain.get(node);
+  let domain = await context.subgraph_domains.get(node);
   if (!domain) {
     // Handle preminted names edge case: if domain doesn't exist yet,
     // create it (normally Registry.NewOwner creates it first)
     domain = {
       id: node,
       name: undefined,
-      labelName: undefined,
+      label_name: undefined,
       labelhash: labelHash,
       parent_id: managedNode,
-      subdomainCount: 0,
-      resolvedAddress_id: undefined,
+      subdomain_count: 0,
+      resolved_address_id: undefined,
       resolver_id: undefined,
       ttl: undefined,
-      isMigrated: true,
-      createdAt: BigInt(event.block.timestamp),
+      is_migrated: true,
+      created_at: BigInt(event.block.timestamp),
       owner_id: owner,
       registrant_id: owner,
-      wrappedOwner_id: undefined,
-      expiryDate: expires + GRACE_PERIOD_SECONDS,
+      wrapped_owner_id: undefined,
+      expiry_date: expires + GRACE_PERIOD_SECONDS,
     };
-    context.subgraph_domain.set(domain);
-  } else {
-    // Update existing domain with registrant and expiry
-    context.subgraph_domain.set({
-      ...domain,
-      registrant_id: owner,
-      expiryDate: expires + GRACE_PERIOD_SECONDS,
-    });
+    context.subgraph_domains.set(domain);
   }
+
+  // Heal the label via ENSRainbow and interpret it like the reference:
+  // subgraph-compat keeps an indexable healed Literal Label as-is (and leaves
+  // label/name untouched when not indexable); otherwise ENSIP-15 interpreted.
+  const healedLabel = await context.effect(healLabelByLabelHash, labelHash);
+  const label = IS_SUBGRAPH_COMPAT
+    ? (isLabelSubgraphIndexable(healedLabel) ? healedLabel : undefined)
+    : interpretHealedLabel(labelHash, healedLabel);
+  const name = label !== undefined ? `${label}.${managedName}` : undefined;
+
+  // Update domain with registrant, expiry, and (re-)interpreted label/name
+  domain = (await context.subgraph_domains.get(node))!;
+  context.subgraph_domains.set({
+    ...domain,
+    registrant_id: owner,
+    expiry_date: expires + GRACE_PERIOD_SECONDS,
+    ...(label !== undefined ? { label_name: label, name } : {}),
+  });
 
   // Upsert Registration
   const registrationId = makeRegistrationId(labelHash, node);
   await upsertRegistration(context, {
     id: registrationId,
     domain_id: node,
-    registrationDate: BigInt(event.block.timestamp),
-    expiryDate: expires,
+    registration_date: BigInt(event.block.timestamp),
+    expiry_date: expires,
     registrant_id: owner,
+    label_name: label,
   });
 
   // Log NameRegistered
@@ -96,7 +115,7 @@ indexer.onEvent(
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: owner,
-    expiryDate: expires,
+    expiry_date: expires,
   });
 
   // Registrar: track registration action
@@ -108,7 +127,7 @@ indexer.onEvent(
     labelHash,
     registrant: event.transaction.from ?? zeroAddress,
     expiresAt: expires,
-    blockNumber: event.block.number,
+    block_number: event.block.number,
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
@@ -126,21 +145,21 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
   const registrationId = makeRegistrationId(labelHash, node);
 
-  // Update Registration expiryDate
-  const registration = await context.subgraph_registration.get(registrationId);
+  // Update Registration expiry_date
+  const registration = await context.subgraph_registrations.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.subgraph_registrations.set({
       ...registration,
-      expiryDate: expires,
+      expiry_date: expires,
     });
   }
 
-  // Update Domain expiryDate (includes grace period)
-  const domain = await context.subgraph_domain.get(node);
+  // Update Domain expiry_date (includes grace period)
+  const domain = await context.subgraph_domains.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
-      expiryDate: expires + GRACE_PERIOD_SECONDS,
+      expiry_date: expires + GRACE_PERIOD_SECONDS,
     });
   }
 
@@ -148,7 +167,7 @@ indexer.onEvent(
   context.subgraph_name_renewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
-    expiryDate: expires,
+    expiry_date: expires,
   });
 
   // Registrar: track renewal action
@@ -160,7 +179,7 @@ indexer.onEvent(
     labelHash,
     registrant: event.transaction.from ?? zeroAddress,
     expiresAt: expires,
-    blockNumber: event.block.number,
+    block_number: event.block.number,
     timestamp: event.block.timestamp,
     transactionHash: event.transaction.hash,
   });
@@ -183,19 +202,19 @@ indexer.onEvent(
 
   // If the Transfer event occurs before the Registration entity exists
   // (i.e. initial registration ordering: Transfer -> NewOwner -> NameRegistered), no-op
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.subgraph_registrations.get(registrationId);
   if (!registration) return;
 
   // Update Registration registrant
-  context.subgraph_registration.set({
+  context.subgraph_registrations.set({
     ...registration,
     registrant_id: to,
   });
 
   // Update Domain registrant
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.subgraph_domains.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.subgraph_domains.set({
       ...domain,
       registrant_id: to,
     });
@@ -205,7 +224,7 @@ indexer.onEvent(
   context.subgraph_name_transferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
-    newOwner_id: to,
+    new_owner_id: to,
   });
 
   // TokenScope: track ERC721 transfer
@@ -229,11 +248,11 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "LegacyController", event: "NameRegistered" },
   async ({ event, context }) => {
-  const labelName = event.params.name; // plaintext label
+  const label_name = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
@@ -257,11 +276,11 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "LegacyController", event: "NameRenewed" },
   async ({ event, context }) => {
-  const labelName = event.params.name; // plaintext label
+  const label_name = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
@@ -288,13 +307,13 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "WrappedController", event: "NameRegistered" },
   async ({ event, context }) => {
-  const labelName = event.params.name; // plaintext label
+  const label_name = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const baseCost = event.params.baseCost;
   const premium = event.params.premium;
   const cost = baseCost + premium;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
@@ -318,11 +337,11 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "WrappedController", event: "NameRenewed" },
   async ({ event, context }) => {
-  const labelName = event.params.name; // plaintext label
+  const label_name = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
@@ -349,13 +368,13 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "UnwrappedController", event: "NameRegistered" },
   async ({ event, context }) => {
-  const labelName = event.params.label; // plaintext label
+  const label_name = event.params.label; // plaintext label
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const baseCost = event.params.baseCost;
   const premium = event.params.premium;
   const cost = baseCost + premium;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing and referral
   const node = makeSubdomainNode(labelHash, managedNode);
@@ -382,11 +401,11 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "UnwrappedController", event: "NameRenewed" },
   async ({ event, context }) => {
-  const labelName = event.params.label; // plaintext label
+  const label_name = event.params.label; // plaintext label
   const labelHash = event.params.labelhash; // bytes32 labelHash
   const cost = event.params.cost;
 
-  await setNamePreimage(context, labelName, labelHash, cost, managedNode, managedName);
+  await setNamePreimage(context, label_name, labelHash, cost, managedNode, managedName);
 
   // Registrar: update action with pricing and referral
   const node = makeSubdomainNode(labelHash, managedNode);
