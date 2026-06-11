@@ -1,0 +1,379 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: ens-indexer
+description: ENS Protocol Indexer
+
+contracts:
+  # ─── Registry Contracts ──────────────────────────────────────────────────────
+  - name: RegistryOld
+    events:
+      - event: "NewOwner(bytes32 indexed node, bytes32 indexed label, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(bytes32 indexed node, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NewResolver(bytes32 indexed node, address resolver)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NewTTL(bytes32 indexed node, uint64 ttl)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: Registry
+    events:
+      - event: "NewOwner(bytes32 indexed node, bytes32 indexed label, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(bytes32 indexed node, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NewResolver(bytes32 indexed node, address resolver)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NewTTL(bytes32 indexed node, uint64 ttl)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── BaseRegistrar ──────────────────────────────────────────────────────────
+  - name: BaseRegistrar
+    events:
+      - event: "NameRegistered(uint256 indexed id, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "NameRenewed(uint256 indexed id, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── NameWrapper ─────────────────────────────────────────────────────────────
+  - name: NameWrapper
+    events:
+      - event: "NameWrapped(bytes32 indexed node, bytes name, address owner, uint32 fuses, uint64 expiry)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameUnwrapped(bytes32 indexed node, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "FusesSet(bytes32 indexed node, uint32 fuses)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ExpiryExtended(bytes32 indexed node, uint64 expiry)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── Registrar Controllers ──────────────────────────────────────────────────
+  - name: LegacyController
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 cost, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 cost, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: WrappedController
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 baseCost, uint256 premium, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 cost, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: UnwrappedController
+    events:
+      - event: "NameRegistered(string label, bytes32 indexed labelhash, address indexed owner, uint256 baseCost, uint256 premium, uint256 expires, bytes32 referrer)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string label, bytes32 indexed labelhash, uint256 cost, uint256 expires, bytes32 referrer)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── Base L2 Contracts ─────────────────────────────────────────────────────
+  - name: BaseRegistrar_Base
+    events:
+      - event: "NameRegistered(uint256 indexed id, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "NameRegisteredWithRecord(uint256 indexed id, address indexed owner, uint256 expires, address resolver, uint64 ttl)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "NameRenewed(uint256 indexed id, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: EAController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: RegController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: UpgController_Base
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── Linea L2 Contracts ────────────────────────────────────────────────────
+  - name: BaseRegistrar_Linea
+    events:
+      - event: "NameRegistered(uint256 indexed id, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "NameRenewed(uint256 indexed id, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  - name: EthController_Linea
+    events:
+      - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 baseCost, uint256 premium, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(string name, bytes32 indexed label, uint256 cost, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "OwnerNameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "PohNameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── ThreeDNS Token (Optimism + Base) ──────────────────────────────────────
+  - name: ThreeDNSToken
+    events:
+      - event: "NewOwner(bytes32 indexed node, bytes32 indexed label, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+      - event: "Transfer(bytes32 indexed node, address owner)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "RegistrationCreated(bytes32 indexed node, bytes32 indexed tld, bytes fqdn, address registrant, uint32 controlBitmap, uint64 expiry)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "RegistrationExtended(bytes32 indexed node, uint64 indexed duration, uint64 indexed newExpiry)"
+        field_selection:
+          transaction_fields:
+            - hash
+      # ─── ERC1155 Transfer events (for TokenScope plugin) ──────────────────────
+      - event: "TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
+  - name: Resolver
+    events:
+      - event: "AddrChanged(bytes32 indexed node, address a)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameChanged(bytes32 indexed node, string name)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ABIChanged(bytes32 indexed node, uint256 indexed contentType)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "PubkeyChanged(bytes32 indexed node, bytes32 x, bytes32 y)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ContenthashChanged(bytes32 indexed node, bytes hash)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "InterfaceChanged(bytes32 indexed node, bytes4 indexed interfaceID, address implementer)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "AuthorisationChanged(bytes32 indexed node, address indexed owner, address indexed target, bool isAuthorised)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "VersionChanged(bytes32 indexed node, uint64 newVersion)"
+        field_selection:
+          transaction_fields:
+            - hash
+      # ─── DNS Record Events (for PA plugin) ────────────────────────────────────
+      - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, bytes record)"
+        name: DNSRecordChanged4
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, uint32 ttl, bytes record)"
+        name: DNSRecordChanged5
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "DNSRecordDeleted(bytes32 indexed node, bytes name, uint16 resource)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── UniversalRenewal (Registrars plugin) ──────────────────────────────────
+  - name: UniversalRenewal
+    abi_file_path: ./abis/UniversalRegistrarRenewalWithReferrer.json
+    handler: ./src/handlers/Registrar.ts
+    events:
+      - event: "RenewalReferred(string label, bytes32 indexed labelHash, uint256 cost, uint256 duration, bytes32 referrer)"
+        field_selection:
+          transaction_fields:
+            - hash
+            - from
+
+  # ─── Seaport (TokenScope plugin) ───────────────────────────────────────────
+  - name: Seaport
+    abi_file_path: ./abis/Seaport1_5.json
+    handler: ./src/handlers/TokenScope.ts
+    events:
+      - event: "OrderFulfilled(bytes32 orderHash, address indexed offerer, address indexed zone, address recipient, (uint8,address,uint256,uint256)[] offer, (uint8,address,uint256,uint256,address)[] consideration)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # ─── StandaloneReverseRegistrar (PA plugin) ────────────────────────────────
+  - name: StandaloneReverseRegistrar
+    events:
+      - event: "NameForAddrChanged(address indexed addr, string name)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+# ─── Chain Configuration (VALIDATION: mainnet subgraph scope only) ───────────
+# This config exists for the ens-subgraph-transition-tools snapshot-eq run:
+# it must produce subgraph_* tables containing ONLY mainnet data indexed by
+# the same contract set as the ENS Subgraph / ENSNode `ACTIVE_PLUGINS=subgraph`.
+# Excluded vs config.yaml: Base/Linea/Optimism/Arbitrum/Scroll chains,
+# UniversalRenewal (registrars), Seaport (tokenscope),
+# StandaloneReverseRegistrar + static reverse-resolver addresses (PA).
+# Resolver is dynamic-only (registered via Registry.NewOwner/NewResolver),
+# matching the subgraph's template-based resolver indexing.
+chains:
+  - id: 1 # Ethereum Mainnet
+    start_block: 3327417
+    # snapshot-eq reference blockheight — see ens-subgraph-transition-tools README
+    end_block: 21921222
+    contracts:
+      - name: RegistryOld
+        address:
+          - "0x314159265dd8dbb310642f98f50c066173c1259b"
+      - name: Registry
+        address:
+          - "0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e"
+        start_block: 9380380
+      - name: BaseRegistrar
+        address:
+          - "0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85"
+        start_block: 9380410
+      - name: NameWrapper
+        address:
+          - "0xd4416b13d2b3a9abae7acd5d6c2bbdbe25686401"
+        start_block: 16925608
+      - name: LegacyController
+        address:
+          - "0x283af0b28c62c092c9727f1ee09c02ca627eb7f5"
+        start_block: 9380471
+      - name: WrappedController
+        address:
+          - "0x253553366da8546fc250f225fe3d25d0c782303b"
+        start_block: 16925618
+      - name: UnwrappedController
+        address:
+          - "0x59e16fccd424cc24e280be16e11bcd56fb0ce547"
+        start_block: 22764821
+      - name: Resolver
+        # Dynamically registered via Registry NewOwner/NewResolver contractRegister
+
+address_format: lowercase
