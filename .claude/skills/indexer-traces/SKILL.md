@@ -1,16 +1,18 @@
 ---
-name: indexing-traces
+name: indexer-traces
 description: >-
   Use when needing call trace data from transactions. HyperSync supports trace
   queries at the data layer. No handler-level trace API currently — access
   traces via HyperSync client directly.
+metadata:
+  managed-by: envio
 ---
 
 # Trace Indexing
 
 ## Current Status
 
-HyperSync supports full trace queries at the data layer, but HyperIndex does not yet expose a handler-level trace API (like `onTrace`).
+HyperSync supports full trace queries at the data layer, but the Envio Indexer does not yet expose a handler-level trace API (like `onTrace`).
 
 ## HyperSync Trace Support
 
@@ -52,6 +54,4 @@ const getTraces = createEffect(
 );
 ```
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

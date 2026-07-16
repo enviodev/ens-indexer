@@ -1,9 +1,11 @@
 ---
-name: indexing-performance
+name: indexer-performance
 description: >-
   Use when optimizing indexer speed or tuning sync performance. HyperSync vs
   RPC, batch size, RPC tuning parameters, WebSocket config, and preload
   optimization.
+metadata:
+  managed-by: envio
 ---
 
 # Performance Tuning
@@ -28,9 +30,9 @@ When using RPC as a data source, tune these parameters per chain:
 chains:
   - id: 1
     rpc:
-      - url: ${RPC_URL}
-        for: sync                    # sync | live | fallback
-        ws: ${WS_URL}               # WebSocket for lower-latency live block detection
+      - url: ${ENVIO_RPC_URL}
+        for: sync                    # sync | realtime | fallback
+        ws: ${ENVIO_WS_URL}               # WebSocket for lower-latency realtime block detection
         initial_block_interval: 5000 # Starting blocks per query
         backoff_multiplicative: 0.8  # Scale factor after RPC error (0.5-0.9)
         acceleration_additive: 1000  # Blocks added per successful query
@@ -45,11 +47,11 @@ chains:
 
 | Value | Description |
 |-------|-------------|
-| `sync` | RPC as main data source for both historical and live |
-| `live` | HyperSync for historical, switch to RPC for live (lower latency) |
+| `sync` | RPC as main data source for both historical and realtime |
+| `realtime` | HyperSync for historical, switch to RPC for realtime (lower latency) |
 | `fallback` | Backup when primary stalls (default when HyperSync available) |
 
-### WebSocket for Live Indexing
+### WebSocket for Realtime Indexing
 
 Add `ws:` for lower-latency new block detection via `eth_subscribe("newHeads")`:
 
@@ -57,13 +59,11 @@ Add `ws:` for lower-latency new block detection via `eth_subscribe("newHeads")`:
 rpc:
   - url: ${ENVIO_RPC_ENDPOINT}
     ws: ${ENVIO_WS_ENDPOINT}
-    for: live
+    for: realtime
 ```
 
 ## Database Indexes
 
-Add `@index` to schema fields for faster queries — see `indexing-schema` for full syntax (single-field, composite, DESC direction).
+Add `@index` to schema fields for faster queries — see `indexer-schema` for full syntax (single-field, composite, DESC direction).
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

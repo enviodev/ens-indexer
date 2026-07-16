@@ -1,9 +1,11 @@
 ---
-name: indexing-factory
+name: indexer-factory
 description: >-
   Use when indexing contracts deployed by factory contracts at runtime.
   contractRegister API, dynamic contract config (no address), async
   registration, and same-block event coverage.
+metadata:
+  managed-by: envio
 ---
 
 # Factory / Dynamic Contracts
@@ -73,8 +75,6 @@ NftFactory.SimpleNftCreated.contractRegister(async ({ event, context }) => {
 
 ## Same-Block Coverage
 
-When a dynamic contract is registered, HyperIndex indexes all events from that contract in the **same block** where it was created — even events from earlier transactions in that block.
+When a dynamic contract is registered, the Envio Indexer indexes all events from that contract in the **same block** where it was created — even events from earlier transactions in that block.
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

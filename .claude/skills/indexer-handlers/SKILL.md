@@ -1,9 +1,11 @@
 ---
-name: indexing-handler-syntax
+name: indexer-handlers
 description: >-
   Use when writing or editing event handlers. Handler registration, context API
   (entity CRUD, getWhere queries, chain, log), spread updates, indexer runtime
   API, and common pitfalls.
+metadata:
+  managed-by: envio
 ---
 
 # Handler Syntax & Core API
@@ -16,12 +18,12 @@ This is an ESM project (`"type": "module"` in package.json). Top-level `await` i
 
 1. After any change to `schema.graphql` or `config.yaml` → run `pnpm codegen`
 2. After any change to TypeScript files → run `pnpm tsc --noEmit`
-3. Once compilation succeeds → run `TUI_OFF=true pnpm dev` to catch runtime errors
+3. Once compilation succeeds → run `pnpm dev` to catch runtime errors
 
 ## Handler Registration
 
 ```ts
-import { Contract } from "generated";
+import { Contract } from "envio";
 
 Contract.Event.handler(async ({ event, context }) => {
   // event.params.<name>  — decoded event parameters
@@ -33,7 +35,7 @@ Contract.Event.handler(async ({ event, context }) => {
 });
 ```
 
-Handlers accept an optional 2nd argument — see `indexing-wildcard` and `indexing-filters` skills.
+Handlers accept an optional 2nd argument — see `indexer-wildcard` and `indexer-filters` skills.
 
 ## Context API
 
@@ -49,22 +51,27 @@ const entity = await context.Entity.getOrCreate({ id, ...defaults });
 const list = await context.Entity.getWhere({ fieldName: { _eq: value } });
 const list = await context.Entity.getWhere({ fieldName: { _gt: value } });
 const list = await context.Entity.getWhere({ fieldName: { _lt: value } });
+const list = await context.Entity.getWhere({ fieldName: { _gte: value } });
+const list = await context.Entity.getWhere({ fieldName: { _lte: value } });
+const list = await context.Entity.getWhere({ fieldName: { _in: [value1, value2] } });
+const list = await context.Entity.getWhere({ fieldName: { _gte: min, _lte: max } });
+const list = await context.Entity.getWhere({ fieldA: { _eq: a }, fieldB: { _eq: b } });
 
 // Write
 context.Entity.set(entity);          // create or update (sync — no await)
 context.Entity.deleteUnsafe(id);     // delete (sync — no await)
 ```
 
-`getWhere` operators: `_eq`, `_gt`, `_lt`. Only `@index` fields are queryable. See `indexing-schema` for @index syntax.
+`getWhere` operators: `_eq`, `_gt`, `_lt`, `_gte`, `_lte`, `_in`. Multiple fields and operators combine with AND semantics. Only `id` and `@index` fields are queryable. See `indexer-schema` for @index syntax.
 
 ### Context Properties
 
 ```ts
-context.chain.id       // number — current chain ID
-context.chain.isLive   // boolean — true when processing live blocks
+context.chain.id           // number — current chain ID
+context.chain.isRealtime   // boolean — true when ALL chains have caught up to head
 context.isPreload      // boolean — true during preload phase
 context.log            // { debug, info, warn, error, errorWithExn }
-context.effect(fn, input)  // external call via Effect API (see indexing-external-calls)
+context.effect(fn, input)  // external call via Effect API (see indexer-external-calls)
 ```
 
 ## Spread Operator for Updates
@@ -81,14 +88,14 @@ if (entity) {
 ## `indexer` Runtime API
 
 ```ts
-import { indexer } from "generated";
+import { indexer } from "envio";
 
 indexer.name;                        // "my-indexer"
 indexer.chainIds;                    // [1, 137]
 indexer.chains[1].id;                // 1
 indexer.chains[1].name;              // "ethereum"
 indexer.chains[1].startBlock;        // 0
-indexer.chains[1].isLive;            // false
+indexer.chains[1].isRealtime;        // false
 indexer.chains[1].MyContract.name;   // "MyContract"
 indexer.chains[1].MyContract.addresses; // ["0x..."]
 indexer.chains[1].MyContract.abi;    // [...]
@@ -102,18 +109,23 @@ const id = `${event.chainId}_${event.block.number}_${event.logIndex}`;
 ```
 This is globally unique across chains and blocks. Use it as the default unless the entity is a singleton (e.g., a Token or Pool keyed by address).
 
-**Entity relationships** — use `_id` suffix:
+**Entity relationships** — schema uses entity references; handlers use the `_id` suffix that codegen adds:
 ```ts
-// WRONG:  { token0: token0.id }
-// CORRECT: { token0_id: token0.id }
+// Schema:   token0: Token!       ← entity reference, field name is "token0"
+// Handler:  { token0_id: token0.id }  ← codegen adds _id; NEVER write "token0" here
+
+// Schema:   collection: NftCollection!
+// Handler:  { collection_id: collectionEntity.id }
+
+// WRONG:  { token0: token0.id }  ← "token0" is not a valid TypeScript field
+// WRONG:  { collection_id: String! } in schema  ← _id belongs in handlers, not schema
+// CORRECT: { token0_id: token0.id }  in handler
 ```
 
 **Optionals** — `string | undefined`, not `string | null`
 
 **Decimal normalization** — ALWAYS normalize when adding tokens with different decimals.
 
-**Schema & config** — see `indexing-schema` and `indexing-config` skills for full reference.
+**Schema & config** — see `indexer-schema` and `indexer-configuration` skills for full reference.
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

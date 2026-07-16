@@ -1,14 +1,16 @@
 ---
-name: indexing-transactions
+name: indexer-transactions
 description: >-
   Use when needing transaction-level data in handlers. Configure field_selection
   to include transaction fields on events, and access via event.transaction.
   No native transaction handler — access through event handlers.
+metadata:
+  managed-by: envio
 ---
 
 # Transaction Data
 
-HyperIndex does not have a native transaction handler (`onTransaction`). Transaction data is accessed through event handlers via `field_selection` in config.yaml.
+The Envio Indexer does not have a native transaction handler (`onTransaction`). Transaction data is accessed through event handlers via `field_selection` in config.yaml.
 
 ## Configuring Transaction Fields
 
@@ -58,6 +60,4 @@ Block fields are also configurable via `block_fields`. Default: `number`, `times
 
 Additional: `parentHash`, `nonce`, `sha3Uncles`, `logsBloom`, `transactionsRoot`, `stateRoot`, `receiptsRoot`, `miner`, `difficulty`, `totalDifficulty`, `extraData`, `size`, `gasLimit`, `gasUsed`, `uncles`, `baseFeePerGas`, `blobGasUsed`, `excessBlobGas`, `parentBeaconBlockRoot`, `withdrawalsRoot`, `l1BlockNumber`
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

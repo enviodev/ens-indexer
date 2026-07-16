@@ -1,9 +1,11 @@
 ---
-name: indexing-config
+name: indexer-configuration
 description: >-
   Use when writing or editing config.yaml. Chain/contract structure, addresses,
   start_block, event selection, field_selection, custom event names, env vars,
   address_format, schema/output paths, YAML validation, and deprecated options.
+metadata:
+  managed-by: envio
 ---
 
 # Config Reference (config.yaml)
@@ -14,7 +16,6 @@ description: >-
 name: my-indexer
 description: Optional description
 schema: schema.graphql         # custom path (default: schema.graphql)
-output: generated/             # custom output path (default: generated/)
 address_format: checksum       # checksum (default) | lowercase
 
 contracts:
@@ -51,7 +52,7 @@ Uses `chains` (not `networks`) and `max_reorg_depth` (not `confirmed_block_thres
 - name: Token
   # address omitted — indexes all matching events chain-wide
 
-# Factory-registered — see indexing-factory skill
+# Factory-registered — see indexer-factory skill
 ```
 
 For proxied contracts, use the **proxy address** (where events emit), not the implementation.
@@ -110,17 +111,25 @@ contracts:
             - gasPrice
 ```
 
-Global `field_selection` is at the root level (sibling to `contracts` and `chains`). Per-event `field_selection` is directly under the event entry. See `indexing-transactions` skill for full field lists.
+Global `field_selection` is at the root level (sibling to `contracts` and `chains`). Per-event `field_selection` is directly under the event entry. See `indexer-transactions` skill for full field lists.
 
 ## Environment Variables
 
 ```yaml
 rpc:
-  - url: ${RPC_URL}                    # required — errors if missing
-  - url: ${RPC_URL:-http://localhost:8545}  # with default value
+  - url: ${ENVIO_RPC_URL}                    # required — errors if missing
+  - url: ${ENVIO_RPC_URL:-http://localhost:8545}  # with default value
 ```
 
 Works in any string value in config. Set via `.env` file or shell environment.
+
+**IMPORTANT:** All environment variables MUST use the `ENVIO_` prefix (e.g., `ENVIO_RPC_URL`, not `RPC_URL`). The hosted service requires the `ENVIO_` prefix — variables without it will not be available at runtime.
+
+## Runtime Environment Variables
+
+Set on the indexer process (not interpolated into config.yaml):
+
+- `ENVIO_TUI` — `true` forces the terminal UI on, `false` forces it off. Unset (default) auto-disables under agents, CI, and non-TTY stdout, so plain `pnpm dev` produces line-buffered output suitable for log capture without manual intervention.
 
 ## YAML Validation
 
@@ -140,8 +149,6 @@ Add at top of file for IDE schema validation:
 
 ## RPC Configuration
 
-RPC tuning parameters are documented in the `indexing-performance` skill.
+RPC tuning parameters are documented in the `indexer-performance` skill.
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.

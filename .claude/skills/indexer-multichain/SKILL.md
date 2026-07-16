@@ -1,9 +1,11 @@
 ---
-name: indexing-multichain
+name: indexer-multichain
 description: >-
   Use when deploying an indexer across multiple chains. Entity ID namespacing
   to avoid collisions, chain-specific configuration patterns, and the
   context.chain runtime API.
+metadata:
+  managed-by: envio
 ---
 
 # Multichain Indexing
@@ -32,9 +34,9 @@ Contract.Event.handler(async ({ event, context }) => {
     137: { wrappedNative: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270" },
   }[chainId];
 
-  // context.chain.isLive is true when processing real-time blocks
-  if (context.chain.isLive) {
-    // Live-only logic
+  // context.chain.isRealtime is true once ALL chains have caught up to head
+  if (context.chain.isRealtime) {
+    // Realtime-only logic
   }
 });
 ```
@@ -62,6 +64,4 @@ chains:
           - 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174
 ```
 
-## Deep Documentation
-
-Full reference: https://docs.envio.dev/docs/HyperIndex-LLM/hyperindex-complete
+> If something is unclear, use the `envio-docs` skill to search and read the latest documentation.
