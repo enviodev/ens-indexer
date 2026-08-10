@@ -31,12 +31,11 @@ export function evmChainIdToCoinType(chainId: number): number {
 
 // ─── ID Generators ───────────────────────────────────────────────────────────
 
-export function makePAResolverId(chainId: number, address: string): string {
+export function makePAResolverId(address: string): string {
   return `${chainId}-${address}`;
 }
 
 export function makePAResolverRecordsId(
-  chainId: number,
   address: string,
   node: string,
 ): string {
@@ -44,7 +43,6 @@ export function makePAResolverRecordsId(
 }
 
 export function makePAAddressRecordId(
-  chainId: number,
   address: string,
   node: string,
   coinType: number,
@@ -53,7 +51,6 @@ export function makePAAddressRecordId(
 }
 
 export function makePATextRecordId(
-  chainId: number,
   address: string,
   node: string,
   key: string,
@@ -62,7 +59,6 @@ export function makePATextRecordId(
 }
 
 export function makeDomainResolverRelationId(
-  chainId: number,
   registryAddress: string,
   domainId: string,
 ): string {
@@ -138,7 +134,6 @@ export function interpretTextRecordValue(
  */
 export function ensurePAResolver(
   context: handlerContext,
-  chainId: number,
   address: string,
 ): void {
   const id = makePAResolverId(chainId, address);
@@ -154,7 +149,6 @@ export function ensurePAResolver(
  */
 export function ensurePAResolverRecords(
   context: handlerContext,
-  chainId: number,
   address: string,
   node: string,
 ): void {
@@ -174,7 +168,6 @@ export function ensurePAResolverRecords(
  */
 export function handlePAAddressRecordUpdate(
   context: handlerContext,
-  chainId: number,
   address: string,
   node: string,
   coinType: number,
@@ -203,7 +196,6 @@ export function handlePAAddressRecordUpdate(
  */
 export function handlePATextRecordUpdate(
   context: handlerContext,
-  chainId: number,
   address: string,
   node: string,
   key: string,
@@ -235,7 +227,6 @@ export function handlePATextRecordUpdate(
  */
 export async function handlePANameUpdate(
   context: handlerContext,
-  chainId: number,
   address: string,
   node: string,
   rawName: string,
@@ -258,7 +249,6 @@ export async function handlePANameUpdate(
  */
 export function upsertDomainResolverRelation(
   context: handlerContext,
-  chainId: number,
   registryAddress: string,
   domainId: string,
   resolver: string,

@@ -20,7 +20,6 @@ const METADATA_ID = "current";
  * CAIP-10 subregistry ID: "eip155:{chainId}:{address}" (lowercase)
  */
 export function makeSubregistryId(
-  chainId: number,
   address: string,
 ): string {
   return `eip155:${chainId}:${address}`.toLowerCase();
@@ -75,7 +74,6 @@ export function decodeEncodedReferrer(encodedReferrer: string): string {
  */
 export function upsertSubregistry(
   context: handlerContext,
-  chainId: number,
   contractAddress: string,
   managedNode: string,
 ): void {
@@ -190,7 +188,6 @@ export async function handleRegistrarRegistration(
   context: handlerContext,
   params: {
     eventId: string;
-    chainId: number;
     contractAddress: string;
     managedNode: string;
     labelHash: string;
@@ -238,7 +235,6 @@ export async function handleRegistrarRenewal(
   context: handlerContext,
   params: {
     eventId: string;
-    chainId: number;
     contractAddress: string;
     managedNode: string;
     labelHash: string;

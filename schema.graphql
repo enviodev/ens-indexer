@@ -254,24 +254,21 @@ type subgraph_version_changed @index(fields: ["resolver", "id"]) {
 
 # ─── Protocol Acceleration Entities ─────────────────────────────────────────
 
-type resolver @index(fields: ["chainId", "address"]) {
+type resolver @index(fields: ["address"]) {
   id: ID!
-  chainId: Int!
   address: String!
 }
 
-type resolver_records @index(fields: ["chainId", "address", "node"]) {
+type resolver_records @index(fields: ["address", "node"]) {
   id: ID!
-  chainId: Int!
   address: String!
   node: String!
   name: String
   resolver: resolver!
 }
 
-type resolver_address_record @index(fields: ["chainId", "address", "node", "coinType"]) {
+type resolver_address_record @index(fields: ["address", "node", "coinType"]) {
   id: ID!
-  chainId: Int!
   address: String!
   node: String!
   coinType: BigInt!
@@ -279,9 +276,8 @@ type resolver_address_record @index(fields: ["chainId", "address", "node", "coin
   resolverRecords: resolver_records!
 }
 
-type resolver_text_record @index(fields: ["chainId", "address", "node", "key"]) {
+type resolver_text_record @index(fields: ["address", "node", "key"]) {
   id: ID!
-  chainId: Int!
   address: String!
   node: String!
   key: String!
@@ -289,9 +285,8 @@ type resolver_text_record @index(fields: ["chainId", "address", "node", "key"]) 
   resolverRecords: resolver_records!
 }
 
-type domain_resolver_relation @index(fields: ["chainId", "address", "domainId"]) {
+type domain_resolver_relation @index(fields: ["address", "domainId"]) {
   id: ID!
-  chainId: Int!
   address: String!
   domainId: String!
   resolver: String!
@@ -355,7 +350,6 @@ type internal_registrar_action_metadata {
 type name_token {
   id: ID!                    # CAIP-19 Asset ID
   domainId: String! @index   # namehash (node) of the ENS domain
-  chainId: Int!              # chain managing the token
   contractAddress: String!   # NFT contract address
   tokenId: BigInt!           # token ID in the contract
   assetNamespace: String!    # "erc721" or "erc1155"
@@ -365,7 +359,6 @@ type name_token {
 
 type name_sale {
   id: ID!                    # "{chainId}-{blockNumber}-{logIndex}"
-  chainId: Int!
   blockNumber: Int!
   logIndex: Int!
   transactionHash: String!

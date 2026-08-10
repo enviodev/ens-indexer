@@ -41,7 +41,6 @@ export type CurrencyId = (typeof CurrencyIds)[keyof typeof CurrencyIds];
 
 export interface DomainAssetId {
   assetNamespace: AssetNamespace;
-  chainId: number;
   contractAddress: string;
   tokenId: bigint;
   domainId: string; // namehash (node)
@@ -69,7 +68,6 @@ export function formatAssetId(nft: DomainAssetId): string {
 
 interface SupportedNFTIssuer {
   assetNamespace: AssetNamespace;
-  chainId: number;
   contractAddress: string;
   getDomainId: (tokenId: bigint) => string;
 }
@@ -84,7 +82,6 @@ const SUPPORTED_NFT_ISSUERS: SupportedNFTIssuer[] = [
   // Mainnet BaseRegistrar (.eth)
   {
     assetNamespace: AssetNamespaces.ERC721,
-    chainId: 1,
     contractAddress: "0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85",
     getDomainId: (tokenId: bigint) =>
       makeSubdomainNode(tokenIdToLabelHash(tokenId), ETH_NODE),
@@ -92,14 +89,12 @@ const SUPPORTED_NFT_ISSUERS: SupportedNFTIssuer[] = [
   // Mainnet NameWrapper
   {
     assetNamespace: AssetNamespaces.ERC1155,
-    chainId: 1,
     contractAddress: "0xd4416b13d2b3a9abae7acd5d6c2bbdbe25686401",
     getDomainId: (tokenId: bigint) => uint256ToHex32(tokenId),
   },
   // Base BaseRegistrar (.base.eth)
   {
     assetNamespace: AssetNamespaces.ERC721,
-    chainId: 8453,
     contractAddress: "0x03c4738ee98ae44591e1a4a4f3cab6641d95dd9a",
     getDomainId: (tokenId: bigint) =>
       makeSubdomainNode(tokenIdToLabelHash(tokenId), BASE_ETH_NODE),
@@ -107,7 +102,6 @@ const SUPPORTED_NFT_ISSUERS: SupportedNFTIssuer[] = [
   // Linea BaseRegistrar (.linea.eth)
   {
     assetNamespace: AssetNamespaces.ERC721,
-    chainId: 59144,
     contractAddress: "0x6e84390dcc5195414ec91a8c56a5c91021b95704",
     getDomainId: (tokenId: bigint) =>
       makeSubdomainNode(tokenIdToLabelHash(tokenId), LINEA_ETH_NODE),
@@ -115,14 +109,12 @@ const SUPPORTED_NFT_ISSUERS: SupportedNFTIssuer[] = [
   // ThreeDNS on Optimism
   {
     assetNamespace: AssetNamespaces.ERC1155,
-    chainId: 10,
     contractAddress: "0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17",
     getDomainId: (tokenId: bigint) => uint256ToHex32(tokenId),
   },
   // ThreeDNS on Base
   {
     assetNamespace: AssetNamespaces.ERC1155,
-    chainId: 8453,
     contractAddress: "0xbb7b805b257d7c76ca9435b3ffe780355e4c4b17",
     getDomainId: (tokenId: bigint) => uint256ToHex32(tokenId),
   },
@@ -132,7 +124,6 @@ const SUPPORTED_NFT_ISSUERS: SupportedNFTIssuer[] = [
  * Find a supported NFT issuer by chain + address.
  */
 export function getSupportedNFTIssuer(
-  chainId: number,
   contractAddress: string,
 ): SupportedNFTIssuer | undefined {
   return SUPPORTED_NFT_ISSUERS.find(
@@ -147,7 +138,6 @@ export function getSupportedNFTIssuer(
  * Used by handlers that already know their contract details.
  */
 export function buildDomainAssetId(
-  chainId: number,
   contractAddress: string,
   tokenId: bigint,
   assetNamespace: AssetNamespace,
@@ -283,7 +273,6 @@ export async function handleNFTTransfer(
       upsertAccount(context, to);
       context.name_token.set({
         id: assetIdString,
-        chainId: nft.chainId,
         contractAddress: nft.contractAddress,
         tokenId: nft.tokenId,
         assetNamespace: nft.assetNamespace,
@@ -297,7 +286,6 @@ export async function handleNFTTransfer(
       upsertAccount(context, zeroAddress);
       context.name_token.set({
         id: assetIdString,
-        chainId: nft.chainId,
         contractAddress: nft.contractAddress,
         tokenId: nft.tokenId,
         assetNamespace: nft.assetNamespace,
@@ -430,7 +418,6 @@ function parseTupleToItem(tuple: OfferTuple | ConsiderationTuple): ParsedItem {
 }
 
 function getSupportedNFTFromItem(
-  chainId: number,
   item: ParsedItem,
 ): DomainAssetId | undefined {
   if (item.amount !== 1n) return undefined;
@@ -444,7 +431,6 @@ function getSupportedNFTFromItem(
 
   return {
     assetNamespace,
-    chainId: issuer.chainId,
     contractAddress: issuer.contractAddress,
     tokenId: item.identifier,
     domainId: issuer.getDomainId(item.identifier),
@@ -472,7 +458,6 @@ function getSupportedPaymentFromItem(
 }
 
 function extractItemsFromTuples(
-  chainId: number,
   tuples: readonly (OfferTuple | ConsiderationTuple)[],
 ): { nfts: DomainAssetId[]; payments: SupportedPayment[] } {
   const nfts: DomainAssetId[] = [];
@@ -516,7 +501,6 @@ function consolidatePayments(
  * represents a single supported ENS NFT sale with a single supported currency.
  */
 export function getSupportedSaleFromOrderFulfilledEvent(
-  chainId: number,
   orderHash: string,
   offerer: string,
   recipient: string,

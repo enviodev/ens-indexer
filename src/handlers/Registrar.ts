@@ -102,7 +102,6 @@ indexer.onEvent(
   // Registrar: track registration action
   await handleRegistrarRegistration(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
-    chainId: event.chainId,
     contractAddress: event.srcAddress,
     managedNode,
     labelHash,
@@ -154,7 +153,6 @@ indexer.onEvent(
   // Registrar: track renewal action
   await handleRegistrarRenewal(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
-    chainId: event.chainId,
     contractAddress: event.srcAddress,
     managedNode,
     labelHash,

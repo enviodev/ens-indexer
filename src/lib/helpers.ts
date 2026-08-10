@@ -55,7 +55,6 @@ export function makeSubdomainNode(
 // ─── ID Generation ──────────────────────────────────────────────────────────
 
 export function makeResolverId(
-  chainId: number,
   resolverAddress: string,
   node: string,
 ): string {
@@ -63,7 +62,6 @@ export function makeResolverId(
 }
 
 export function makeEventId(
-  chainId: number,
   blockNumber: number,
   logIndex: number,
   transferIndex?: number,
@@ -177,7 +175,6 @@ export async function upsertRegistration(
 // ─── Shared Event Values ────────────────────────────────────────────────────
 
 export function sharedEventValues(
-  chainId: number,
   event: {
     block: { number: number };
     logIndex: number;

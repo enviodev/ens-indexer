@@ -75,7 +75,6 @@ async function handleTransfer(
     block: { number: number };
     logIndex: number;
     transaction: { hash: string };
-    chainId: number;
   },
   context: handlerContext,
   eventId: string,

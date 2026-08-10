@@ -37,7 +37,6 @@ import {
 const rootInitialized = new Set<number>();
 
 async function ensureRoot(
-  chainId: number,
   context: handlerContext,
   timestamp: bigint,
 ): Promise<void> {

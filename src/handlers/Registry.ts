@@ -56,7 +56,6 @@ async function handleNewOwner(
   event: {
     params: { node: string; label: string; owner: string };
     block: { number: number; timestamp: number };
-    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -176,7 +175,6 @@ async function handleTransfer(
   event: {
     params: { node: string; owner: string };
     block: { number: number; timestamp: number };
-    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -253,7 +251,6 @@ async function handleNewResolver(
   event: {
     params: { node: string; resolver: string };
     block: { number: number; timestamp: number };
-    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -349,7 +346,6 @@ async function handleNewTTL(
   event: {
     params: { node: string; ttl: bigint };
     block: { number: number; timestamp: number };
-    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
