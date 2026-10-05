@@ -56,7 +56,7 @@ describe("Resolver", () => {
           expect(r.domain_id).toBeTruthy();
         }
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── AddressChanged (multicoin) ───────────────────────────────────────
@@ -104,7 +104,7 @@ describe("Resolver", () => {
         const uniqueCoinTypes = [...new Set(r.coinTypes!.map(String))];
         expect(uniqueCoinTypes.length).toBe(r.coinTypes!.length);
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── TextChanged ──────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ describe("Resolver", () => {
         const uniqueTexts = [...new Set(r.texts!)];
         expect(uniqueTexts.length).toBe(r.texts!.length);
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ContenthashChanged ───────────────────────────────────────────────
@@ -185,7 +185,7 @@ describe("Resolver", () => {
         expect(evt.resolver_id).toBeDefined();
         expect(evt.hash).toBeDefined();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── VersionChanged ───────────────────────────────────────────────────
@@ -230,7 +230,7 @@ describe("Resolver", () => {
           }
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Resolver entity structure ────────────────────────────────────────
@@ -261,7 +261,7 @@ describe("Resolver", () => {
         expect(r.address).toBeTruthy();
         expect(r.domain_id).toBeTruthy();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── Dynamic contract registration ────────────────────────────────────
@@ -294,7 +294,7 @@ describe("Resolver", () => {
       for (const addr of resolverAddresses) {
         expect(addr).toMatch(/^0x[a-f0-9]{40}$/);
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Full resolver flow in a single block ─────────────────────────────
@@ -330,6 +330,6 @@ describe("Resolver", () => {
 
       // This block should have at least AddrChanged
       expect(resolverEventTypes.size).toBeGreaterThanOrEqual(1);
-    }, 60_000);
+    }, 120_000);
   });
 });

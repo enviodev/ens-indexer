@@ -34,9 +34,15 @@ ENS Protocol Indexer. Built with [Envio HyperIndex](https://docs.envio.dev).
 - **`Seaport`**: `OrderFulfilled`
 - **`StandaloneReverseRegistrar`**: `NameForAddrChanged`
 
-## Schema entities (40)
+## Schema entities (42)
 
-`Domain`, `Account`, `Resolver`, `Registration`, `WrappedDomain`, `DomainTransfer`, `NewOwner`, `NewResolverEvent`, `NewTTL`, `WrappedTransfer`, `NameWrappedEvent`, `NameUnwrappedEvent`, `FusesSetEvent`, `ExpiryExtendedEvent`, `NameRegisteredEvent`, `NameRenewedEvent`, `NameTransferredEvent`, `AddrChangedEvent`, `MulticoinAddrChangedEvent`, `NameChangedEvent`, `AbiChangedEvent`, `PubkeyChangedEvent`, `TextChangedEvent`, `ContenthashChangedEvent`, `InterfaceChangedEvent`, `AuthorisationChangedEvent`, `VersionChangedEvent`, `PAResolver`, `PAResolverRecords`, `PAResolverAddressRecord`, `PAResolverTextRecord`, `DomainResolverRelation`, `ReverseNameRecord`, `MigratedNode`, `Subregistry`, `RegistrationLifecycle`, `RegistrarAction`, `RegistrarActionMetadata`, `NameToken`, `NameSale`
+`Domain`, `Account`, `Resolver`, `Registration`, `WrappedDomain`, `DomainTransfer`, `NewOwner`, `NewResolverEvent`, `NewTTL`, `WrappedTransfer`, `NameWrappedEvent`, `NameUnwrappedEvent`, `FusesSetEvent`, `ExpiryExtendedEvent`, `NameRegisteredEvent`, `NameRenewedEvent`, `NameTransferredEvent`, `AddrChangedEvent`, `MulticoinAddrChangedEvent`, `NameChangedEvent`, `AbiChangedEvent`, `PubkeyChangedEvent`, `TextChangedEvent`, `ContenthashChangedEvent`, `InterfaceChangedEvent`, `AuthorisationChangedEvent`, `VersionChangedEvent`, `PAResolver`, `PAResolverRecords`, `PAResolverAddressRecord`, `PAResolverTextRecord`, `DomainResolverRelation`, `ReverseNameRecord`, `MigratedNode`, `Subregistry`, `RegistrationLifecycle`, `RegistrarAction`, `RegistrarActionMetadata`, `NameToken`, `NameSale`, `RegistrationDailyStat`, `NamespaceStat`
+
+## Indexes and aggregates
+
+The schema is indexed for the queries an API needs: exact and prefix label search (`name`, `labelName`), names by owner, registrant or wrapped owner sorted by expiry, subdomains sorted by creation time, event history per domain / resolver / registration ordered by block, registrar actions by name, registrant and referrer over time, resolver records by node, and NFT sales by name, buyer, seller and currency.
+
+Two aggregate entities are maintained by the registrar handlers: `registration_daily_stat` (registrations, renewals and known cost per namespace per UTC day) and `namespace_stat` (running totals per namespace). A namespace is a subregistry, identified `eip155:{chainId}:{contract}`.
 
 ## Run locally
 
@@ -56,6 +62,7 @@ pnpm codegen
 ## Pre-requisites
 
 - [Node.js v22+ (v24 recommended)](https://nodejs.org/en/download/current)
+- `ENVIO_API_TOKEN` (HyperSync) for `pnpm dev` and `pnpm test`; the tests index real blocks
 - [pnpm](https://pnpm.io/installation)
 - [Docker](https://www.docker.com/products/docker-desktop/) or [Podman](https://podman.io/)
 

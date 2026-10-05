@@ -43,7 +43,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
           expect(d.isMigrated).toBe(true);
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ThreeDNSToken.RegistrationCreated (Base) ─────────────────────────────
@@ -92,6 +92,6 @@ describe("ThreeDNS (Optimism + Base)", () => {
           expect(d.name).toContain(".");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

@@ -130,6 +130,49 @@ export async function updateRegistrationLifecycleExpiry(
   }
 }
 
+// ─── Aggregates ─────────────────────────────────────────────────────────────
+
+const SECONDS_PER_DAY = 86_400;
+
+/**
+ * Bump per-day and running totals for a subregistry. Called once when a
+ * registrar action is recorded (count) and once when pricing arrives from the
+ * controller event (cost), so each action contributes exactly once to each.
+ */
+export async function recordActionStats(
+  context: handlerContext,
+  params: {
+    subregistryId: string;
+    timestamp: number | bigint;
+    type: "registration" | "renewal";
+    count: boolean;
+    cost: bigint;
+  },
+): Promise<void> {
+  const day = Math.floor(Number(params.timestamp) / SECONDS_PER_DAY);
+  const regs = params.count && params.type === "registration" ? 1 : 0;
+  const renewals = params.count && params.type === "renewal" ? 1 : 0;
+
+  const dailyId = `${params.subregistryId}:${day}`;
+  const daily = await context.Registration_daily_stat.get(dailyId);
+  context.Registration_daily_stat.set({
+    id: dailyId,
+    subregistryId: params.subregistryId,
+    day,
+    registrations: (daily?.registrations ?? 0) + regs,
+    renewals: (daily?.renewals ?? 0) + renewals,
+    totalCost: (daily?.totalCost ?? 0n) + params.cost,
+  });
+
+  const total = await context.Namespace_stat.get(params.subregistryId);
+  context.Namespace_stat.set({
+    id: params.subregistryId,
+    registrations: (total?.registrations ?? 0) + regs,
+    renewals: (total?.renewals ?? 0) + renewals,
+    totalCost: (total?.totalCost ?? 0n) + params.cost,
+  });
+}
+
 // ─── Registrar Action Creation ──────────────────────────────────────────────
 
 /**
@@ -177,6 +220,14 @@ export async function insertRegistrarAction(
     timestamp: BigInt(params.timestamp),
     transactionHash: params.transactionHash,
     eventIds: params.eventIds,
+  });
+
+  await recordActionStats(context, {
+    subregistryId: params.subregistryId,
+    timestamp: params.timestamp,
+    type: params.type,
+    count: true,
+    cost: 0n,
   });
 }
 
@@ -335,6 +386,18 @@ export async function handleRegistrarControllerEvent(
     decodedReferrer: params.decodedReferrer,
     eventIds: [...action.eventIds, params.eventId],
   });
+
+  // Pricing is known only now. Count it once, on the first controller event
+  // that carries a total for this action.
+  if (action.total === undefined && params.total !== undefined) {
+    await recordActionStats(context, {
+      subregistryId: action.subregistryId,
+      timestamp: action.timestamp,
+      type: action.type,
+      count: false,
+      cost: params.total,
+    });
+  }
 }
 
 // ─── Handler: Universal Renewal Event (referral only) ───────────────────────

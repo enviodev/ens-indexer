@@ -46,7 +46,7 @@ describe("NameWrapper", () => {
         expect(wd.expiryDate).toBeDefined();
         expect(wd.isActive).toBe(true);
       }
-    }, 60_000);
+    }, 120_000);
 
     it("logs NameWrapped entities", async () => {
       const indexer = createTestIndexer();
@@ -76,7 +76,7 @@ describe("NameWrapper", () => {
         expect(evt.expiryDate).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
 
     it("logs WrappedTransfer events from TransferSingle", async () => {
       const indexer = createTestIndexer();
@@ -104,7 +104,7 @@ describe("NameWrapper", () => {
         expect(t.owner_id).toBeDefined();
         expect(t.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
 
     it("sets wrappedOwner_id on the Domain entity", async () => {
       const indexer = createTestIndexer();
@@ -132,7 +132,7 @@ describe("NameWrapper", () => {
       for (const d of domainsWithWrappedOwner) {
         expect(d.wrappedOwner_id).toBeTruthy();
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── FusesSet ─────────────────────────────────────────────────────────
@@ -165,7 +165,7 @@ describe("NameWrapper", () => {
         expect(evt.fuses).toBeDefined();
         expect(typeof evt.fuses).toBe("number");
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ExpiryExtended ───────────────────────────────────────────────────
@@ -197,7 +197,7 @@ describe("NameWrapper", () => {
         expect(evt.domain_id).toBeDefined();
         expect(evt.expiryDate).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Kitchen sink: block 18,965,734 snapshot ──────────────────────────
@@ -235,6 +235,6 @@ describe("NameWrapper", () => {
       // Expected: Domain, Account, Registration, WrappedDomain, NewOwner,
       //           NameRegistered, WrappedTransfer, NameWrapped, etc.
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
-    }, 60_000);
+    }, 120_000);
   });
 });

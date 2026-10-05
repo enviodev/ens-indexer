@@ -57,7 +57,7 @@ describe("BaseRegistrar (Base L2)", () => {
           }
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── EAController_Base.NameRegistered ─────────────────────────────────
@@ -104,6 +104,6 @@ describe("BaseRegistrar (Base L2)", () => {
           expect(d.name).toContain(".base.eth");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

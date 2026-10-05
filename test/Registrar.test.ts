@@ -222,7 +222,7 @@ describe("Registrar", () => {
           expect(typeof r.cost).toBe("bigint");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Full registration flow: BaseRegistrar + Controller ───────────────
@@ -266,6 +266,57 @@ describe("Registrar", () => {
 
       // A full registration touches many entity types
       expect(entityTypes.size).toBeGreaterThanOrEqual(2);
+    }, 120_000);
+  });
+
+  // ─── Aggregates: daily and running registration stats ─────────────────
+
+  describe("Registration stats", () => {
+    it("counts registrations and sums known costs per subregistry and day", async () => {
+      const indexer = createTestIndexer();
+
+      await indexer.process({
+        chains: {
+          1: { startBlock: 3_327_417, endBlock: 3_327_417 },
+        },
+      });
+
+      // Block 12,062,607 — "buytaert.eth" registration (BaseRegistrar + LegacyController)
+      await indexer.process({
+        chains: {
+          1: { startBlock: 12_062_607, endBlock: 12_062_607 },
+        },
+      });
+
+      const actions = await indexer.Registrar_action.getAll();
+      const registrations = actions.filter((a) => a.type === "registration");
+      expect(registrations.length).toBeGreaterThan(0);
+
+      const subregistryId = registrations[0]!.subregistryId;
+      const total = await indexer.Namespace_stat.get(subregistryId);
+      expect(total).toBeDefined();
+      expect(total!.registrations).toBe(registrations.length);
+      expect(total!.renewals).toBe(
+        actions.filter((a) => a.type === "renewal").length,
+      );
+
+      // The cost is counted once, from the controller event that carries it.
+      const knownCost = registrations.reduce(
+        (sum, a) => sum + (a.total ?? 0n),
+        0n,
+      );
+      expect(total!.totalCost).toBe(knownCost);
+
+      // Daily rows add up to the running totals.
+      const daily = (await indexer.Registration_daily_stat.getAll()).filter(
+        (d) => d.subregistryId === subregistryId,
+      );
+      expect(daily.length).toBeGreaterThan(0);
+      expect(daily.reduce((n, d) => n + d.registrations, 0)).toBe(
+        total!.registrations,
+      );
+      const day = Math.floor(Number(registrations[0]!.timestamp) / 86_400);
+      expect(daily.some((d) => d.day === day)).toBe(true);
     }, 120_000);
   });
 });

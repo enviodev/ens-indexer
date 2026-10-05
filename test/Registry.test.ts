@@ -79,7 +79,7 @@ describe("Registry", () => {
       );
       const migratedDomains = domainSets.filter((d) => d.isMigrated === true);
       expect(migratedDomains.length).toBeGreaterThan(0);
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Transfer events ──────────────────────────────────────────────────
@@ -187,6 +187,6 @@ describe("Registry", () => {
         expect(evt.ttl).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

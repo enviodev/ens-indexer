@@ -52,7 +52,7 @@ describe("LineaRegistrar (Linea L2)", () => {
           }
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── EthController_Linea.NameRegistered (paid) ────────────────────────
@@ -87,6 +87,6 @@ describe("LineaRegistrar (Linea L2)", () => {
           expect(d.name).toContain(".linea.eth");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 });
