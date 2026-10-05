@@ -75,5 +75,3 @@ pnpm codegen
 ## License
 
 [MIT](LICENSE). Portions are derived from [ENSNode](https://github.com/namehash/ensnode) (MIT, Copyright (c) 2026 NameHash Inc.), and that notice is kept in the license file.
-
-This indexer runs on Envio HyperIndex, which is licensed separately. See the [HyperIndex licensing page](https://docs.envio.dev/docs/HyperIndex/licensing) for what it permits, including self-hosting.
