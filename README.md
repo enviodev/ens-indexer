@@ -71,3 +71,7 @@ pnpm codegen
 - [Envio docs](https://docs.envio.dev)
 - [HyperIndex overview](https://docs.envio.dev/docs/HyperIndex/overview)
 - [Discord](https://discord.gg/envio)
+
+## License
+
+[MIT](LICENSE). Portions are derived from [ENSNode](https://github.com/namehash/ensnode) (MIT, Copyright (c) 2026 NameHash Inc.), and that notice is kept in the license file.
