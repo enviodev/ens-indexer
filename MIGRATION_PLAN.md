@@ -670,8 +670,8 @@ Tracks ENS NFT transfers (ERC721 and ERC1155) across all subregistries and secon
 
 ## Phase 7: ENSv2 Plugin
 
-**Status: NOT STARTED**
-**Priority: Low (protocol still in development)**
+**Status: NOT STARTED (deliberately; see below)**
+**Priority: Low until a mainnet deployment is confirmed**
 **Effort: Large**
 **Source:** `ensnode/apps/ensindexer/src/plugins/ensv2/`
 
@@ -695,16 +695,20 @@ Next-generation ENS protocol with new registry and registrar contracts.
 
 ### Contracts to Add
 
-**Sepolia V2 test deployment (addresses known):**
+**Sepolia V2 test deployment (verified 2026-10-05 against `ensdomains/contracts-v2`, `contracts/deployments/sepolia`):**
 
 | Contract | Chain | Address | Start Block |
 |----------|-------|---------|-------------|
-| RootRegistry | Sepolia | `0x245de1984f9bb890c5db0b1fb839470c6a4c7e08` | 9,374,708 |
-| ETHRegistry | Sepolia | `0x3f0920aa92c5f9bce54643c09955c5f241f1f763` | 9,374,708 |
-| ETHRegistrar | Sepolia | `0x3334f0ebcbc4b5b7067f3aff25c6da8973690d54` | 9,374,708 |
-| EnhancedAccessControl | Sepolia | Per-chain from datasource config | 9,374,708 |
+| RootRegistry | Sepolia | `0x11b5bfbe9078d826b1edbdd1cfc12f5828d9f50c` | 11,163,319 |
+| ETHRegistry | Sepolia | `0x67b728a792e789a8978b30cf1b3b641f19354b43` | 11,163,319 |
+| ETHRegistrar | Sepolia | `0xa4449a0dd2b83007553d9b1d28b583a46a805a30` | 11,163,319 |
+| EnhancedAccessControl | Sepolia | Per registry (factory-created registries inherit it) | n/a |
 
-**Mainnet deployment: TBD** (contracts not yet deployed on mainnet)
+The addresses previously listed here (RootRegistry `0x245de1…`, start block 9,374,708) are from an older deployment. The Sepolia set has been redeployed several times (prerelease tags `sepolia-deployment-2026-06-29`, `-07-31`, `-09-15`), and ENSNode pins yet another set, so treat any hardcoded address as short-lived and take them from the tagged deployment JSON.
+
+**Mainnet deployment: not live as of 2026-10-05.** ENS docs describe ENSv2 as live on Sepolia only. The contracts repo has a tag `v2-mainnet-deployment-1` ("Code used for the first mainnet v2 deployment", 2026-10-02) but no mainnet deployment artifacts, so mainnet addresses are unknown. ENS announced (2026-02-06) that ENSv2 deploys on Ethereum L1 and Namechain development stopped.
+
+ENSNode has renamed its ENSv2 support: it is now the `unigraph` plugin (`apps/ensindexer/src/plugins/unigraph/`, with `handlers/{ensv1,ensv2,shared}`), about 2,200 lines across eight handler files, not `plugins/ensv2`.
 
 **V1 contracts tracked in ENSv2 context (multi-chain):**
 - ENSv1Registry: ENS Root + Basenames + Lineanames
