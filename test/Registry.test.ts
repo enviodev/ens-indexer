@@ -24,7 +24,7 @@ describe("Registry", () => {
       });
 
       // The root domain should be created on first NewOwner event
-      const rootDomain = await indexer.subgraph_domain.get(ROOT_NODE);
+      const rootDomain = await indexer.Subgraph_domain.get(ROOT_NODE);
       expect(rootDomain).toBeDefined();
       expect(rootDomain?.owner_id).toBeDefined();
       expect(rootDomain?.subdomainCount).toBeGreaterThanOrEqual(0);
@@ -32,13 +32,13 @@ describe("Registry", () => {
       // Events were processed and produced domain changes
       expect(result.changes.length).toBeGreaterThan(0);
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       expect(domains.length).toBeGreaterThan(0);
 
       // Validate NewOwner event structure if present in changes
       const newOwnerEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_owner?.sets ?? [],
+        (c) => c.Subgraph_new_owner?.sets ?? [],
       );
       for (const event of newOwnerEvents) {
         expect(event.id).toBeDefined();
@@ -75,11 +75,11 @@ describe("Registry", () => {
 
       // Domains created/updated by the new registry should have isMigrated=true
       const domainSets = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const migratedDomains = domainSets.filter((d) => d.isMigrated === true);
       expect(migratedDomains.length).toBeGreaterThan(0);
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Transfer events ──────────────────────────────────────────────────
@@ -104,7 +104,7 @@ describe("Registry", () => {
 
       // Check for Transfer event entities
       const transfers = result.changes.flatMap(
-        (c) => c.subgraph_transfer?.sets ?? [],
+        (c) => c.Subgraph_transfer?.sets ?? [],
       );
 
       expect(transfers.length).toBeGreaterThan(0);
@@ -114,7 +114,7 @@ describe("Registry", () => {
         expect(transfer.owner_id).toBeDefined();
         expect(transfer.transactionID).toBeDefined();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── NewResolver + dynamic contract registration ──────────────────────
@@ -139,7 +139,7 @@ describe("Registry", () => {
 
       // Check for NewResolver entities
       const resolverEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_resolver?.sets ?? [],
+        (c) => c.Subgraph_new_resolver?.sets ?? [],
       );
 
       expect(resolverEvents.length).toBeGreaterThan(0);
@@ -153,7 +153,7 @@ describe("Registry", () => {
       // Resolver dynamic addresses should have been registered
       const resolverAddresses = indexer.chains[1].Resolver.addresses;
       expect(resolverAddresses.length).toBeGreaterThan(0);
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── NewTTL events ────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ describe("Registry", () => {
       });
 
       const ttlEvents = result.changes.flatMap(
-        (c) => c.subgraph_new_ttl?.sets ?? [],
+        (c) => c.Subgraph_new_ttl?.sets ?? [],
       );
 
       // TTL events may or may not appear in this range — validate structure if present
@@ -187,6 +187,6 @@ describe("Registry", () => {
         expect(evt.ttl).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

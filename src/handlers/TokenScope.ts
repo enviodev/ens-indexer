@@ -32,7 +32,7 @@ indexer.onEvent({ contract: "Seaport", event: "OrderFulfilled" }, async ({ event
   const assetIdString = formatAssetId(sale.nft);
 
   // Insert NameSale entity
-  context.name_sale.set({
+  context.Name_sale.set({
     id: makeEventId(event.chainId, event.block.number, event.logIndex),
     blockNumber: event.block.number,
     logIndex: event.logIndex,

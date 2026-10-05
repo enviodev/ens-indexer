@@ -31,11 +31,12 @@ export function evmChainIdToCoinType(chainId: number): number {
 
 // ─── ID Generators ───────────────────────────────────────────────────────────
 
-export function makePAResolverId(address: string): string {
+export function makePAResolverId(chainId: number, address: string): string {
   return `${chainId}-${address}`;
 }
 
 export function makePAResolverRecordsId(
+  chainId: number,
   address: string,
   node: string,
 ): string {
@@ -43,6 +44,7 @@ export function makePAResolverRecordsId(
 }
 
 export function makePAAddressRecordId(
+  chainId: number,
   address: string,
   node: string,
   coinType: number,
@@ -51,6 +53,7 @@ export function makePAAddressRecordId(
 }
 
 export function makePATextRecordId(
+  chainId: number,
   address: string,
   node: string,
   key: string,
@@ -59,6 +62,7 @@ export function makePATextRecordId(
 }
 
 export function makeDomainResolverRelationId(
+  chainId: number,
   registryAddress: string,
   domainId: string,
 ): string {
@@ -134,12 +138,12 @@ export function interpretTextRecordValue(
  */
 export function ensurePAResolver(
   context: handlerContext,
+  chainId: number,
   address: string,
 ): void {
   const id = makePAResolverId(chainId, address);
-  context.resolver.set({
+  context.Resolver.set({
     id,
-    chainId,
     address,
   });
 }
@@ -149,13 +153,13 @@ export function ensurePAResolver(
  */
 export function ensurePAResolverRecords(
   context: handlerContext,
+  chainId: number,
   address: string,
   node: string,
 ): void {
   const id = makePAResolverRecordsId(chainId, address, node);
-  context.resolver_records.set({
+  context.Resolver_records.set({
     id,
-    chainId,
     address,
     node,
     name: undefined,
@@ -168,6 +172,7 @@ export function ensurePAResolverRecords(
  */
 export function handlePAAddressRecordUpdate(
   context: handlerContext,
+  chainId: number,
   address: string,
   node: string,
   coinType: number,
@@ -177,11 +182,10 @@ export function handlePAAddressRecordUpdate(
   const id = makePAAddressRecordId(chainId, address, node, coinType);
 
   if (interpretedValue === null) {
-    context.resolver_address_record.deleteUnsafe(id);
+    context.Resolver_address_record.deleteUnsafe(id);
   } else {
-    context.resolver_address_record.set({
+    context.Resolver_address_record.set({
       id,
-      chainId,
       address,
       node,
       coinType: BigInt(coinType),
@@ -196,6 +200,7 @@ export function handlePAAddressRecordUpdate(
  */
 export function handlePATextRecordUpdate(
   context: handlerContext,
+  chainId: number,
   address: string,
   node: string,
   key: string,
@@ -208,11 +213,10 @@ export function handlePATextRecordUpdate(
   const id = makePATextRecordId(chainId, address, node, interpretedKey);
 
   if (interpretedValue === null) {
-    context.resolver_text_record.deleteUnsafe(id);
+    context.Resolver_text_record.deleteUnsafe(id);
   } else {
-    context.resolver_text_record.set({
+    context.Resolver_text_record.set({
       id,
-      chainId,
       address,
       node,
       key: interpretedKey,
@@ -227,6 +231,7 @@ export function handlePATextRecordUpdate(
  */
 export async function handlePANameUpdate(
   context: handlerContext,
+  chainId: number,
   address: string,
   node: string,
   rawName: string,
@@ -234,9 +239,9 @@ export async function handlePANameUpdate(
   const interpretedName = interpretNameRecordValue(rawName);
   const id = makePAResolverRecordsId(chainId, address, node);
 
-  const existing = await context.resolver_records.get(id);
+  const existing = await context.Resolver_records.get(id);
   if (existing) {
-    context.resolver_records.set({
+    context.Resolver_records.set({
       ...existing,
       name: interpretedName ?? undefined,
     });
@@ -249,6 +254,7 @@ export async function handlePANameUpdate(
  */
 export function upsertDomainResolverRelation(
   context: handlerContext,
+  chainId: number,
   registryAddress: string,
   domainId: string,
   resolver: string,
@@ -256,11 +262,10 @@ export function upsertDomainResolverRelation(
   const id = makeDomainResolverRelationId(chainId, registryAddress, domainId);
 
   if (isAddressEqual(resolver as `0x${string}`, zeroAddress)) {
-    context.domain_resolver_relation.deleteUnsafe(id);
+    context.Domain_resolver_relation.deleteUnsafe(id);
   } else {
-    context.domain_resolver_relation.set({
+    context.Domain_resolver_relation.set({
       id,
-      chainId,
       address: registryAddress,
       domainId,
       resolver,
@@ -275,7 +280,7 @@ export function migrateNode(
   context: handlerContext,
   node: string,
 ): void {
-  context.migrated_node_by_node.set({ id: node });
+  context.Migrated_node_by_node.set({ id: node });
 }
 
 /**
@@ -285,7 +290,7 @@ export async function nodeIsMigrated(
   context: handlerContext,
   node: string,
 ): Promise<boolean> {
-  const record = await context.migrated_node_by_node.get(node);
+  const record = await context.Migrated_node_by_node.get(node);
   return !!record;
 }
 
@@ -303,9 +308,9 @@ export function upsertReverseNameRecord(
   const id = makeReverseNameRecordId(address, coinType);
 
   if (interpretedValue === null) {
-    context.reverse_name_record.deleteUnsafe(id);
+    context.Reverse_name_record.deleteUnsafe(id);
   } else {
-    context.reverse_name_record.set({
+    context.Reverse_name_record.set({
       id,
       address,
       coinType: BigInt(coinType),

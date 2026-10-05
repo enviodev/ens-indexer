@@ -50,7 +50,7 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
 
   // Get or create the domain
-  let domain = await context.subgraph_domain.get(node);
+  let domain = await context.Subgraph_domain.get(node);
   if (!domain) {
     // Handle preminted names edge case: if domain doesn't exist yet,
     // create it (normally Registry.NewOwner creates it first)
@@ -71,10 +71,10 @@ indexer.onEvent(
       wrappedOwner_id: undefined,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
     };
-    context.subgraph_domain.set(domain);
+    context.Subgraph_domain.set(domain);
   } else {
     // Update existing domain with registrant and expiry
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       registrant_id: owner,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
@@ -92,7 +92,7 @@ indexer.onEvent(
   });
 
   // Log NameRegistered
-  context.subgraph_name_registered.set({
+  context.Subgraph_name_registered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: owner,
@@ -102,6 +102,7 @@ indexer.onEvent(
   // Registrar: track registration action
   await handleRegistrarRegistration(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
     contractAddress: event.srcAddress,
     managedNode,
     labelHash,
@@ -126,25 +127,25 @@ indexer.onEvent(
   const registrationId = makeRegistrationId(labelHash, node);
 
   // Update Registration expiryDate
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.Subgraph_registration.set({
       ...registration,
       expiryDate: expires,
     });
   }
 
   // Update Domain expiryDate (includes grace period)
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
     });
   }
 
   // Log NameRenewed
-  context.subgraph_name_renewed.set({
+  context.Subgraph_name_renewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: expires,
@@ -153,6 +154,7 @@ indexer.onEvent(
   // Registrar: track renewal action
   await handleRegistrarRenewal(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+    chainId: event.chainId,
     contractAddress: event.srcAddress,
     managedNode,
     labelHash,
@@ -181,26 +183,26 @@ indexer.onEvent(
 
   // If the Transfer event occurs before the Registration entity exists
   // (i.e. initial registration ordering: Transfer -> NewOwner -> NameRegistered), no-op
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.Subgraph_registration.get(registrationId);
   if (!registration) return;
 
   // Update Registration registrant
-  context.subgraph_registration.set({
+  context.Subgraph_registration.set({
     ...registration,
     registrant_id: to,
   });
 
   // Update Domain registrant
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       registrant_id: to,
     });
   }
 
   // Log NameTransferred
-  context.subgraph_name_transferred.set({
+  context.Subgraph_name_transferred.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     newOwner_id: to,

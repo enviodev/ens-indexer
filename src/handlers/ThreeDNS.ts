@@ -37,6 +37,7 @@ import {
 const rootInitialized = new Set<number>();
 
 async function ensureRoot(
+  chainId: number,
   context: handlerContext,
   timestamp: bigint,
 ): Promise<void> {
@@ -68,10 +69,10 @@ indexer.onEvent(
     address: THREEDNS_RESOLVER,
   });
 
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
 
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       owner_id: owner,
       resolver_id: resolverId,
@@ -80,11 +81,11 @@ indexer.onEvent(
     });
   } else {
     // Create new domain
-    const parent = await context.subgraph_domain.get(parentNode);
+    const parent = await context.Subgraph_domain.get(parentNode);
     const label = encodeLabelHash(labelHash);
     const name = parent?.name ? `${label}.${parent.name}` : label;
 
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       id: node,
       name,
       labelName: undefined,
@@ -104,7 +105,7 @@ indexer.onEvent(
 
     // Increment parent's subdomain count
     if (parent) {
-      context.subgraph_domain.set({
+      context.Subgraph_domain.set({
         ...parent,
         subdomainCount: parent.subdomainCount + 1,
       });
@@ -117,7 +118,7 @@ indexer.onEvent(
   }
 
   // Log NewOwner event
-  context.subgraph_new_owner.set({
+  context.Subgraph_new_owner.set({
     ...sharedEventValues(event.chainId, event),
     parentDomain_id: parentNode,
     domain_id: node,
@@ -145,9 +146,9 @@ indexer.onEvent(
 
   upsertAccount(context, owner);
 
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       owner_id: owner,
     });
@@ -158,7 +159,7 @@ indexer.onEvent(
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
-  context.subgraph_transfer.set({
+  context.Subgraph_transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -193,10 +194,10 @@ indexer.onEvent(
   }
 
   // Update domain with registration info
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
 
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       labelName: labelName ?? domain.labelName,
       labelhash: labelHash ?? domain.labelhash,
@@ -206,7 +207,7 @@ indexer.onEvent(
     });
   } else {
     // Domain wasn't created by a prior NewOwner — create it
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       id: node,
       name: fullName,
       labelName,
@@ -237,7 +238,7 @@ indexer.onEvent(
   });
 
   // Log NameRegistered event
-  context.subgraph_name_registered.set({
+  context.Subgraph_name_registered.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     registrant_id: registrant,
@@ -255,9 +256,9 @@ indexer.onEvent(
   const { node, newExpiry } = event.params;
 
   // Update domain expiry
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       expiryDate: newExpiry,
     });
@@ -265,16 +266,16 @@ indexer.onEvent(
 
   // Update registration expiry (registration ID = node)
   const registrationId = node;
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.Subgraph_registration.set({
       ...registration,
       expiryDate: newExpiry,
     });
   }
 
   // Log NameRenewed event
-  context.subgraph_name_renewed.set({
+  context.Subgraph_name_renewed.set({
     ...sharedEventValues(event.chainId, event),
     registration_id: registrationId,
     expiryDate: newExpiry,

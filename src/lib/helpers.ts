@@ -2,7 +2,7 @@ import { keccak256, encodePacked, zeroAddress } from "viem";
 import type { EvmOnEventContext, Entity } from "envio";
 
 export type handlerContext = EvmOnEventContext;
-export type Domain = Entity<"subgraph_domain">;
+export type Domain = Entity<"Subgraph_domain">;
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -55,6 +55,7 @@ export function makeSubdomainNode(
 // ─── ID Generation ──────────────────────────────────────────────────────────
 
 export function makeResolverId(
+  chainId: number,
   resolverAddress: string,
   node: string,
 ): string {
@@ -62,6 +63,7 @@ export function makeResolverId(
 }
 
 export function makeEventId(
+  chainId: number,
   blockNumber: number,
   logIndex: number,
   transferIndex?: number,
@@ -87,12 +89,12 @@ export function encodeLabelHash(labelHash: string): string {
 // ─── Account Upsert ─────────────────────────────────────────────────────────
 
 export function upsertAccount(context: handlerContext, address: string): void {
-  const existing = context.subgraph_account.getOrCreate({
+  const existing = context.Subgraph_account.getOrCreate({
     id: address,
   });
   // getOrCreate handles the upsert - if exists returns existing, else creates
   // But since Account only has id, we can just set it unconditionally
-  context.subgraph_account.set({ id: address });
+  context.Subgraph_account.set({ id: address });
 }
 
 // ─── Resolver Upsert ────────────────────────────────────────────────────────
@@ -117,13 +119,13 @@ export async function upsertResolver(
   texts: readonly string[] | undefined;
   coinTypes: readonly bigint[] | undefined;
 }> {
-  const existing = await context.subgraph_resolver.get(values.id);
+  const existing = await context.Subgraph_resolver.get(values.id);
   if (existing) {
     const updated = {
       ...existing,
       ...values,
     };
-    context.subgraph_resolver.set(updated);
+    context.Subgraph_resolver.set(updated);
     return updated;
   }
   const newResolver = {
@@ -135,7 +137,7 @@ export async function upsertResolver(
     texts: values.texts,
     coinTypes: values.coinTypes,
   };
-  context.subgraph_resolver.set(newResolver);
+  context.Subgraph_resolver.set(newResolver);
   return newResolver;
 }
 
@@ -153,14 +155,14 @@ export async function upsertRegistration(
     cost?: bigint | undefined;
   },
 ): Promise<void> {
-  const existing = await context.subgraph_registration.get(values.id);
+  const existing = await context.Subgraph_registration.get(values.id);
   if (existing) {
-    context.subgraph_registration.set({
+    context.Subgraph_registration.set({
       ...existing,
       ...values,
     });
   } else {
-    context.subgraph_registration.set({
+    context.Subgraph_registration.set({
       id: values.id,
       domain_id: values.domain_id,
       registrationDate: values.registrationDate,
@@ -175,6 +177,7 @@ export async function upsertRegistration(
 // ─── Shared Event Values ────────────────────────────────────────────────────
 
 export function sharedEventValues(
+  chainId: number,
   event: {
     block: { number: number };
     logIndex: number;
@@ -202,13 +205,13 @@ export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
   context: handlerContext,
   node: string,
 ): Promise<void> {
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (!domain) return;
 
   if (isDomainEmpty(domain) && domain.parent_id !== undefined) {
-    const parent = await context.subgraph_domain.get(domain.parent_id);
+    const parent = await context.Subgraph_domain.get(domain.parent_id);
     if (parent) {
-      context.subgraph_domain.set({
+      context.Subgraph_domain.set({
         ...parent,
         subdomainCount: parent.subdomainCount - 1,
       });
@@ -248,7 +251,7 @@ export async function setNamePreimage(
   managedName: string,
 ): Promise<void> {
   const node = makeSubdomainNode(labelHash, managedNode);
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (!domain) return;
 
   // Sanitize label: skip if it contains null bytes (subgraph compat)
@@ -259,7 +262,7 @@ export async function setNamePreimage(
   // Update Domain labelName and name if different
   if (domain.labelName !== sanitizedLabel) {
     const name = `${sanitizedLabel}.${managedName}`;
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       labelName: sanitizedLabel,
       name,
@@ -268,9 +271,9 @@ export async function setNamePreimage(
 
   // Update Registration labelName and cost
   const registrationId = makeRegistrationId(labelHash, node);
-  const registration = await context.subgraph_registration.get(registrationId);
+  const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.subgraph_registration.set({
+    context.Subgraph_registration.set({
       ...registration,
       labelName: sanitizedLabel,
       cost,
@@ -324,10 +327,10 @@ export async function ensureRootDomain(
   context: handlerContext,
   timestamp: bigint,
 ): Promise<void> {
-  const existingRoot = await context.subgraph_domain.get(ROOT_NODE);
+  const existingRoot = await context.Subgraph_domain.get(ROOT_NODE);
   if (!existingRoot) {
     upsertAccount(context, ZERO_ADDRESS);
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       id: ROOT_NODE,
       name: undefined,
       labelName: undefined,

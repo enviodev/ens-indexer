@@ -56,6 +56,7 @@ async function handleNewOwner(
   event: {
     params: { node: string; label: string; owner: string };
     block: { number: number; timestamp: number };
+    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -78,7 +79,7 @@ async function handleNewOwner(
   upsertAccount(context, owner);
 
   // Load existing domain
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
 
   if (domain) {
     // For the old registry (isMigrated=false): if the domain has already been
@@ -88,7 +89,7 @@ async function handleNewOwner(
     }
 
     // Update owner and migration status
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       owner_id: owner,
       isMigrated,
@@ -97,13 +98,13 @@ async function handleNewOwner(
     // Domain does not yet exist -- create it
 
     // Look up the parent domain to construct the name
-    const parent = await context.subgraph_domain.get(parentNode);
+    const parent = await context.Subgraph_domain.get(parentNode);
 
     // Construct the name from the parent's name + the encoded label
     const label = encodeLabelHash(labelHash);
     const name = parent?.name ? `${label}.${parent.name}` : label;
 
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       id: node,
       name,
       labelName: undefined,
@@ -123,7 +124,7 @@ async function handleNewOwner(
 
     // Increment parent's subdomain count
     if (parent) {
-      context.subgraph_domain.set({
+      context.Subgraph_domain.set({
         ...parent,
         subdomainCount: parent.subdomainCount + 1,
       });
@@ -138,7 +139,7 @@ async function handleNewOwner(
   }
 
   // Log the NewOwner event entity
-  context.subgraph_new_owner.set({
+  context.Subgraph_new_owner.set({
     ...sharedEventValues(event.chainId, event),
     parentDomain_id: parentNode,
     domain_id: node,
@@ -175,6 +176,7 @@ async function handleTransfer(
   event: {
     params: { node: string; owner: string };
     block: { number: number; timestamp: number };
+    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -187,15 +189,15 @@ async function handleTransfer(
   upsertAccount(context, owner);
 
   // Ensure domain exists and update owner
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       owner_id: owner,
     });
   } else {
     // Domain not yet seen -- create a minimal record
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       id: node,
       name: undefined,
       labelName: undefined,
@@ -220,7 +222,7 @@ async function handleTransfer(
   }
 
   // Log the Transfer event entity
-  context.subgraph_transfer.set({
+  context.Subgraph_transfer.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     owner_id: owner,
@@ -251,6 +253,7 @@ async function handleNewResolver(
   event: {
     params: { node: string; resolver: string };
     block: { number: number; timestamp: number };
+    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -264,12 +267,12 @@ async function handleNewResolver(
   const resolverId = makeResolverId(event.chainId, resolverAddress, node);
 
   // Load the domain (it should exist from a prior NewOwner event)
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
 
   if (isZeroResolver) {
     // Clear the domain's resolver and resolved address references
     if (domain) {
-      context.subgraph_domain.set({
+      context.Subgraph_domain.set({
         ...domain,
         resolver_id: undefined,
         resolvedAddress_id: undefined,
@@ -288,7 +291,7 @@ async function handleNewResolver(
 
     // Update domain to point to the new resolver
     if (domain) {
-      context.subgraph_domain.set({
+      context.Subgraph_domain.set({
         ...domain,
         resolver_id: resolverId,
         resolvedAddress_id: resolver.addr_id,
@@ -300,7 +303,7 @@ async function handleNewResolver(
   // NOTE: for subgraph compatibility, when the resolver is the zero address
   // we still log a resolver_id pointing to the zero address string, matching
   // the original subgraph behavior (even though no Resolver entity exists for it).
-  context.subgraph_new_resolver.set({
+  context.Subgraph_new_resolver.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     resolver_id: isZeroResolver ? ZERO_ADDRESS : resolverId,
@@ -346,6 +349,7 @@ async function handleNewTTL(
   event: {
     params: { node: string; ttl: bigint };
     block: { number: number; timestamp: number };
+    chainId: number;
     logIndex: number;
     transaction: { hash: string };
     srcAddress: string;
@@ -355,16 +359,16 @@ async function handleNewTTL(
   const { node, ttl } = event.params;
 
   // Update the domain's TTL
-  const domain = await context.subgraph_domain.get(node);
+  const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.subgraph_domain.set({
+    context.Subgraph_domain.set({
       ...domain,
       ttl,
     });
   }
 
   // Log the NewTTL event entity
-  context.subgraph_new_ttl.set({
+  context.Subgraph_new_ttl.set({
     ...sharedEventValues(event.chainId, event),
     domain_id: node,
     ttl,

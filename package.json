@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "codegen": "envio codegen && node scripts/patch-generated-types.mjs",
-    "postdev": "node scripts/patch-generated-types.mjs",
+    "codegen": "envio codegen",
     "dev": "envio dev",
     "start": "envio start",
     "test": "vitest run"
@@ -17,7 +16,7 @@
   },
   "dependencies": {
     "dns-packet": "^5.6.1",
-    "envio": "3.6.1",
+    "envio": "3.12.1",
     "viem": "^2.46.3"
   },
   "engines": {

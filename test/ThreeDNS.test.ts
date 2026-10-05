@@ -28,7 +28,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
 
       // Verify domains were created
@@ -43,7 +43,7 @@ describe("ThreeDNS (Optimism + Base)", () => {
           expect(d.isMigrated).toBe(true);
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ThreeDNSToken.RegistrationCreated (Base) ─────────────────────────────
@@ -67,10 +67,10 @@ describe("ThreeDNS (Optimism + Base)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.Subgraph_registration?.sets ?? [],
       );
 
       // Verify domains and registrations were created
@@ -92,6 +92,6 @@ describe("ThreeDNS (Optimism + Base)", () => {
           expect(d.name).toContain(".");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

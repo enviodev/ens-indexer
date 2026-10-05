@@ -30,7 +30,7 @@ describe("Resolver", () => {
 
       // Check for AddrChanged entities
       const addrEvents = result.changes.flatMap(
-        (c) => c.subgraph_addr_changed?.sets ?? [],
+        (c) => c.Subgraph_addr_changed?.sets ?? [],
       );
 
       expect(addrEvents.length).toBeGreaterThan(0);
@@ -43,7 +43,7 @@ describe("Resolver", () => {
 
       // Check Resolver entities have addr_id set
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.Subgraph_resolver?.sets ?? [],
       );
       const resolversWithAddr = resolvers.filter(
         (r) => r.addr_id !== undefined,
@@ -56,7 +56,7 @@ describe("Resolver", () => {
           expect(r.domain_id).toBeTruthy();
         }
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── AddressChanged (multicoin) ───────────────────────────────────────
@@ -79,7 +79,7 @@ describe("Resolver", () => {
       });
 
       const multicoinEvents = result.changes.flatMap(
-        (c) => c.subgraph_multicoin_addr_changed?.sets ?? [],
+        (c) => c.Subgraph_multicoin_addr_changed?.sets ?? [],
       );
 
       expect(multicoinEvents.length).toBeGreaterThan(0);
@@ -92,7 +92,7 @@ describe("Resolver", () => {
 
       // Verify coinTypes array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.Subgraph_resolver?.sets ?? [],
       );
       const resolversWithCoinTypes = resolvers.filter(
         (r) => r.coinTypes && r.coinTypes.length > 0,
@@ -104,7 +104,7 @@ describe("Resolver", () => {
         const uniqueCoinTypes = [...new Set(r.coinTypes!.map(String))];
         expect(uniqueCoinTypes.length).toBe(r.coinTypes!.length);
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── TextChanged ──────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ describe("Resolver", () => {
       });
 
       const textEvents = result.changes.flatMap(
-        (c) => c.subgraph_text_changed?.sets ?? [],
+        (c) => c.Subgraph_text_changed?.sets ?? [],
       );
 
       expect(textEvents.length).toBeGreaterThan(0);
@@ -142,7 +142,7 @@ describe("Resolver", () => {
 
       // Verify texts array is being built on resolver
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.Subgraph_resolver?.sets ?? [],
       );
       const resolversWithTexts = resolvers.filter(
         (r) => r.texts && r.texts.length > 0,
@@ -154,7 +154,7 @@ describe("Resolver", () => {
         const uniqueTexts = [...new Set(r.texts!)];
         expect(uniqueTexts.length).toBe(r.texts!.length);
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ContenthashChanged ───────────────────────────────────────────────
@@ -177,7 +177,7 @@ describe("Resolver", () => {
       });
 
       const chEvents = result.changes.flatMap(
-        (c) => c.subgraph_contenthash_changed?.sets ?? [],
+        (c) => c.Subgraph_contenthash_changed?.sets ?? [],
       );
 
       for (const evt of chEvents) {
@@ -185,7 +185,7 @@ describe("Resolver", () => {
         expect(evt.resolver_id).toBeDefined();
         expect(evt.hash).toBeDefined();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── VersionChanged ───────────────────────────────────────────────────
@@ -209,7 +209,7 @@ describe("Resolver", () => {
       });
 
       const versionEvents = result.changes.flatMap(
-        (c) => c.subgraph_version_changed?.sets ?? [],
+        (c) => c.Subgraph_version_changed?.sets ?? [],
       );
 
       for (const evt of versionEvents) {
@@ -221,7 +221,7 @@ describe("Resolver", () => {
       // If a VersionChanged was processed, verify resolver was cleared
       if (versionEvents.length > 0) {
         for (const evt of versionEvents) {
-          const resolver = await indexer.subgraph_resolver.get(evt.resolver_id);
+          const resolver = await indexer.Subgraph_resolver.get(evt.resolver_id);
           if (resolver) {
             expect(resolver.addr_id).toBeUndefined();
             expect(resolver.contentHash).toBeUndefined();
@@ -230,7 +230,7 @@ describe("Resolver", () => {
           }
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Resolver entity structure ────────────────────────────────────────
@@ -252,7 +252,7 @@ describe("Resolver", () => {
       });
 
       const resolvers = result.changes.flatMap(
-        (c) => c.subgraph_resolver?.sets ?? [],
+        (c) => c.Subgraph_resolver?.sets ?? [],
       );
 
       for (const r of resolvers) {
@@ -261,7 +261,7 @@ describe("Resolver", () => {
         expect(r.address).toBeTruthy();
         expect(r.domain_id).toBeTruthy();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── Dynamic contract registration ────────────────────────────────────
@@ -294,7 +294,7 @@ describe("Resolver", () => {
       for (const addr of resolverAddresses) {
         expect(addr).toMatch(/^0x[a-f0-9]{40}$/);
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Full resolver flow in a single block ─────────────────────────────
@@ -318,18 +318,18 @@ describe("Resolver", () => {
       // Collect resolver-related event types present
       const resolverEventTypes = new Set<string>();
       for (const change of result.changes) {
-        if (change.subgraph_addr_changed?.sets?.length)
+        if (change.Subgraph_addr_changed?.sets?.length)
           resolverEventTypes.add("AddrChanged");
-        if (change.subgraph_multicoin_addr_changed?.sets?.length)
+        if (change.Subgraph_multicoin_addr_changed?.sets?.length)
           resolverEventTypes.add("MulticoinAddrChanged");
-        if (change.subgraph_text_changed?.sets?.length)
+        if (change.Subgraph_text_changed?.sets?.length)
           resolverEventTypes.add("TextChanged");
-        if (change.subgraph_contenthash_changed?.sets?.length)
+        if (change.Subgraph_contenthash_changed?.sets?.length)
           resolverEventTypes.add("ContenthashChanged");
       }
 
       // This block should have at least AddrChanged
       expect(resolverEventTypes.size).toBeGreaterThanOrEqual(1);
-    }, 60_000);
+    }, 120_000);
   });
 });

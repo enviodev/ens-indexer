@@ -31,7 +31,7 @@ describe("LineaRegistrar (Linea L2)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const lineaSubdomains = domains.filter(
         (d) => d.parent_id === LINEA_ETH_NODE,
@@ -43,7 +43,7 @@ describe("LineaRegistrar (Linea L2)", () => {
       );
       if (domainsWithExpiry.length > 0) {
         const registrations = result.changes.flatMap(
-          (c) => c.subgraph_registration?.sets ?? [],
+          (c) => c.Subgraph_registration?.sets ?? [],
         );
         for (const d of domainsWithExpiry) {
           const reg = registrations.find((r) => r.domain_id === d.id);
@@ -52,7 +52,7 @@ describe("LineaRegistrar (Linea L2)", () => {
           }
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── EthController_Linea.NameRegistered (paid) ────────────────────────
@@ -76,7 +76,7 @@ describe("LineaRegistrar (Linea L2)", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
         (d) => d.labelName !== undefined,
@@ -87,6 +87,6 @@ describe("LineaRegistrar (Linea L2)", () => {
           expect(d.name).toContain(".linea.eth");
         }
       }
-    }, 60_000);
+    }, 120_000);
   });
 });

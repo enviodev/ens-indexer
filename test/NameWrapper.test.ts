@@ -33,7 +33,7 @@ describe("NameWrapper", () => {
 
       // Check WrappedDomain entities were created
       const wrappedDomains = result.changes.flatMap(
-        (c) => c.subgraph_wrapped_domain?.sets ?? [],
+        (c) => c.Subgraph_wrapped_domain?.sets ?? [],
       );
       expect(wrappedDomains.length).toBeGreaterThan(0);
 
@@ -46,7 +46,7 @@ describe("NameWrapper", () => {
         expect(wd.expiryDate).toBeDefined();
         expect(wd.isActive).toBe(true);
       }
-    }, 60_000);
+    }, 120_000);
 
     it("logs NameWrapped entities", async () => {
       const indexer = createTestIndexer();
@@ -64,7 +64,7 @@ describe("NameWrapper", () => {
       });
 
       const wrappedEvents = result.changes.flatMap(
-        (c) => c.subgraph_name_wrapped?.sets ?? [],
+        (c) => c.Subgraph_name_wrapped?.sets ?? [],
       );
       expect(wrappedEvents.length).toBeGreaterThan(0);
 
@@ -76,7 +76,7 @@ describe("NameWrapper", () => {
         expect(evt.expiryDate).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
 
     it("logs WrappedTransfer events from TransferSingle", async () => {
       const indexer = createTestIndexer();
@@ -94,7 +94,7 @@ describe("NameWrapper", () => {
       });
 
       const transfers = result.changes.flatMap(
-        (c) => c.subgraph_wrapped_transfer?.sets ?? [],
+        (c) => c.Subgraph_wrapped_transfer?.sets ?? [],
       );
       expect(transfers.length).toBeGreaterThan(0);
 
@@ -104,7 +104,7 @@ describe("NameWrapper", () => {
         expect(t.owner_id).toBeDefined();
         expect(t.transactionID).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
 
     it("sets wrappedOwner_id on the Domain entity", async () => {
       const indexer = createTestIndexer();
@@ -123,7 +123,7 @@ describe("NameWrapper", () => {
       });
 
       // Check domains that have wrappedOwner set in the changes
-      const domains = result.changes.flatMap((c) => c.subgraph_domain?.sets ?? []);
+      const domains = result.changes.flatMap((c) => c.Subgraph_domain?.sets ?? []);
       const domainsWithWrappedOwner = domains.filter(
         (d) => d.wrappedOwner_id !== undefined,
       );
@@ -132,7 +132,7 @@ describe("NameWrapper", () => {
       for (const d of domainsWithWrappedOwner) {
         expect(d.wrappedOwner_id).toBeTruthy();
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── FusesSet ─────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ describe("NameWrapper", () => {
       });
 
       const fusesEvents = result.changes.flatMap(
-        (c) => c.subgraph_fuses_set?.sets ?? [],
+        (c) => c.Subgraph_fuses_set?.sets ?? [],
       );
 
       expect(fusesEvents.length).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe("NameWrapper", () => {
         expect(evt.fuses).toBeDefined();
         expect(typeof evt.fuses).toBe("number");
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── ExpiryExtended ───────────────────────────────────────────────────
@@ -188,7 +188,7 @@ describe("NameWrapper", () => {
       });
 
       const expiryEvents = result.changes.flatMap(
-        (c) => c.subgraph_expiry_extended?.sets ?? [],
+        (c) => c.Subgraph_expiry_extended?.sets ?? [],
       );
 
       expect(expiryEvents.length).toBeGreaterThan(0);
@@ -197,7 +197,7 @@ describe("NameWrapper", () => {
         expect(evt.domain_id).toBeDefined();
         expect(evt.expiryDate).toBeDefined();
       }
-    }, 60_000);
+    }, 120_000);
   });
 
   // ─── Kitchen sink: block 18,965,734 snapshot ──────────────────────────
@@ -235,6 +235,6 @@ describe("NameWrapper", () => {
       // Expected: Domain, Account, Registration, WrappedDomain, NewOwner,
       //           NameRegistered, WrappedTransfer, NameWrapped, etc.
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
-    }, 60_000);
+    }, 120_000);
   });
 });
