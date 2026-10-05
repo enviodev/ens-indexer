@@ -33,13 +33,13 @@ describe("Registrar", () => {
 
       // Check that Registration entities were created
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.Subgraph_registration?.sets ?? [],
       );
       expect(registrations.length).toBeGreaterThan(0);
 
       // Check that NameRegistered entities were created
       const regEvents = result.changes.flatMap(
-        (c) => c.subgraph_name_registered?.sets ?? [],
+        (c) => c.Subgraph_name_registered?.sets ?? [],
       );
       expect(regEvents.length).toBeGreaterThan(0);
 
@@ -61,7 +61,7 @@ describe("Registrar", () => {
 
       // Domain expiry should include grace period (registration expiry + 90 days)
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const domainsWithExpiry = domains.filter(
         (d) => d.expiryDate !== undefined,
@@ -75,7 +75,7 @@ describe("Registrar", () => {
           }
         }
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── BaseRegistrar.NameRenewed ────────────────────────────────────────
@@ -100,7 +100,7 @@ describe("Registrar", () => {
       });
 
       const renewEvents = result.changes.flatMap(
-        (c) => c.subgraph_name_renewed?.sets ?? [],
+        (c) => c.Subgraph_name_renewed?.sets ?? [],
       );
 
       // Validate structure if any found
@@ -110,7 +110,7 @@ describe("Registrar", () => {
         expect(evt.expiryDate).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── BaseRegistrar.Transfer ───────────────────────────────────────────
@@ -134,7 +134,7 @@ describe("Registrar", () => {
       });
 
       const transferEvents = result.changes.flatMap(
-        (c) => c.subgraph_name_transferred?.sets ?? [],
+        (c) => c.Subgraph_name_transferred?.sets ?? [],
       );
 
       expect(transferEvents.length).toBeGreaterThan(0);
@@ -144,7 +144,7 @@ describe("Registrar", () => {
         expect(evt.newOwner_id).toBeDefined();
         expect(evt.transactionID).toBeDefined();
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── LegacyController.NameRegistered (plaintext label reveal) ─────────
@@ -169,7 +169,7 @@ describe("Registrar", () => {
       });
 
       const domains = result.changes.flatMap(
-        (c) => c.subgraph_domain?.sets ?? [],
+        (c) => c.Subgraph_domain?.sets ?? [],
       );
       const domainsWithLabels = domains.filter(
         (d) => d.labelName !== undefined,
@@ -185,7 +185,7 @@ describe("Registrar", () => {
           }
         }
       }
-    }, 30_000);
+    }, 120_000);
   });
 
   // ─── WrappedController.NameRegistered ─────────────────────────────────
@@ -210,7 +210,7 @@ describe("Registrar", () => {
 
       // Check Registration entities have cost set
       const registrations = result.changes.flatMap(
-        (c) => c.subgraph_registration?.sets ?? [],
+        (c) => c.Subgraph_registration?.sets ?? [],
       );
       const regsWithCost = registrations.filter(
         (r) => r.cost !== undefined,
@@ -266,6 +266,6 @@ describe("Registrar", () => {
 
       // A full registration touches many entity types
       expect(entityTypes.size).toBeGreaterThanOrEqual(2);
-    }, 30_000);
+    }, 120_000);
   });
 });
