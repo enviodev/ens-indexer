@@ -9,6 +9,7 @@ import {
   hasNullByte,
   stripNullBytes,
   decodeDnsEncodedName,
+  emptyToUndefined,
 } from "../lib/helpers";
 
 import {
@@ -39,11 +40,17 @@ indexer.onEvent(
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
   // upsert Resolver with the new addr
-  await upsertResolver(context, {
+  const resolver = await upsertResolver(context, {
     id: resolverId,
     domain_id: node,
     address: event.srcAddress,
     addr_id: a,
+  });
+
+  // legacy AddrChanged is the coin type 60 record: list it in coinTypes
+  context.Subgraph_resolver.set({
+    ...resolver,
+    coinTypes: uniq([...(resolver.coinTypes ?? []), BigInt(ETH_COIN_TYPE)]),
   });
 
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
@@ -259,7 +266,7 @@ indexer.onEvent(
     id: resolverId,
     domain_id: node,
     address: event.srcAddress,
-    contentHash: hash,
+    contentHash: emptyToUndefined(hash),
   });
 
   // log ContenthashChanged
@@ -436,6 +443,26 @@ function parseDnsTxtRecordArgs({
   return { key, value: interpretTextRecordValue(value) };
 }
 
+// Adds a DNS TXT record key to the resolver's texts list (H-23).
+async function addDnsTextKey(
+  context: handlerContext,
+  chainId: number,
+  resolverAddress: string,
+  node: string,
+  key: string,
+): Promise<void> {
+  const resolverId = makeResolverId(chainId, resolverAddress, node);
+  const resolver = await upsertResolver(context, {
+    id: resolverId,
+    domain_id: node,
+    address: resolverAddress,
+  });
+  context.Subgraph_resolver.set({
+    ...resolver,
+    texts: uniq([...(resolver.texts ?? []), key]),
+  });
+}
+
 // ─── DNSRecordChanged (4-arg: without ttl) ──────────────────────────────────
 // PA-only: indexes DNS TXT records as PA text records.
 
@@ -445,6 +472,10 @@ indexer.onEvent(
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
+
+  if (value !== null) {
+    await addDnsTextKey(context, event.chainId, event.srcAddress, node, key);
+  }
 
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
@@ -461,6 +492,10 @@ indexer.onEvent(
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
+
+  if (value !== null) {
+    await addDnsTextKey(context, event.chainId, event.srcAddress, node, key);
+  }
 
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);

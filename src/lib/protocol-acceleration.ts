@@ -26,7 +26,8 @@ export function bigintToCoinType(value: bigint): number | null {
  */
 export function evmChainIdToCoinType(chainId: number): number {
   if (chainId === 1) return ETH_COIN_TYPE;
-  return DEFAULT_EVM_COIN_TYPE | chainId;
+  // >>> 0 keeps the result an unsigned 32-bit value (| alone yields a negative int32)
+  return (DEFAULT_EVM_COIN_TYPE | chainId) >>> 0;
 }
 
 // ─── ID Generators ───────────────────────────────────────────────────────────

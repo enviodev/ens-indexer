@@ -9,6 +9,8 @@ import {
   MANAGED_NODES,
   tokenIdToLabelHash,
   indexableOrUndefined,
+  isInterpretableLabel,
+  decodeDnsEncodedName,
 } from "../lib/helpers";
 
 import {
@@ -208,20 +210,30 @@ indexer.onEvent(
     return;
   }
 
-  // The name param is DNS-encoded bytes as hex string.
-  // For the initial migration, we store the raw hex name or undefined.
-  // A proper implementation would decode DNS-encoded names here.
-  const decodedName: string | undefined = name || undefined;
+  // The name param is the DNS wire-format name as a hex string.
+  const labels = decodeDnsEncodedName(name);
+  // Only trust the name if every label round-trips to the node.
+  const decodedName: string | undefined =
+    labels.length > 0 && labels.every(isInterpretableLabel)
+      ? labels.join(".")
+      : undefined;
 
-  // Update Domain labelName and name if not already set
-  // This matches the subgraph behavior: only heal if !domain.labelName && label
+  // Heal labelName and name if not already set. Only when the first label
+  // round-trips to the node and the name fits an index.
   let updatedDomain = { ...domain };
-  if (!domain.labelName && indexableOrUndefined(decodedName)) {
+  const label = labels[0];
+  const healedName = indexableOrUndefined(decodedName);
+  if (
+    !domain.labelName &&
+    label !== undefined &&
+    isInterpretableLabel(label) &&
+    healedName !== undefined &&
+    indexableOrUndefined(label) !== undefined
+  ) {
     updatedDomain = {
       ...updatedDomain,
-      name: decodedName,
-      // labelName would ideally be extracted from DNS decoding;
-      // for now we leave it as-is since we don't decode DNS names
+      name: healedName,
+      labelName: label,
     };
   }
 

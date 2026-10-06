@@ -254,11 +254,11 @@ export async function setNamePreimage(
   const domain = await context.Subgraph_domain.get(node);
   if (!domain) return;
 
-  // Sanitize label: strip null bytes (subgraph compat); labels too long to
-  // index are treated as unknown and keep the [labelhash] form.
-  const sanitizedLabel = indexableOrUndefined(
-    hasNullByte(labelName) ? stripNullBytes(labelName) : labelName,
-  );
+  // Labels that do not round-trip to the node (dots, brackets, null bytes) or
+  // are too long to index are treated as unknown and keep the [labelhash] form.
+  const sanitizedLabel = isInterpretableLabel(labelName)
+    ? indexableOrUndefined(labelName)
+    : undefined;
 
   // Fall back to the [labelhash] form when the qualified name is too long
   const name =
@@ -295,6 +295,19 @@ export function hasNullByte(str: string): boolean {
 
 export function stripNullBytes(str: string): string {
   return str.replace(/\0/g, "");
+}
+
+export function emptyToUndefined(str: string | undefined): string | undefined {
+  return str === undefined || str === "" || str === "0x" ? undefined : str;
+}
+
+/**
+ * A label is only usable as a display name if joining it with "." and hashing
+ * round-trips to its node. Labels with a dot, brackets, a null byte or empty
+ * labels do not, so they are treated as unknown ([labelhash] form).
+ */
+export function isInterpretableLabel(label: string): boolean {
+  return label !== "" && !/[.\[\]\0]/.test(label);
 }
 
 /**

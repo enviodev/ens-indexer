@@ -18,9 +18,8 @@ import {
   decodeDnsEncodedName,
   ensureRootDomain,
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
-  hasNullByte,
   indexableOrUndefined,
-  stripNullBytes,
+  isInterpretableLabel,
 } from "../lib/helpers";
 
 import { upsertDomainResolverRelation } from "../lib/protocol-acceleration";
@@ -193,10 +192,12 @@ indexer.onEvent(
 
   if (rawLabel) {
     labelHash = keccak256(encodePacked(["string"], [rawLabel]));
-    labelName = indexableOrUndefined(
-      hasNullByte(rawLabel) ? stripNullBytes(rawLabel) : rawLabel,
-    );
-    fullName = indexableOrUndefined(labels.join("."));
+    labelName = isInterpretableLabel(rawLabel)
+      ? indexableOrUndefined(rawLabel)
+      : undefined;
+    fullName = labels.every(isInterpretableLabel)
+      ? indexableOrUndefined(labels.join("."))
+      : undefined;
   }
 
   // Update domain with registration info

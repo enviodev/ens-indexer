@@ -10,6 +10,8 @@ import {
   hasNullByte,
   stripNullBytes,
   isIndexable,
+  isInterpretableLabel,
+  emptyToUndefined,
   indexableOrUndefined,
   MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
@@ -355,5 +357,31 @@ describe("indexable string guard", () => {
     expect(indexableOrUndefined("a".repeat(23_000))).toBeUndefined();
     expect(indexableOrUndefined(undefined)).toBeUndefined();
     expect(indexableOrUndefined("vitalik")).toBe("vitalik");
+  });
+});
+
+describe("isInterpretableLabel", () => {
+  it("accepts ordinary labels", () => {
+    expect(isInterpretableLabel("vitalik")).toBe(true);
+    expect(isInterpretableLabel("🦊")).toBe(true);
+  });
+
+  it("rejects labels that would not round-trip to the node", () => {
+    expect(isInterpretableLabel("")).toBe(false);
+    expect(isInterpretableLabel("a.b")).toBe(false);
+    expect(isInterpretableLabel("[abc]")).toBe(false);
+    expect(isInterpretableLabel("a\0b")).toBe(false);
+  });
+});
+
+describe("emptyToUndefined", () => {
+  it("maps empty values to undefined", () => {
+    expect(emptyToUndefined("")).toBeUndefined();
+    expect(emptyToUndefined("0x")).toBeUndefined();
+    expect(emptyToUndefined(undefined)).toBeUndefined();
+  });
+
+  it("keeps real values", () => {
+    expect(emptyToUndefined("0xe301")).toBe("0xe301");
   });
 });
