@@ -6,7 +6,7 @@
 # Indexes serve the API's query patterns: exact and prefix label search, names
 # by owner / registrant sorted by expiry, subdomain listing sorted by creation,
 # and global "recently created" / "expiring" feeds.
-type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
+type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["effectiveOwner", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
   id: ID!
   name: String @index
   labelName: String @index
@@ -21,7 +21,9 @@ type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["re
   owner: subgraph_account! @index
   registrant: subgraph_account @index
   wrappedOwner: subgraph_account @index
-  expiryDate: BigInt @index
+  expiryDate: BigInt @index      # registration expiry + 90 day grace for names under eth, base.eth, linea.eth
+  registrationExpiryDate: BigInt # exact registration expiry (no grace); only set for registrar names
+  effectiveOwner: subgraph_account! @index  # wrappedOwner when wrapped, else owner
   subdomains: [subgraph_domain!]! @derivedFrom(field: "parent")
 }
 
@@ -324,7 +326,7 @@ type registration_lifecycle {
   expiresAt: BigInt! @index  # Unix timestamp
 }
 
-type registrar_action @index(fields: ["node", "timestamp"]) @index(fields: ["registrant", "timestamp"]) @index(fields: ["decodedReferrer", "timestamp"]) @index(fields: ["subregistryId", "timestamp"]) {
+type registrar_action @index(fields: ["node", "timestamp"]) @index(fields: ["owner", "timestamp"]) @index(fields: ["registrant", "timestamp"]) @index(fields: ["decodedReferrer", "timestamp"]) @index(fields: ["subregistryId", "timestamp"]) {
   id: ID!                    # first event ID (from BaseRegistrar event)
   type: registrar_action_type!
   subregistryId: String!     # FK to subregistry
@@ -333,7 +335,8 @@ type registrar_action @index(fields: ["node", "timestamp"]) @index(fields: ["reg
   baseCost: BigInt           # nullable (unknown for some controllers)
   premium: BigInt            # nullable
   total: BigInt              # nullable
-  registrant: String!        # transaction.from address
+  registrant: String!        # transaction.from address (the sender, not necessarily the owner)
+  owner: String              # owner from the controller event params; null for renewals or when the controller event was not indexed
   encodedReferrer: String    # nullable, raw bytes32
   decodedReferrer: String @index  # nullable, decoded address
   blockNumber: BigInt!

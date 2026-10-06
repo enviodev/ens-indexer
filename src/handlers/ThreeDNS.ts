@@ -21,6 +21,7 @@ import {
   hasNullByte,
   indexableOrUndefined,
   stripNullBytes,
+  setDomain,
 } from "../lib/helpers";
 
 import { upsertDomainResolverRelation } from "../lib/protocol-acceleration";
@@ -73,7 +74,7 @@ indexer.onEvent(
   const domain = await context.Subgraph_domain.get(node);
 
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       owner_id: owner,
       resolver_id: resolverId,
@@ -89,7 +90,7 @@ indexer.onEvent(
         parent?.name ? `${label}.${parent.name}` : label,
       ) ?? label;
 
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: node,
       name,
       labelName: undefined,
@@ -109,7 +110,7 @@ indexer.onEvent(
 
     // Increment parent's subdomain count
     if (parent) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...parent,
         subdomainCount: parent.subdomainCount + 1,
       });
@@ -152,7 +153,7 @@ indexer.onEvent(
 
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       owner_id: owner,
     });
@@ -203,7 +204,7 @@ indexer.onEvent(
   const domain = await context.Subgraph_domain.get(node);
 
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       labelName: labelName ?? domain.labelName,
       labelhash: labelHash ?? domain.labelhash,
@@ -213,7 +214,7 @@ indexer.onEvent(
     });
   } else {
     // Domain wasn't created by a prior NewOwner — create it
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: node,
       name: fullName,
       labelName,
@@ -264,7 +265,7 @@ indexer.onEvent(
   // Update domain expiry
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       expiryDate: newExpiry,
     });

@@ -9,6 +9,7 @@ import {
   hasNullByte,
   stripNullBytes,
   decodeDnsEncodedName,
+  setDomain,
 } from "../lib/helpers";
 
 import {
@@ -49,7 +50,7 @@ indexer.onEvent(
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
   const domain = await context.Subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       resolvedAddress_id: a,
     });
@@ -340,7 +341,7 @@ indexer.onEvent(
   // materialize Domain.resolvedAddress_id to undefined if Domain.resolver_id matches
   const domain = await context.Subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       resolvedAddress_id: undefined,
     });

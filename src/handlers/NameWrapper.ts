@@ -9,6 +9,7 @@ import {
   MANAGED_NODES,
   tokenIdToLabelHash,
   indexableOrUndefined,
+  setDomain,
 } from "../lib/helpers";
 
 import {
@@ -57,7 +58,7 @@ async function materializeDomainExpiryDate(
   if (isPccFuseSet(wrappedDomain.fuses)) {
     const domain = await context.Subgraph_domain.get(node);
     if (domain) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...domain,
         expiryDate: bigintMax(domain.expiryDate ?? 0n, wrappedDomain.expiryDate),
       });
@@ -117,7 +118,7 @@ async function handleTransfer(
   }
 
   // Materialize Domain.wrappedOwner
-  context.Subgraph_domain.set({
+  setDomain(context, {
     ...domain,
     wrappedOwner_id: to,
   });
@@ -230,7 +231,7 @@ indexer.onEvent(
     ...updatedDomain,
     wrappedOwner_id: owner,
   };
-  context.Subgraph_domain.set(updatedDomain);
+  setDomain(context, updatedDomain);
 
   // Update the WrappedDomain that was created in handleTransfer
   const fusesNum = Number(fuses);
@@ -297,7 +298,7 @@ indexer.onEvent(
   const expiryDate = (domain.parent_id && MANAGED_NODES.has(domain.parent_id)) ? domain.expiryDate : undefined;
 
   // Clear wrappedOwner and conditionally reset expiryDate
-  context.Subgraph_domain.set({
+  setDomain(context, {
     ...domain,
     wrappedOwner_id: undefined,
     expiryDate,
