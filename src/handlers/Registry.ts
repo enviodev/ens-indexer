@@ -103,9 +103,10 @@ async function handleNewOwner(
 
     // Construct the name from the parent's name + the encoded label
     const label = encodeLabelHash(labelHash);
-    const name = indexableOrUndefined(
-      parent?.name ? `${label}.${parent.name}` : label,
-    );
+    const name =
+      indexableOrUndefined(
+        parent?.name ? `${label}.${parent.name}` : label,
+      ) ?? label;
 
     context.Subgraph_domain.set({
       id: node,

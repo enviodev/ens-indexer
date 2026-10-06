@@ -260,11 +260,14 @@ export async function setNamePreimage(
     hasNullByte(labelName) ? stripNullBytes(labelName) : labelName,
   );
 
-  // Update Domain labelName and name if different
-  if (domain.labelName !== sanitizedLabel) {
-    const name = indexableOrUndefined(
+  // Fall back to the [labelhash] form when the qualified name is too long
+  const name =
+    indexableOrUndefined(
       `${sanitizedLabel ?? encodeLabelHash(labelHash)}.${managedName}`,
-    );
+    ) ?? `${encodeLabelHash(labelHash)}.${managedName}`;
+
+  // Update Domain labelName and name if different
+  if (domain.labelName !== sanitizedLabel || domain.name !== name) {
     context.Subgraph_domain.set({
       ...domain,
       labelName: sanitizedLabel,
