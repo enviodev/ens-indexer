@@ -173,6 +173,40 @@ export async function recordActionStats(
   });
 }
 
+// ─── Referrer Stats ─────────────────────────────────────────────────────────
+
+/**
+ * Bump the referrer leaderboard once per action, when the action first gets a
+ * non-zero decoded referrer.
+ */
+async function recordReferrerStat(
+  context: handlerContext,
+  params: {
+    subregistryId: string;
+    type: "registration" | "renewal";
+    previousReferrer: string | undefined;
+    referrer: string | undefined;
+    cost: bigint;
+  },
+): Promise<void> {
+  if (params.previousReferrer && params.previousReferrer !== zeroAddress) return;
+  if (!params.referrer || params.referrer === zeroAddress) return;
+
+  const id = `${params.subregistryId}:${params.referrer}`;
+  const existing = await context.Referrer_stat.get(id);
+  const regs = params.type === "registration" ? 1 : 0;
+  const renewals = params.type === "renewal" ? 1 : 0;
+  context.Referrer_stat.set({
+    id,
+    subregistryId: params.subregistryId,
+    referrer: params.referrer,
+    actions: (existing?.actions ?? 0) + 1,
+    registrations: (existing?.registrations ?? 0) + regs,
+    renewals: (existing?.renewals ?? 0) + renewals,
+    totalCost: (existing?.totalCost ?? 0n) + params.cost,
+  });
+}
+
 // ─── Registrar Action Creation ──────────────────────────────────────────────
 
 /**
@@ -401,6 +435,14 @@ export async function handleRegistrarControllerEvent(
     eventIds: [...action.eventIds, params.eventId],
   });
 
+  await recordReferrerStat(context, {
+    subregistryId: action.subregistryId,
+    type: action.type,
+    previousReferrer: action.decodedReferrer,
+    referrer: params.decodedReferrer,
+    cost: params.total ?? 0n,
+  });
+
   // Pricing is known only now. Count it once, on the first controller event
   // that carries a total for this action.
   if (action.total === undefined && params.total !== undefined) {
@@ -458,5 +500,12 @@ export async function handleUniversalRenewalEvent(
     encodedReferrer: params.encodedReferrer,
     decodedReferrer: params.decodedReferrer,
     eventIds: [...action.eventIds, params.eventId],
+  });
+  await recordReferrerStat(context, {
+    subregistryId: action.subregistryId,
+    type: action.type,
+    previousReferrer: action.decodedReferrer,
+    referrer: params.decodedReferrer,
+    cost: action.total ?? 0n,
   });
 }

@@ -257,6 +257,7 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       - event: "ABIChanged(bytes32 indexed node, uint256 indexed contentType)"
         field_selection:
           transaction_fields:

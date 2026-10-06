@@ -425,3 +425,16 @@ type namespace_stat {
   renewals: Int!
   totalCost: BigInt!
 }
+
+# Referrer leaderboard, one row per referrer per subregistry. Counted once per
+# registrar action, on the first controller event that carries a non-zero
+# decoded referrer. totalCost sums known totals only (unknown costs are 0).
+type referrer_stat @index(fields: ["subregistryId", "actions"]) {
+  id: ID!                    # "{subregistryId}:{referrer}"
+  subregistryId: String! @index
+  referrer: String! @index   # decoded referrer address (lowercase)
+  actions: Int!              # registrations + renewals
+  registrations: Int!
+  renewals: Int!
+  totalCost: BigInt!
+}
