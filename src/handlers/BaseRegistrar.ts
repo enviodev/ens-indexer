@@ -12,6 +12,8 @@ import {
   tokenIdToLabelHash,
   setNamePreimage,
   ZERO_ADDRESS,
+  setDomain,
+  namespaceForNewDomain,
 } from "../lib/helpers";
 import { zeroAddress } from "viem";
 
@@ -48,7 +50,7 @@ indexer.onEvent(
   // Get or create the domain (preminting support)
   let domain = await context.Subgraph_domain.get(node);
   if (!domain) {
-    domain = {
+    setDomain(context, {
       id: node,
       name: undefined,
       labelName: undefined,
@@ -64,13 +66,15 @@ indexer.onEvent(
       registrant_id: owner,
       wrappedOwner_id: undefined,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
-    };
-    context.Subgraph_domain.set(domain);
+      registrationExpiryDate: expires,
+      namespace: namespaceForNewDomain(node, managedNode, undefined),
+    });
   } else {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       registrant_id: owner,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
+      registrationExpiryDate: expires,
     });
   }
 
@@ -123,7 +127,7 @@ indexer.onEvent(
 
     let domain = await context.Subgraph_domain.get(node);
     if (!domain) {
-      domain = {
+      setDomain(context, {
         id: node,
         name: undefined,
         labelName: undefined,
@@ -139,13 +143,15 @@ indexer.onEvent(
         registrant_id: owner,
         wrappedOwner_id: undefined,
         expiryDate: expires + GRACE_PERIOD_SECONDS,
-      };
-      context.Subgraph_domain.set(domain);
+        registrationExpiryDate: expires,
+        namespace: namespaceForNewDomain(node, managedNode, undefined),
+      });
     } else {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...domain,
         registrant_id: owner,
         expiryDate: expires + GRACE_PERIOD_SECONDS,
+        registrationExpiryDate: expires,
       });
     }
 
@@ -202,9 +208,10 @@ indexer.onEvent(
 
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
+      registrationExpiryDate: expires,
     });
   }
 
@@ -253,7 +260,7 @@ indexer.onEvent(
 
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       registrant_id: to,
     });
@@ -292,6 +299,7 @@ indexer.onEvent(
   // Registrar: update action with pricing (unknown for Basenames controllers)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost: undefined,
@@ -317,6 +325,7 @@ indexer.onEvent(
   // Registrar: update action with pricing (unknown for Basenames controllers)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost: undefined,
@@ -367,6 +376,7 @@ indexer.onEvent(
   // Registrar: update action with pricing (unknown for Basenames controllers)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost: undefined,

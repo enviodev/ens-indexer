@@ -9,6 +9,10 @@ import {
   MANAGED_NODES,
   tokenIdToLabelHash,
   indexableOrUndefined,
+  isInterpretableLabel,
+  namehashFromLabels,
+  decodeDnsEncodedName,
+  setDomain,
 } from "../lib/helpers";
 
 import {
@@ -57,7 +61,7 @@ async function materializeDomainExpiryDate(
   if (isPccFuseSet(wrappedDomain.fuses)) {
     const domain = await context.Subgraph_domain.get(node);
     if (domain) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...domain,
         expiryDate: bigintMax(domain.expiryDate ?? 0n, wrappedDomain.expiryDate),
       });
@@ -73,7 +77,7 @@ async function materializeDomainExpiryDate(
  */
 async function handleTransfer(
   event: {
-    block: { number: number };
+    block: { number: number; timestamp: number };
     logIndex: number;
     transaction: { hash: string };
     chainId: number;
@@ -117,7 +121,7 @@ async function handleTransfer(
   }
 
   // Materialize Domain.wrappedOwner
-  context.Subgraph_domain.set({
+  setDomain(context, {
     ...domain,
     wrappedOwner_id: to,
   });
@@ -208,20 +212,33 @@ indexer.onEvent(
     return;
   }
 
-  // The name param is DNS-encoded bytes as hex string.
-  // For the initial migration, we store the raw hex name or undefined.
-  // A proper implementation would decode DNS-encoded names here.
-  const decodedName: string | undefined = name || undefined;
+  // The name param is the DNS wire-format name as a hex string.
+  const labels = decodeDnsEncodedName(name);
+  // Only trust the name if every label is usable and the decoded labels hash
+  // back to this node (rules out invalid UTF-8 replaced by U+FFFD).
+  const decodedName: string | undefined =
+    labels.length > 0 &&
+    labels.every(isInterpretableLabel) &&
+    namehashFromLabels(labels) === node
+      ? labels.join(".")
+      : undefined;
 
-  // Update Domain labelName and name if not already set
-  // This matches the subgraph behavior: only heal if !domain.labelName && label
+  // Heal labelName and name if not already set. Only when the first label
+  // round-trips to the node and the name fits an index.
   let updatedDomain = { ...domain };
-  if (!domain.labelName && indexableOrUndefined(decodedName)) {
+  const label = labels[0];
+  const healedName = indexableOrUndefined(decodedName);
+  if (
+    !domain.labelName &&
+    label !== undefined &&
+    isInterpretableLabel(label) &&
+    healedName !== undefined &&
+    indexableOrUndefined(label) !== undefined
+  ) {
     updatedDomain = {
       ...updatedDomain,
-      name: decodedName,
-      // labelName would ideally be extracted from DNS decoding;
-      // for now we leave it as-is since we don't decode DNS names
+      name: healedName,
+      labelName: label,
     };
   }
 
@@ -230,7 +247,7 @@ indexer.onEvent(
     ...updatedDomain,
     wrappedOwner_id: owner,
   };
-  context.Subgraph_domain.set(updatedDomain);
+  setDomain(context, updatedDomain);
 
   // Update the WrappedDomain that was created in handleTransfer
   const fusesNum = Number(fuses);
@@ -297,7 +314,7 @@ indexer.onEvent(
   const expiryDate = (domain.parent_id && MANAGED_NODES.has(domain.parent_id)) ? domain.expiryDate : undefined;
 
   // Clear wrappedOwner and conditionally reset expiryDate
-  context.Subgraph_domain.set({
+  setDomain(context, {
     ...domain,
     wrappedOwner_id: undefined,
     expiryDate,

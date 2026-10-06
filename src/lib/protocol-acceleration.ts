@@ -1,4 +1,4 @@
-import { isAddress, isAddressEqual, zeroAddress } from "viem";
+import { isAddress, isAddressEqual, keccak256, toBytes, zeroAddress } from "viem";
 import { normalize } from "viem/ens";
 import type { handlerContext } from "./helpers";
 import { hasNullByte, isIndexable } from "./helpers";
@@ -26,7 +26,8 @@ export function bigintToCoinType(value: bigint): number | null {
  */
 export function evmChainIdToCoinType(chainId: number): number {
   if (chainId === 1) return ETH_COIN_TYPE;
-  return DEFAULT_EVM_COIN_TYPE | chainId;
+  // >>> 0 keeps the result an unsigned 32-bit value (| alone yields a negative int32)
+  return (DEFAULT_EVM_COIN_TYPE | chainId) >>> 0;
 }
 
 // ─── ID Generators ───────────────────────────────────────────────────────────
@@ -319,4 +320,26 @@ export function upsertReverseNameRecord(
       value: interpretedValue,
     });
   }
+}
+
+/**
+ * Recovers the address behind a legacy `addr.reverse` node. The node's label
+ * is keccak256 of the lowercase hex address (no 0x), which cannot be inverted,
+ * so each candidate (the node owner, the transaction sender) is hashed and
+ * accepted only if it reproduces the label. A hash match cannot be a false
+ * positive; contracts that set a name via a relayer are missed.
+ */
+export function addressForReverseLabel(
+  labelHash: string | undefined,
+  candidates: readonly (string | undefined)[],
+): string | null {
+  if (!labelHash) return null;
+  for (const candidate of candidates) {
+    if (!candidate || !isAddress(candidate)) continue;
+    const lower = candidate.toLowerCase();
+    if (keccak256(toBytes(lower.slice(2))) === labelHash.toLowerCase()) {
+      return lower;
+    }
+  }
+  return null;
 }

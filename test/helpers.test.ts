@@ -10,9 +10,14 @@ import {
   hasNullByte,
   stripNullBytes,
   isIndexable,
+  isInterpretableLabel,
+  namehashFromLabels,
+  emptyToUndefined,
   indexableOrUndefined,
   MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
+  setDomain,
+  namespaceForNewDomain,
   tokenIdToLabelHash,
   decodeDnsEncodedName,
   ROOT_NODE,
@@ -198,9 +203,9 @@ describe("encodeLabelHash", () => {
 // ─── sharedEventValues ──────────────────────────────────────────────────────
 
 describe("sharedEventValues", () => {
-  it("extracts id, blockNumber, and transactionID", () => {
+  it("extracts id, blockNumber, transactionID, and timestamp", () => {
     const event = {
-      block: { number: 12345 },
+      block: { number: 12345, timestamp: 1700000000 },
       logIndex: 7,
       transaction: { hash: "0xtxhash" },
     };
@@ -209,6 +214,7 @@ describe("sharedEventValues", () => {
       id: "1-12345-7",
       blockNumber: 12345,
       transactionID: "0xtxhash",
+      timestamp: 1700000000n,
     });
   });
 });
@@ -355,5 +361,114 @@ describe("indexable string guard", () => {
     expect(indexableOrUndefined("a".repeat(23_000))).toBeUndefined();
     expect(indexableOrUndefined(undefined)).toBeUndefined();
     expect(indexableOrUndefined("vitalik")).toBe("vitalik");
+  });
+});
+
+describe("isInterpretableLabel", () => {
+  it("accepts ordinary labels", () => {
+    expect(isInterpretableLabel("vitalik")).toBe(true);
+    expect(isInterpretableLabel("🦊")).toBe(true);
+  });
+
+  it("rejects labels that would not round-trip to the node", () => {
+    expect(isInterpretableLabel("")).toBe(false);
+    expect(isInterpretableLabel("a.b")).toBe(false);
+    expect(isInterpretableLabel("[abc]")).toBe(false);
+    expect(isInterpretableLabel("a\0b")).toBe(false);
+  });
+});
+
+describe("emptyToUndefined", () => {
+  it("maps empty values to undefined", () => {
+    expect(emptyToUndefined("")).toBeUndefined();
+    expect(emptyToUndefined("0x")).toBeUndefined();
+    expect(emptyToUndefined(undefined)).toBeUndefined();
+  });
+
+  it("keeps real values", () => {
+    expect(emptyToUndefined("0xe301")).toBe("0xe301");
+  });
+});
+
+describe("setDomain", () => {
+  const base = {
+    id: "0xnode",
+    name: "foo.eth",
+    labelName: "foo",
+    labelhash: "0xlabel",
+    parent_id: ETH_NODE,
+    subdomainCount: 0,
+    resolvedAddress_id: undefined,
+    resolver_id: undefined,
+    ttl: undefined,
+    isMigrated: true,
+    createdAt: 1n,
+    owner_id: "0xregistryowner",
+    registrant_id: undefined,
+    wrappedOwner_id: undefined,
+    expiryDate: undefined,
+  };
+
+  function capture() {
+    const written: any[] = [];
+    const context = { Subgraph_domain: { set: (d: any) => written.push(d) } };
+    return { context: context as any, written };
+  }
+
+  it("uses the registry owner as effectiveOwner when not wrapped", () => {
+    const { context, written } = capture();
+    setDomain(context, base);
+    expect(written[0].effectiveOwner_id).toBe("0xregistryowner");
+  });
+
+  it("uses the wrapped owner as effectiveOwner when wrapped", () => {
+    const { context, written } = capture();
+    setDomain(context, { ...base, wrappedOwner_id: "0xwrappedowner" });
+    expect(written[0].effectiveOwner_id).toBe("0xwrappedowner");
+  });
+
+  it("recomputes a stale effectiveOwner on unwrap", () => {
+    const { context, written } = capture();
+    setDomain(context, {
+      ...base,
+      effectiveOwner_id: "0xwrappedowner",
+      wrappedOwner_id: undefined,
+    });
+    expect(written[0].effectiveOwner_id).toBe("0xregistryowner");
+  });
+});
+
+describe("namespaceForNewDomain", () => {
+  it("puts the eth TLD in eth", () => {
+    expect(namespaceForNewDomain(ETH_NODE, ROOT_NODE, undefined)).toBe("eth");
+  });
+
+  it("assigns children of managed registrar roots to that registrar", () => {
+    expect(namespaceForNewDomain("0xa", ETH_NODE, "eth")).toBe("eth");
+    expect(namespaceForNewDomain("0xa", BASE_ETH_NODE, "eth")).toBe("base");
+    expect(namespaceForNewDomain("0xa", LINEA_ETH_NODE, "eth")).toBe("linea");
+  });
+
+  it("inherits from the parent otherwise", () => {
+    expect(namespaceForNewDomain("0xa", "0xparent", "base")).toBe("base");
+    expect(namespaceForNewDomain("0xa", "0xparent", undefined)).toBeUndefined();
+  });
+});
+
+describe("namehashFromLabels", () => {
+  it("matches known namehashes", () => {
+    expect(namehashFromLabels(["eth"])).toBe(ETH_NODE);
+    expect(namehashFromLabels(["base", "eth"])).toBe(BASE_ETH_NODE);
+    expect(namehashFromLabels([])).toBe(ROOT_NODE);
+  });
+
+  it("does not reproduce a node from a label with replaced invalid UTF-8", () => {
+    // "a\xff" is invalid UTF-8; decoding yields "a\ufffd", whose hash differs
+    const { keccak256 } = require("viem");
+    const original = makeSubdomainNode(
+      keccak256(new Uint8Array([0x61, 0xff])),
+      ETH_NODE,
+    );
+    expect(namehashFromLabels(["a\ufffd", "eth"])).not.toBe(original);
   });
 });

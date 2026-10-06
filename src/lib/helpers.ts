@@ -1,8 +1,32 @@
-import { keccak256, encodePacked, zeroAddress } from "viem";
+import { keccak256, encodePacked, toBytes, zeroAddress } from "viem";
 import type { EvmOnEventContext, Entity } from "envio";
 
 export type handlerContext = EvmOnEventContext;
 export type Domain = Entity<"Subgraph_domain">;
+
+// Domain with effectiveOwner_id derived by setDomain rather than by each caller
+export type DomainInput = Omit<
+  Domain,
+  "effectiveOwner_id" | "registrationExpiryDate" | "namespace"
+> & {
+  effectiveOwner_id?: string;
+  registrationExpiryDate?: bigint | undefined;
+  namespace?: string | undefined;
+};
+
+/**
+ * Single write path for subgraph_domain. Derives effectiveOwner_id (the
+ * wrapped owner when the name is wrapped, otherwise the registry owner) so no
+ * handler can forget to keep it in sync with owner_id / wrappedOwner_id.
+ */
+export function setDomain(context: handlerContext, domain: DomainInput): void {
+  context.Subgraph_domain.set({
+    ...domain,
+    registrationExpiryDate: domain.registrationExpiryDate,
+    namespace: domain.namespace,
+    effectiveOwner_id: domain.wrappedOwner_id ?? domain.owner_id,
+  });
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -33,6 +57,35 @@ export const MANAGED_NODES = new Set([ETH_NODE, BASE_ETH_NODE, LINEA_ETH_NODE]);
 // ThreeDNS hardcoded protocol-wide resolver (same on Optimism + Base)
 export const THREEDNS_RESOLVER = "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8";
 
+// ─── Namespaces ─────────────────────────────────────────────────────────────
+
+export const NAMESPACE_3DNS = "3dns";
+
+// Namespace comes from the registrar root a name sits under, not the chain
+// it was indexed on: Base registers 3DNS names as well as base.eth names.
+const NAMESPACE_BY_MANAGED_NODE: Record<string, string> = {
+  [ETH_NODE]: "eth",
+  [BASE_ETH_NODE]: "base",
+  [LINEA_ETH_NODE]: "linea",
+};
+
+/**
+ * Namespace for a newly created domain. Children of a managed registrar root
+ * belong to that registrar; the root `eth` node is in "eth"; everything else
+ * inherits from its parent (undefined if the parent has none).
+ */
+export function namespaceForNewDomain(
+  node: string,
+  parentNode: string | undefined,
+  parentNamespace: string | undefined,
+): string | undefined {
+  if (node === ETH_NODE) return "eth";
+  if (parentNode !== undefined && NAMESPACE_BY_MANAGED_NODE[parentNode]) {
+    return NAMESPACE_BY_MANAGED_NODE[parentNode];
+  }
+  return parentNamespace;
+}
+
 // ─── Token / Label Helpers ──────────────────────────────────────────────────
 
 /**
@@ -50,6 +103,19 @@ export function makeSubdomainNode(
   parentNode: string,
 ): string {
   return keccak256(encodePacked(["bytes32", "bytes32"], [parentNode as `0x${string}`, labelHash as `0x${string}`]));
+}
+
+/**
+ * Namehash of a label list (most specific first), computed from each label's
+ * UTF-8 bytes. Used to check that decoded labels reproduce an event's node:
+ * decoding replaces invalid UTF-8 with U+FFFD, which would not hash back.
+ */
+export function namehashFromLabels(labels: readonly string[]): string {
+  let node: string = ROOT_NODE;
+  for (let i = labels.length - 1; i >= 0; i--) {
+    node = makeSubdomainNode(keccak256(toBytes(labels[i]!)), node);
+  }
+  return node;
 }
 
 // ─── ID Generation ──────────────────────────────────────────────────────────
@@ -179,7 +245,7 @@ export async function upsertRegistration(
 export function sharedEventValues(
   chainId: number,
   event: {
-    block: { number: number };
+    block: { number: number; timestamp: number };
     logIndex: number;
     transaction: { hash: string };
   },
@@ -188,6 +254,7 @@ export function sharedEventValues(
     id: makeEventId(chainId, event.block.number, event.logIndex),
     blockNumber: event.block.number,
     transactionID: event.transaction.hash,
+    timestamp: BigInt(event.block.timestamp),
   };
 }
 
@@ -211,7 +278,7 @@ export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
   if (isDomainEmpty(domain) && domain.parent_id !== undefined) {
     const parent = await context.Subgraph_domain.get(domain.parent_id);
     if (parent) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...parent,
         subdomainCount: parent.subdomainCount - 1,
       });
@@ -254,11 +321,11 @@ export async function setNamePreimage(
   const domain = await context.Subgraph_domain.get(node);
   if (!domain) return;
 
-  // Sanitize label: strip null bytes (subgraph compat); labels too long to
-  // index are treated as unknown and keep the [labelhash] form.
-  const sanitizedLabel = indexableOrUndefined(
-    hasNullByte(labelName) ? stripNullBytes(labelName) : labelName,
-  );
+  // Labels that do not round-trip to the node (dots, brackets, null bytes) or
+  // are too long to index are treated as unknown and keep the [labelhash] form.
+  const sanitizedLabel = isInterpretableLabel(labelName)
+    ? indexableOrUndefined(labelName)
+    : undefined;
 
   // Fall back to the [labelhash] form when the qualified name is too long
   const name =
@@ -268,7 +335,7 @@ export async function setNamePreimage(
 
   // Update Domain labelName and name if different
   if (domain.labelName !== sanitizedLabel || domain.name !== name) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       labelName: sanitizedLabel,
       name,
@@ -295,6 +362,19 @@ export function hasNullByte(str: string): boolean {
 
 export function stripNullBytes(str: string): string {
   return str.replace(/\0/g, "");
+}
+
+export function emptyToUndefined(str: string | undefined): string | undefined {
+  return str === undefined || str === "" || str === "0x" ? undefined : str;
+}
+
+/**
+ * A label is only usable as a display name if joining it with "." and hashing
+ * round-trips to its node. Labels with a dot, brackets, a null byte or empty
+ * labels do not, so they are treated as unknown ([labelhash] form).
+ */
+export function isInterpretableLabel(label: string): boolean {
+  return label !== "" && !/[.\[\]\0]/.test(label);
 }
 
 /**
@@ -358,7 +438,7 @@ export async function ensureRootDomain(
   const existingRoot = await context.Subgraph_domain.get(ROOT_NODE);
   if (!existingRoot) {
     upsertAccount(context, ZERO_ADDRESS);
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: ROOT_NODE,
       name: undefined,
       labelName: undefined,

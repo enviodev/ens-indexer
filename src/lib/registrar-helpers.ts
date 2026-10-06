@@ -173,6 +173,40 @@ export async function recordActionStats(
   });
 }
 
+// ─── Referrer Stats ─────────────────────────────────────────────────────────
+
+/**
+ * Bump the referrer leaderboard once per action, when the action first gets a
+ * non-zero decoded referrer.
+ */
+async function recordReferrerStat(
+  context: handlerContext,
+  params: {
+    subregistryId: string;
+    type: "registration" | "renewal";
+    previousReferrer: string | undefined;
+    referrer: string | undefined;
+    cost: bigint;
+  },
+): Promise<void> {
+  if (params.previousReferrer && params.previousReferrer !== zeroAddress) return;
+  if (!params.referrer || params.referrer === zeroAddress) return;
+
+  const id = `${params.subregistryId}:${params.referrer}`;
+  const existing = await context.Referrer_stat.get(id);
+  const regs = params.type === "registration" ? 1 : 0;
+  const renewals = params.type === "renewal" ? 1 : 0;
+  context.Referrer_stat.set({
+    id,
+    subregistryId: params.subregistryId,
+    referrer: params.referrer,
+    actions: (existing?.actions ?? 0) + 1,
+    registrations: (existing?.registrations ?? 0) + regs,
+    renewals: (existing?.renewals ?? 0) + renewals,
+    totalCost: (existing?.totalCost ?? 0n) + params.cost,
+  });
+}
+
 // ─── Registrar Action Creation ──────────────────────────────────────────────
 
 /**
@@ -214,6 +248,7 @@ export async function insertRegistrarAction(
     premium: undefined,
     total: undefined,
     registrant: params.registrant,
+    owner: undefined,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     blockNumber: BigInt(params.blockNumber),
@@ -250,13 +285,23 @@ export async function handleRegistrarRegistration(
     blockNumber: number;
     timestamp: number;
     transactionHash: string;
+    /**
+     * Node recorded on the subregistry when it differs from managedNode, e.g.
+     * 3DNS where one contract manages many TLDs (pass ROOT_NODE).
+     */
+    subregistryNode?: string;
   },
 ): Promise<void> {
   const node = makeSubdomainNode(params.labelHash, params.managedNode);
   const subregistryId = makeSubregistryId(params.chainId, params.contractAddress);
 
   // Upsert subregistry
-  upsertSubregistry(context, params.chainId, params.contractAddress, params.managedNode);
+  upsertSubregistry(
+    context,
+    params.chainId,
+    params.contractAddress,
+    params.subregistryNode ?? params.managedNode,
+  );
 
   // Get or create registration lifecycle
   await getOrCreateRegistrationLifecycle(context, subregistryId, node, params.expiresAt);
@@ -351,6 +396,8 @@ export async function handleRegistrarControllerEvent(
     total: bigint | undefined;
     encodedReferrer: string | undefined;
     decodedReferrer: string | undefined;
+    /** Owner from the controller's NameRegistered params; undefined for renewals. */
+    owner?: string | undefined;
     transactionHash: string;
   },
 ): Promise<void> {
@@ -382,9 +429,18 @@ export async function handleRegistrarControllerEvent(
     baseCost: params.baseCost,
     premium: params.premium,
     total: params.total,
+    owner: params.owner ?? action.owner,
     encodedReferrer: params.encodedReferrer,
     decodedReferrer: params.decodedReferrer,
     eventIds: [...action.eventIds, params.eventId],
+  });
+
+  await recordReferrerStat(context, {
+    subregistryId: action.subregistryId,
+    type: action.type,
+    previousReferrer: action.decodedReferrer,
+    referrer: params.decodedReferrer,
+    cost: params.total ?? 0n,
   });
 
   // Pricing is known only now. Count it once, on the first controller event
@@ -444,5 +500,12 @@ export async function handleUniversalRenewalEvent(
     encodedReferrer: params.encodedReferrer,
     decodedReferrer: params.decodedReferrer,
     eventIds: [...action.eventIds, params.eventId],
+  });
+  await recordReferrerStat(context, {
+    subregistryId: action.subregistryId,
+    type: action.type,
+    previousReferrer: action.decodedReferrer,
+    referrer: params.decodedReferrer,
+    cost: action.total ?? 0n,
   });
 }

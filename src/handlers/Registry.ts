@@ -8,6 +8,7 @@ import {
   ETH_NODE,
   encodeLabelHash,
   indexableOrUndefined,
+  namespaceForNewDomain,
   upsertAccount,
   makeResolverId,
   upsertResolver,
@@ -15,6 +16,7 @@ import {
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
   makeEventId,
   ensureRootDomain,
+  setDomain,
 } from "../lib/helpers";
 
 import {
@@ -90,7 +92,7 @@ async function handleNewOwner(
     }
 
     // Update owner and migration status
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       owner_id: owner,
       isMigrated,
@@ -108,7 +110,7 @@ async function handleNewOwner(
         parent?.name ? `${label}.${parent.name}` : label,
       ) ?? label;
 
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: node,
       name,
       labelName: undefined,
@@ -124,11 +126,12 @@ async function handleNewOwner(
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
+      namespace: namespaceForNewDomain(node, parentNode, parent?.namespace),
     });
 
     // Increment parent's subdomain count
     if (parent) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...parent,
         subdomainCount: parent.subdomainCount + 1,
       });
@@ -195,13 +198,13 @@ async function handleTransfer(
   // Ensure domain exists and update owner
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       owner_id: owner,
     });
   } else {
     // Domain not yet seen -- create a minimal record
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: node,
       name: undefined,
       labelName: undefined,
@@ -276,7 +279,7 @@ async function handleNewResolver(
   if (isZeroResolver) {
     // Clear the domain's resolver and resolved address references
     if (domain) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...domain,
         resolver_id: undefined,
         resolvedAddress_id: undefined,
@@ -295,7 +298,7 @@ async function handleNewResolver(
 
     // Update domain to point to the new resolver
     if (domain) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...domain,
         resolver_id: resolverId,
         resolvedAddress_id: resolver.addr_id,
@@ -365,7 +368,7 @@ async function handleNewTTL(
   // Update the domain's TTL
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       ttl,
     });
