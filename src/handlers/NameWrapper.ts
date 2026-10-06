@@ -8,6 +8,7 @@ import {
   bigintMax,
   MANAGED_NODES,
   tokenIdToLabelHash,
+  indexableOrUndefined,
 } from "../lib/helpers";
 
 import {
@@ -215,7 +216,7 @@ indexer.onEvent(
   // Update Domain labelName and name if not already set
   // This matches the subgraph behavior: only heal if !domain.labelName && label
   let updatedDomain = { ...domain };
-  if (!domain.labelName && decodedName) {
+  if (!domain.labelName && indexableOrUndefined(decodedName)) {
     updatedDomain = {
       ...updatedDomain,
       name: decodedName,
