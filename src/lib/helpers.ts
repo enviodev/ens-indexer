@@ -179,7 +179,7 @@ export async function upsertRegistration(
 export function sharedEventValues(
   chainId: number,
   event: {
-    block: { number: number };
+    block: { number: number; timestamp: number };
     logIndex: number;
     transaction: { hash: string };
   },
@@ -188,6 +188,7 @@ export function sharedEventValues(
     id: makeEventId(chainId, event.block.number, event.logIndex),
     blockNumber: event.block.number,
     transactionID: event.transaction.hash,
+    timestamp: BigInt(event.block.timestamp),
   };
 }
 

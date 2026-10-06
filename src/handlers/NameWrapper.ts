@@ -75,7 +75,7 @@ async function materializeDomainExpiryDate(
  */
 async function handleTransfer(
   event: {
-    block: { number: number };
+    block: { number: number; timestamp: number };
     logIndex: number;
     transaction: { hash: string };
     chainId: number;

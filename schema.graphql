@@ -68,6 +68,7 @@ type subgraph_transfer @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   owner: subgraph_account!
 }
@@ -76,6 +77,7 @@ type subgraph_new_owner @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   owner: subgraph_account!
   parentDomain: subgraph_domain!
@@ -85,6 +87,7 @@ type subgraph_new_resolver @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   resolver_id: String!
 }
@@ -93,6 +96,7 @@ type subgraph_new_ttl @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   ttl: BigInt!
 }
@@ -101,6 +105,7 @@ type subgraph_wrapped_transfer @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   owner: subgraph_account!
 }
@@ -109,6 +114,7 @@ type subgraph_name_wrapped @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   name: String
   fuses: Int!
@@ -120,6 +126,7 @@ type subgraph_name_unwrapped @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   owner: subgraph_account!
 }
@@ -128,6 +135,7 @@ type subgraph_fuses_set @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   fuses: Int!
 }
@@ -136,6 +144,7 @@ type subgraph_expiry_extended @index(fields: ["domain", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   domain: subgraph_domain! @index
   expiryDate: BigInt!
 }
@@ -146,6 +155,7 @@ type subgraph_name_registered @index(fields: ["registration", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   registration: subgraph_registration! @index
   registrant: subgraph_account!
   expiryDate: BigInt!
@@ -155,6 +165,7 @@ type subgraph_name_renewed @index(fields: ["registration", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   registration: subgraph_registration! @index
   expiryDate: BigInt!
 }
@@ -163,6 +174,7 @@ type subgraph_name_transferred @index(fields: ["registration", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   registration: subgraph_registration! @index
   newOwner: subgraph_account!
 }
@@ -173,6 +185,7 @@ type subgraph_addr_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   addr: subgraph_account!
 }
@@ -181,6 +194,7 @@ type subgraph_multicoin_addr_changed @index(fields: ["resolver", "blockNumber"])
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   coinType: BigInt!
   addr: String!
@@ -190,6 +204,7 @@ type subgraph_name_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   name: String!
 }
@@ -198,6 +213,7 @@ type subgraph_abi_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   contentType: BigInt!
 }
@@ -206,6 +222,7 @@ type subgraph_pubkey_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   x: String!
   y: String!
@@ -215,6 +232,7 @@ type subgraph_text_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   key: String!
   value: String
@@ -224,6 +242,7 @@ type subgraph_contenthash_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   hash: String!
 }
@@ -232,6 +251,7 @@ type subgraph_interface_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   interfaceID: String!
   implementer: String!
@@ -241,6 +261,7 @@ type subgraph_authorisation_changed @index(fields: ["resolver", "blockNumber"]) 
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   owner: String!
   target: String!
@@ -251,6 +272,7 @@ type subgraph_version_changed @index(fields: ["resolver", "blockNumber"]) {
   id: ID!
   blockNumber: Int!
   transactionID: String!
+  timestamp: BigInt! @index
   resolver: subgraph_resolver! @index
   version: BigInt!
 }

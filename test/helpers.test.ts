@@ -200,9 +200,9 @@ describe("encodeLabelHash", () => {
 // ─── sharedEventValues ──────────────────────────────────────────────────────
 
 describe("sharedEventValues", () => {
-  it("extracts id, blockNumber, and transactionID", () => {
+  it("extracts id, blockNumber, transactionID, and timestamp", () => {
     const event = {
-      block: { number: 12345 },
+      block: { number: 12345, timestamp: 1700000000 },
       logIndex: 7,
       transaction: { hash: "0xtxhash" },
     };
@@ -211,6 +211,7 @@ describe("sharedEventValues", () => {
       id: "1-12345-7",
       blockNumber: 12345,
       transactionID: "0xtxhash",
+      timestamp: 1700000000n,
     });
   });
 });
