@@ -10,6 +10,8 @@ import {
   stripNullBytes,
   decodeDnsEncodedName,
   emptyToUndefined,
+  ADDR_REVERSE_NODE,
+  setDomain,
 } from "../lib/helpers";
 
 import {
@@ -20,6 +22,8 @@ import {
   handlePAAddressRecordUpdate,
   handlePATextRecordUpdate,
   handlePANameUpdate,
+  addressForReverseLabel,
+  upsertReverseNameRecord,
   interpretTextRecordKey,
   interpretTextRecordValue,
 } from "../lib/protocol-acceleration";
@@ -56,7 +60,7 @@ indexer.onEvent(
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
   const domain = await context.Subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       resolvedAddress_id: a,
     });
@@ -148,6 +152,21 @@ indexer.onEvent(
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   await handlePANameUpdate(context, event.chainId, event.srcAddress, node, name);
+
+  // Legacy primary names: a NameChanged on an `<address>.addr.reverse` node is
+  // the address's coin type 60 reverse record (H-04). Mainnet only.
+  if (event.chainId === 1) {
+    const reverseDomain = await context.Subgraph_domain.get(node);
+    if (reverseDomain?.parent_id === ADDR_REVERSE_NODE) {
+      const address = addressForReverseLabel(reverseDomain.labelhash, [
+        reverseDomain.owner_id,
+        event.transaction.from,
+      ]);
+      if (address !== null) {
+        upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
+      }
+    }
+  }
   },
 );
 
@@ -347,7 +366,7 @@ indexer.onEvent(
   // materialize Domain.resolvedAddress_id to undefined if Domain.resolver_id matches
   const domain = await context.Subgraph_domain.get(node);
   if (domain && domain.resolver_id === resolverId) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       resolvedAddress_id: undefined,
     });

@@ -12,6 +12,8 @@ import {
   tokenIdToLabelHash,
   setNamePreimage,
   ZERO_ADDRESS,
+  setDomain,
+  namespaceForNewDomain,
 } from "../lib/helpers";
 import { zeroAddress } from "viem";
 
@@ -54,7 +56,7 @@ indexer.onEvent(
   if (!domain) {
     // Handle preminted names edge case: if domain doesn't exist yet,
     // create it (normally Registry.NewOwner creates it first)
-    domain = {
+    setDomain(context, {
       id: node,
       name: undefined,
       labelName: undefined,
@@ -70,14 +72,16 @@ indexer.onEvent(
       registrant_id: owner,
       wrappedOwner_id: undefined,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
-    };
-    context.Subgraph_domain.set(domain);
+      registrationExpiryDate: expires,
+      namespace: namespaceForNewDomain(node, managedNode, undefined),
+    });
   } else {
     // Update existing domain with registrant and expiry
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       registrant_id: owner,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
+      registrationExpiryDate: expires,
     });
   }
 
@@ -138,9 +142,10 @@ indexer.onEvent(
   // Update Domain expiryDate (includes grace period)
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
+      registrationExpiryDate: expires,
     });
   }
 
@@ -195,7 +200,7 @@ indexer.onEvent(
   // Update Domain registrant
   const domain = await context.Subgraph_domain.get(node);
   if (domain) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       registrant_id: to,
     });
@@ -238,6 +243,7 @@ indexer.onEvent(
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost: cost,
@@ -299,6 +305,7 @@ indexer.onEvent(
   // Registrar: update action with pricing
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost,
@@ -363,6 +370,7 @@ indexer.onEvent(
   const decodedReferrer = decodeEncodedReferrer(encodedReferrer);
 
   await handleRegistrarControllerEvent(context, {
+    owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
     baseCost,
