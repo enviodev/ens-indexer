@@ -214,6 +214,7 @@ export async function insertRegistrarAction(
     premium: undefined,
     total: undefined,
     registrant: params.registrant,
+    owner: undefined,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     blockNumber: BigInt(params.blockNumber),
@@ -351,6 +352,8 @@ export async function handleRegistrarControllerEvent(
     total: bigint | undefined;
     encodedReferrer: string | undefined;
     decodedReferrer: string | undefined;
+    /** Owner from the controller's NameRegistered params; undefined for renewals. */
+    owner?: string | undefined;
     transactionHash: string;
   },
 ): Promise<void> {
@@ -382,6 +385,7 @@ export async function handleRegistrarControllerEvent(
     baseCost: params.baseCost,
     premium: params.premium,
     total: params.total,
+    owner: params.owner ?? action.owner,
     encodedReferrer: params.encodedReferrer,
     decodedReferrer: params.decodedReferrer,
     eventIds: [...action.eventIds, params.eventId],

@@ -4,6 +4,28 @@ import type { EvmOnEventContext, Entity } from "envio";
 export type handlerContext = EvmOnEventContext;
 export type Domain = Entity<"Subgraph_domain">;
 
+// Domain with effectiveOwner_id derived by setDomain rather than by each caller
+export type DomainInput = Omit<
+  Domain,
+  "effectiveOwner_id" | "registrationExpiryDate"
+> & {
+  effectiveOwner_id?: string;
+  registrationExpiryDate?: bigint | undefined;
+};
+
+/**
+ * Single write path for subgraph_domain. Derives effectiveOwner_id (the
+ * wrapped owner when the name is wrapped, otherwise the registry owner) so no
+ * handler can forget to keep it in sync with owner_id / wrappedOwner_id.
+ */
+export function setDomain(context: handlerContext, domain: DomainInput): void {
+  context.Subgraph_domain.set({
+    ...domain,
+    registrationExpiryDate: domain.registrationExpiryDate,
+    effectiveOwner_id: domain.wrappedOwner_id ?? domain.owner_id,
+  });
+}
+
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 export const ROOT_NODE =
@@ -212,7 +234,7 @@ export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
   if (isDomainEmpty(domain) && domain.parent_id !== undefined) {
     const parent = await context.Subgraph_domain.get(domain.parent_id);
     if (parent) {
-      context.Subgraph_domain.set({
+      setDomain(context, {
         ...parent,
         subdomainCount: parent.subdomainCount - 1,
       });
@@ -269,7 +291,7 @@ export async function setNamePreimage(
 
   // Update Domain labelName and name if different
   if (domain.labelName !== sanitizedLabel || domain.name !== name) {
-    context.Subgraph_domain.set({
+    setDomain(context, {
       ...domain,
       labelName: sanitizedLabel,
       name,
@@ -372,7 +394,7 @@ export async function ensureRootDomain(
   const existingRoot = await context.Subgraph_domain.get(ROOT_NODE);
   if (!existingRoot) {
     upsertAccount(context, ZERO_ADDRESS);
-    context.Subgraph_domain.set({
+    setDomain(context, {
       id: ROOT_NODE,
       name: undefined,
       labelName: undefined,

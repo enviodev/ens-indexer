@@ -15,6 +15,7 @@ import {
   indexableOrUndefined,
   MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
+  setDomain,
   tokenIdToLabelHash,
   decodeDnsEncodedName,
   ROOT_NODE,
@@ -384,5 +385,53 @@ describe("emptyToUndefined", () => {
 
   it("keeps real values", () => {
     expect(emptyToUndefined("0xe301")).toBe("0xe301");
+  });
+});
+
+describe("setDomain", () => {
+  const base = {
+    id: "0xnode",
+    name: "foo.eth",
+    labelName: "foo",
+    labelhash: "0xlabel",
+    parent_id: ETH_NODE,
+    subdomainCount: 0,
+    resolvedAddress_id: undefined,
+    resolver_id: undefined,
+    ttl: undefined,
+    isMigrated: true,
+    createdAt: 1n,
+    owner_id: "0xregistryowner",
+    registrant_id: undefined,
+    wrappedOwner_id: undefined,
+    expiryDate: undefined,
+  };
+
+  function capture() {
+    const written: any[] = [];
+    const context = { Subgraph_domain: { set: (d: any) => written.push(d) } };
+    return { context: context as any, written };
+  }
+
+  it("uses the registry owner as effectiveOwner when not wrapped", () => {
+    const { context, written } = capture();
+    setDomain(context, base);
+    expect(written[0].effectiveOwner_id).toBe("0xregistryowner");
+  });
+
+  it("uses the wrapped owner as effectiveOwner when wrapped", () => {
+    const { context, written } = capture();
+    setDomain(context, { ...base, wrappedOwner_id: "0xwrappedowner" });
+    expect(written[0].effectiveOwner_id).toBe("0xwrappedowner");
+  });
+
+  it("recomputes a stale effectiveOwner on unwrap", () => {
+    const { context, written } = capture();
+    setDomain(context, {
+      ...base,
+      effectiveOwner_id: "0xwrappedowner",
+      wrappedOwner_id: undefined,
+    });
+    expect(written[0].effectiveOwner_id).toBe("0xregistryowner");
   });
 });
