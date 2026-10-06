@@ -8,6 +8,7 @@ import {
   ETH_NODE,
   encodeLabelHash,
   indexableOrUndefined,
+  namespaceForNewDomain,
   upsertAccount,
   makeResolverId,
   upsertResolver,
@@ -125,6 +126,7 @@ async function handleNewOwner(
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
+      namespace: namespaceForNewDomain(node, parentNode, parent?.namespace),
     });
 
     // Increment parent's subdomain count

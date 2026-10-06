@@ -24,6 +24,7 @@ type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["re
   expiryDate: BigInt @index      # registration expiry + 90 day grace for names under eth, base.eth, linea.eth
   registrationExpiryDate: BigInt # exact registration expiry (no grace); only set for registrar names
   effectiveOwner: subgraph_account! @index  # wrappedOwner when wrapped, else owner
+  namespace: String @index       # "eth" | "base" | "linea" | "3dns"; from the registrar root, not the chain. Null for other nodes (reverse, DNS imports)
   subdomains: [subgraph_domain!]! @derivedFrom(field: "parent")
 }
 

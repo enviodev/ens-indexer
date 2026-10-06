@@ -21,7 +21,13 @@ import {
   indexableOrUndefined,
   isInterpretableLabel,
   setDomain,
+  NAMESPACE_3DNS,
+  makeEventId,
 } from "../lib/helpers";
+import {
+  handleRegistrarRegistration,
+  handleRegistrarRenewal,
+} from "../lib/registrar-helpers";
 
 import { upsertDomainResolverRelation } from "../lib/protocol-acceleration";
 
@@ -105,6 +111,7 @@ indexer.onEvent(
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
+      namespace: NAMESPACE_3DNS,
     });
 
     // Increment parent's subdomain count
@@ -231,6 +238,7 @@ indexer.onEvent(
       registrant_id: registrant,
       wrappedOwner_id: undefined,
       expiryDate: expiry,
+      namespace: NAMESPACE_3DNS,
     });
   }
 
@@ -252,6 +260,24 @@ indexer.onEvent(
     registrant_id: registrant,
     expiryDate: expiry,
   });
+
+  // Registrar: track the registration action. 3DNS prices are not on chain
+  // events, so no cost is recorded.
+  if (labelHash !== undefined && makeSubdomainNode(labelHash, parentNode) === node) {
+    await handleRegistrarRegistration(context, {
+      eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+      chainId: event.chainId,
+      contractAddress: event.srcAddress,
+      managedNode: parentNode,
+      subregistryNode: ROOT_NODE,
+      labelHash,
+      registrant,
+      expiresAt: expiry,
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    });
+  }
   },
 );
 
@@ -288,6 +314,23 @@ indexer.onEvent(
     registration_id: registrationId,
     expiryDate: newExpiry,
   });
+
+  // Registrar: track the renewal action (skipped when the domain's label or
+  // parent is unknown)
+  if (domain?.labelhash && domain.parent_id) {
+    await handleRegistrarRenewal(context, {
+      eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
+      chainId: event.chainId,
+      contractAddress: event.srcAddress,
+      managedNode: domain.parent_id,
+      labelHash: domain.labelhash,
+      registrant: event.transaction.from ?? ZERO_ADDRESS,
+      expiresAt: newExpiry,
+      blockNumber: event.block.number,
+      timestamp: event.block.timestamp,
+      transactionHash: event.transaction.hash,
+    });
+  }
   },
 );
 

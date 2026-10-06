@@ -13,6 +13,7 @@ import {
   setNamePreimage,
   ZERO_ADDRESS,
   setDomain,
+  namespaceForNewDomain,
 } from "../lib/helpers";
 import { zeroAddress } from "viem";
 
@@ -66,6 +67,7 @@ indexer.onEvent(
       wrappedOwner_id: undefined,
       expiryDate: expires + GRACE_PERIOD_SECONDS,
       registrationExpiryDate: expires,
+      namespace: namespaceForNewDomain(node, managedNode, undefined),
     });
   } else {
     setDomain(context, {
@@ -142,6 +144,7 @@ indexer.onEvent(
         wrappedOwner_id: undefined,
         expiryDate: expires + GRACE_PERIOD_SECONDS,
         registrationExpiryDate: expires,
+        namespace: namespaceForNewDomain(node, managedNode, undefined),
       });
     } else {
       setDomain(context, {

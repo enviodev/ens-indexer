@@ -7,10 +7,11 @@ export type Domain = Entity<"Subgraph_domain">;
 // Domain with effectiveOwner_id derived by setDomain rather than by each caller
 export type DomainInput = Omit<
   Domain,
-  "effectiveOwner_id" | "registrationExpiryDate"
+  "effectiveOwner_id" | "registrationExpiryDate" | "namespace"
 > & {
   effectiveOwner_id?: string;
   registrationExpiryDate?: bigint | undefined;
+  namespace?: string | undefined;
 };
 
 /**
@@ -22,6 +23,7 @@ export function setDomain(context: handlerContext, domain: DomainInput): void {
   context.Subgraph_domain.set({
     ...domain,
     registrationExpiryDate: domain.registrationExpiryDate,
+    namespace: domain.namespace,
     effectiveOwner_id: domain.wrappedOwner_id ?? domain.owner_id,
   });
 }
@@ -54,6 +56,35 @@ export const MANAGED_NODES = new Set([ETH_NODE, BASE_ETH_NODE, LINEA_ETH_NODE]);
 
 // ThreeDNS hardcoded protocol-wide resolver (same on Optimism + Base)
 export const THREEDNS_RESOLVER = "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8";
+
+// ─── Namespaces ─────────────────────────────────────────────────────────────
+
+export const NAMESPACE_3DNS = "3dns";
+
+// Namespace comes from the registrar root a name sits under, not the chain
+// it was indexed on: Base registers 3DNS names as well as base.eth names.
+const NAMESPACE_BY_MANAGED_NODE: Record<string, string> = {
+  [ETH_NODE]: "eth",
+  [BASE_ETH_NODE]: "base",
+  [LINEA_ETH_NODE]: "linea",
+};
+
+/**
+ * Namespace for a newly created domain. Children of a managed registrar root
+ * belong to that registrar; the root `eth` node is in "eth"; everything else
+ * inherits from its parent (undefined if the parent has none).
+ */
+export function namespaceForNewDomain(
+  node: string,
+  parentNode: string | undefined,
+  parentNamespace: string | undefined,
+): string | undefined {
+  if (node === ETH_NODE) return "eth";
+  if (parentNode !== undefined && NAMESPACE_BY_MANAGED_NODE[parentNode]) {
+    return NAMESPACE_BY_MANAGED_NODE[parentNode];
+  }
+  return parentNamespace;
+}
 
 // ─── Token / Label Helpers ──────────────────────────────────────────────────
 

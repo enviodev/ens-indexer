@@ -16,6 +16,7 @@ import {
   MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
   setDomain,
+  namespaceForNewDomain,
   tokenIdToLabelHash,
   decodeDnsEncodedName,
   ROOT_NODE,
@@ -433,5 +434,22 @@ describe("setDomain", () => {
       wrappedOwner_id: undefined,
     });
     expect(written[0].effectiveOwner_id).toBe("0xregistryowner");
+  });
+});
+
+describe("namespaceForNewDomain", () => {
+  it("puts the eth TLD in eth", () => {
+    expect(namespaceForNewDomain(ETH_NODE, ROOT_NODE, undefined)).toBe("eth");
+  });
+
+  it("assigns children of managed registrar roots to that registrar", () => {
+    expect(namespaceForNewDomain("0xa", ETH_NODE, "eth")).toBe("eth");
+    expect(namespaceForNewDomain("0xa", BASE_ETH_NODE, "eth")).toBe("base");
+    expect(namespaceForNewDomain("0xa", LINEA_ETH_NODE, "eth")).toBe("linea");
+  });
+
+  it("inherits from the parent otherwise", () => {
+    expect(namespaceForNewDomain("0xa", "0xparent", "base")).toBe("base");
+    expect(namespaceForNewDomain("0xa", "0xparent", undefined)).toBeUndefined();
   });
 });

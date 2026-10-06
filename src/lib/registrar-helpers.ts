@@ -251,13 +251,23 @@ export async function handleRegistrarRegistration(
     blockNumber: number;
     timestamp: number;
     transactionHash: string;
+    /**
+     * Node recorded on the subregistry when it differs from managedNode, e.g.
+     * 3DNS where one contract manages many TLDs (pass ROOT_NODE).
+     */
+    subregistryNode?: string;
   },
 ): Promise<void> {
   const node = makeSubdomainNode(params.labelHash, params.managedNode);
   const subregistryId = makeSubregistryId(params.chainId, params.contractAddress);
 
   // Upsert subregistry
-  upsertSubregistry(context, params.chainId, params.contractAddress, params.managedNode);
+  upsertSubregistry(
+    context,
+    params.chainId,
+    params.contractAddress,
+    params.subregistryNode ?? params.managedNode,
+  );
 
   // Get or create registration lifecycle
   await getOrCreateRegistrationLifecycle(context, subregistryId, node, params.expiresAt);

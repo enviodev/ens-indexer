@@ -231,6 +231,7 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       # ─── ERC1155 Transfer events (for TokenScope plugin) ──────────────────────
       - event: "TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
         field_selection:
