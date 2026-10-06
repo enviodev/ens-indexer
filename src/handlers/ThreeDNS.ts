@@ -20,6 +20,7 @@ import {
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
   indexableOrUndefined,
   isInterpretableLabel,
+  namehashFromLabels,
   setDomain,
   NAMESPACE_3DNS,
   makeEventId,
@@ -198,7 +199,17 @@ indexer.onEvent(
   let labelName: string | undefined;
   let fullName: string | undefined;
 
-  if (rawLabel) {
+  // Only trust the decoded labels if they hash back to the event's node
+  // (3DNS nodes are standard ENS namehashes). Invalid UTF-8 is replaced by
+  // U+FFFD on decoding and would otherwise store a name that does not match.
+  const labelsMatchNode = namehashFromLabels(labels) === node;
+  if (rawLabel && !labelsMatchNode) {
+    context.log.warn(
+      `ThreeDNS:RegistrationCreated labels do not hash to node '${node}'; name not set.`,
+    );
+  }
+
+  if (rawLabel && labelsMatchNode) {
     labelHash = keccak256(encodePacked(["string"], [rawLabel]));
     labelName = isInterpretableLabel(rawLabel)
       ? indexableOrUndefined(rawLabel)
