@@ -11,6 +11,7 @@ import {
   stripNullBytes,
   isIndexable,
   isInterpretableLabel,
+  namehashFromLabels,
   emptyToUndefined,
   indexableOrUndefined,
   MAX_INDEXED_STRING_BYTES,
@@ -451,5 +452,23 @@ describe("namespaceForNewDomain", () => {
   it("inherits from the parent otherwise", () => {
     expect(namespaceForNewDomain("0xa", "0xparent", "base")).toBe("base");
     expect(namespaceForNewDomain("0xa", "0xparent", undefined)).toBeUndefined();
+  });
+});
+
+describe("namehashFromLabels", () => {
+  it("matches known namehashes", () => {
+    expect(namehashFromLabels(["eth"])).toBe(ETH_NODE);
+    expect(namehashFromLabels(["base", "eth"])).toBe(BASE_ETH_NODE);
+    expect(namehashFromLabels([])).toBe(ROOT_NODE);
+  });
+
+  it("does not reproduce a node from a label with replaced invalid UTF-8", () => {
+    // "a\xff" is invalid UTF-8; decoding yields "a\ufffd", whose hash differs
+    const { keccak256 } = require("viem");
+    const original = makeSubdomainNode(
+      keccak256(new Uint8Array([0x61, 0xff])),
+      ETH_NODE,
+    );
+    expect(namehashFromLabels(["a\ufffd", "eth"])).not.toBe(original);
   });
 });

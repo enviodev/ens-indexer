@@ -10,6 +10,7 @@ import {
   tokenIdToLabelHash,
   indexableOrUndefined,
   isInterpretableLabel,
+  namehashFromLabels,
   decodeDnsEncodedName,
   setDomain,
 } from "../lib/helpers";
@@ -213,9 +214,12 @@ indexer.onEvent(
 
   // The name param is the DNS wire-format name as a hex string.
   const labels = decodeDnsEncodedName(name);
-  // Only trust the name if every label round-trips to the node.
+  // Only trust the name if every label is usable and the decoded labels hash
+  // back to this node (rules out invalid UTF-8 replaced by U+FFFD).
   const decodedName: string | undefined =
-    labels.length > 0 && labels.every(isInterpretableLabel)
+    labels.length > 0 &&
+    labels.every(isInterpretableLabel) &&
+    namehashFromLabels(labels) === node
       ? labels.join(".")
       : undefined;
 

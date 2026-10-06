@@ -1,4 +1,4 @@
-import { keccak256, encodePacked, zeroAddress } from "viem";
+import { keccak256, encodePacked, toBytes, zeroAddress } from "viem";
 import type { EvmOnEventContext, Entity } from "envio";
 
 export type handlerContext = EvmOnEventContext;
@@ -103,6 +103,19 @@ export function makeSubdomainNode(
   parentNode: string,
 ): string {
   return keccak256(encodePacked(["bytes32", "bytes32"], [parentNode as `0x${string}`, labelHash as `0x${string}`]));
+}
+
+/**
+ * Namehash of a label list (most specific first), computed from each label's
+ * UTF-8 bytes. Used to check that decoded labels reproduce an event's node:
+ * decoding replaces invalid UTF-8 with U+FFFD, which would not hash back.
+ */
+export function namehashFromLabels(labels: readonly string[]): string {
+  let node: string = ROOT_NODE;
+  for (let i = labels.length - 1; i >= 0; i--) {
+    node = makeSubdomainNode(keccak256(toBytes(labels[i]!)), node);
+  }
+  return node;
 }
 
 // ─── ID Generation ──────────────────────────────────────────────────────────
