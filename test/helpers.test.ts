@@ -9,6 +9,9 @@ import {
   uniq,
   hasNullByte,
   stripNullBytes,
+  isIndexable,
+  indexableOrUndefined,
+  MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
   tokenIdToLabelHash,
   decodeDnsEncodedName,
@@ -332,5 +335,25 @@ describe("decodeDnsEncodedName", () => {
     // "example.com" → \x07example\x03com\x00
     const hex = "0x" + "07" + "6578616d706c65" + "03" + "636f6d" + "00";
     expect(decodeDnsEncodedName(hex)).toEqual(["example", "com"]);
+  });
+});
+
+describe("indexable string guard", () => {
+  it("accepts strings at the limit", () => {
+    expect(isIndexable("a".repeat(MAX_INDEXED_STRING_BYTES))).toBe(true);
+  });
+
+  it("rejects strings over the limit", () => {
+    expect(isIndexable("a".repeat(MAX_INDEXED_STRING_BYTES + 1))).toBe(false);
+  });
+
+  it("measures bytes, not characters", () => {
+    expect(isIndexable("é".repeat(MAX_INDEXED_STRING_BYTES / 2 + 1))).toBe(false);
+  });
+
+  it("returns undefined for oversized or undefined input", () => {
+    expect(indexableOrUndefined("a".repeat(23_000))).toBeUndefined();
+    expect(indexableOrUndefined(undefined)).toBeUndefined();
+    expect(indexableOrUndefined("vitalik")).toBe("vitalik");
   });
 });

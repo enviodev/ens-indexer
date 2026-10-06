@@ -19,6 +19,7 @@ import {
   ensureRootDomain,
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
   hasNullByte,
+  indexableOrUndefined,
   stripNullBytes,
 } from "../lib/helpers";
 
@@ -83,7 +84,9 @@ indexer.onEvent(
     // Create new domain
     const parent = await context.Subgraph_domain.get(parentNode);
     const label = encodeLabelHash(labelHash);
-    const name = parent?.name ? `${label}.${parent.name}` : label;
+    const name = indexableOrUndefined(
+      parent?.name ? `${label}.${parent.name}` : label,
+    );
 
     context.Subgraph_domain.set({
       id: node,
@@ -189,8 +192,10 @@ indexer.onEvent(
 
   if (rawLabel) {
     labelHash = keccak256(encodePacked(["string"], [rawLabel]));
-    labelName = hasNullByte(rawLabel) ? stripNullBytes(rawLabel) : rawLabel;
-    fullName = labels.join(".");
+    labelName = indexableOrUndefined(
+      hasNullByte(rawLabel) ? stripNullBytes(rawLabel) : rawLabel,
+    );
+    fullName = indexableOrUndefined(labels.join("."));
   }
 
   // Update domain with registration info

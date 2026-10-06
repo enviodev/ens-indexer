@@ -1,7 +1,7 @@
 import { isAddress, isAddressEqual, zeroAddress } from "viem";
 import { normalize } from "viem/ens";
 import type { handlerContext } from "./helpers";
-import { hasNullByte } from "./helpers";
+import { hasNullByte, isIndexable } from "./helpers";
 
 // ─── Coin Type Constants ─────────────────────────────────────────────────────
 
@@ -84,6 +84,8 @@ export function makeReverseNameRecordId(
  */
 export function interpretNameRecordValue(value: string): string | null {
   if (value === "") return null;
+  // reverse_name_record.value is btree-indexed; skip values too long to index
+  if (!isIndexable(value)) return null;
 
   try {
     if (normalize(value) !== value) return null;

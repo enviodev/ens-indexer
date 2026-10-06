@@ -254,14 +254,17 @@ export async function setNamePreimage(
   const domain = await context.Subgraph_domain.get(node);
   if (!domain) return;
 
-  // Sanitize label: skip if it contains null bytes (subgraph compat)
-  const sanitizedLabel = hasNullByte(labelName)
-    ? stripNullBytes(labelName)
-    : labelName;
+  // Sanitize label: strip null bytes (subgraph compat); labels too long to
+  // index are treated as unknown and keep the [labelhash] form.
+  const sanitizedLabel = indexableOrUndefined(
+    hasNullByte(labelName) ? stripNullBytes(labelName) : labelName,
+  );
 
   // Update Domain labelName and name if different
   if (domain.labelName !== sanitizedLabel) {
-    const name = `${sanitizedLabel}.${managedName}`;
+    const name = indexableOrUndefined(
+      `${sanitizedLabel ?? encodeLabelHash(labelHash)}.${managedName}`,
+    );
     context.Subgraph_domain.set({
       ...domain,
       labelName: sanitizedLabel,
@@ -289,6 +292,28 @@ export function hasNullByte(str: string): boolean {
 
 export function stripNullBytes(str: string): string {
   return str.replace(/\0/g, "");
+}
+
+/**
+ * Postgres btree rows are capped at ~2.7 KB after compression, so any
+ * user-controlled String column with @index (domain.name, domain.labelName,
+ * registration.labelName, reverse_name_record.value) must stay well below it.
+ * ENS does not bound label length on-chain, so spam registrations can exceed it.
+ */
+export const MAX_INDEXED_STRING_BYTES = 1024;
+
+export function isIndexable(str: string): boolean {
+  return Buffer.byteLength(str, "utf8") <= MAX_INDEXED_STRING_BYTES;
+}
+
+/**
+ * Returns undefined for values too long to index. Callers treat that as an
+ * unknown value, the same as an unresolved label hash.
+ */
+export function indexableOrUndefined(
+  str: string | undefined,
+): string | undefined {
+  return str !== undefined && isIndexable(str) ? str : undefined;
 }
 
 // ─── DNS Decoding ──────────────────────────────────────────────────────────
