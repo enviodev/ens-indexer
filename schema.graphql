@@ -3,10 +3,13 @@
 
 # ─── Core Entities ───────────────────────────────────────────────────────────
 
-# Indexes serve the API's query patterns: exact and prefix label search, names
-# by owner / registrant sorted by expiry, subdomain listing sorted by creation,
-# and global "recently created" / "expiring" feeds.
-type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["effectiveOwner", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
+# Indexes serve the API's query patterns: exact label search, names by owner /
+# registrant sorted by expiry, subdomain listing sorted by creation, per-namespace
+# newest and expiring feeds, and global "recently created" / "expiring" feeds.
+# NOTE: the plain btree indexes on name / labelName do NOT serve `LIKE 'abc%'`
+# prefix search (that needs the text_pattern_ops operator class, which @index
+# cannot express). See research/ens-indexer-hiccups-round-2.md in envio-apis.
+type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["effectiveOwner", "expiryDate"]) @index(fields: ["namespace", "createdAt"]) @index(fields: ["namespace", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
   id: ID!
   name: String @index
   labelName: String @index
@@ -437,4 +440,12 @@ type referrer_stat @index(fields: ["subregistryId", "actions"]) {
   registrations: Int!
   renewals: Int!
   totalCost: BigInt!
+}
+
+# Basenames controllers emit ETHPaymentProcessed(payee, price) just before
+# NameRegistered / NameRenewed in the same transaction. The price is held here
+# until the paired controller event consumes it, then deleted.
+type internal_base_payment {
+  id: ID!                    # "{chainId}-{transactionHash}"
+  price: BigInt!
 }

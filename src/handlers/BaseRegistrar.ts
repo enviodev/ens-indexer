@@ -284,6 +284,43 @@ indexer.onEvent(
   },
 );
 
+// ─── Basenames controller payments ──────────────────────────────────────────
+// ETHPaymentProcessed(payee, price) is emitted by _validatePayment before the
+// NameRegistered / NameRenewed event of the same call, so the price is held per
+// transaction and consumed by the paired controller event.
+
+function makeBasePaymentId(chainId: number, transactionHash: string): string {
+  return `${chainId}-${transactionHash}`;
+}
+
+async function takeBasePayment(
+  context: Parameters<typeof handleRegistrarControllerEvent>[0],
+  chainId: number,
+  transactionHash: string,
+): Promise<bigint | undefined> {
+  const id = makeBasePaymentId(chainId, transactionHash);
+  const payment = await context.Internal_base_payment.get(id);
+  if (!payment) return undefined;
+  context.Internal_base_payment.deleteUnsafe(id);
+  return payment.price;
+}
+
+for (const contract of [
+  "EAController_Base",
+  "RegController_Base",
+  "UpgController_Base",
+] as const) {
+  indexer.onEvent(
+    { contract, event: "ETHPaymentProcessed" },
+    async ({ event, context }) => {
+      context.Internal_base_payment.set({
+        id: makeBasePaymentId(event.chainId, event.transaction.hash),
+        price: event.params.price,
+      });
+    },
+  );
+}
+
 // ─── EAController_Base.NameRegistered ───────────────────────────────────────
 // Controller arg remapping: event.params.name = plaintext label,
 // event.params.label = labelHash
@@ -294,17 +331,20 @@ indexer.onEvent(
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
-  await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+  const price = await takeBasePayment(context, event.chainId, event.transaction.hash);
 
-  // Registrar: update action with pricing (unknown for Basenames controllers)
+  await setNamePreimage(context, labelName, labelHash, price ?? 0n, managedNode, managedName);
+
+  // Registrar: update action with the price paid (undefined when the paired
+  // ETHPaymentProcessed was not indexed)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
     owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
-    baseCost: undefined,
-    premium: undefined,
-    total: undefined,
+    baseCost: price,
+    premium: price === undefined ? undefined : 0n,
+    total: price,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
@@ -320,17 +360,20 @@ indexer.onEvent(
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
-  await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+  const price = await takeBasePayment(context, event.chainId, event.transaction.hash);
 
-  // Registrar: update action with pricing (unknown for Basenames controllers)
+  await setNamePreimage(context, labelName, labelHash, price ?? 0n, managedNode, managedName);
+
+  // Registrar: update action with the price paid (undefined when the paired
+  // ETHPaymentProcessed was not indexed)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
     owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
-    baseCost: undefined,
-    premium: undefined,
-    total: undefined,
+    baseCost: price,
+    premium: price === undefined ? undefined : 0n,
+    total: price,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
@@ -346,16 +389,19 @@ indexer.onEvent(
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
-  await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+  const price = await takeBasePayment(context, event.chainId, event.transaction.hash);
 
-  // Registrar: update action with pricing (unknown for Basenames controllers)
+  await setNamePreimage(context, labelName, labelHash, price ?? 0n, managedNode, managedName);
+
+  // Registrar: update action with the price paid (undefined when the paired
+  // ETHPaymentProcessed was not indexed)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
-    baseCost: undefined,
-    premium: undefined,
-    total: undefined,
+    baseCost: price,
+    premium: price === undefined ? undefined : 0n,
+    total: price,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
@@ -371,17 +417,20 @@ indexer.onEvent(
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
-  await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+  const price = await takeBasePayment(context, event.chainId, event.transaction.hash);
 
-  // Registrar: update action with pricing (unknown for Basenames controllers)
+  await setNamePreimage(context, labelName, labelHash, price ?? 0n, managedNode, managedName);
+
+  // Registrar: update action with the price paid (undefined when the paired
+  // ETHPaymentProcessed was not indexed)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
     owner: event.params.owner,
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
-    baseCost: undefined,
-    premium: undefined,
-    total: undefined,
+    baseCost: price,
+    premium: price === undefined ? undefined : 0n,
+    total: price,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,
@@ -397,16 +446,19 @@ indexer.onEvent(
   const labelName = event.params.name; // plaintext label
   const labelHash = event.params.label; // bytes32 labelHash
 
-  await setNamePreimage(context, labelName, labelHash, 0n, managedNode, managedName);
+  const price = await takeBasePayment(context, event.chainId, event.transaction.hash);
 
-  // Registrar: update action with pricing (unknown for Basenames controllers)
+  await setNamePreimage(context, labelName, labelHash, price ?? 0n, managedNode, managedName);
+
+  // Registrar: update action with the price paid (undefined when the paired
+  // ETHPaymentProcessed was not indexed)
   const node = makeSubdomainNode(labelHash, managedNode);
   await handleRegistrarControllerEvent(context, {
     eventId: makeEventId(event.chainId, event.block.number, event.logIndex),
     node,
-    baseCost: undefined,
-    premium: undefined,
-    total: undefined,
+    baseCost: price,
+    premium: price === undefined ? undefined : 0n,
+    total: price,
     encodedReferrer: undefined,
     decodedReferrer: undefined,
     transactionHash: event.transaction.hash,

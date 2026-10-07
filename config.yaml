@@ -148,6 +148,10 @@ contracts:
 
   - name: EAController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
@@ -155,6 +159,10 @@ contracts:
 
   - name: RegController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
@@ -166,6 +174,10 @@ contracts:
 
   - name: UpgController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
