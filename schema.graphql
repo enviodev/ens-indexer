@@ -346,6 +346,16 @@ type subregistry {
   node: String! @index       # namehash of managed name (e.g. ETH_NODE)
 }
 
+# Number of registrations expiring on each UTC day, per subregistry, kept in step
+# with registration_lifecycle.expiresAt. Lets the API answer expiry-bucket
+# questions by summing a small day range instead of grouping millions of rows.
+type expiry_day_stat @index(fields: ["subregistryId", "day"]) {
+  id: ID!                    # "{subregistryId}:{day}"
+  subregistryId: String!
+  day: Int!                  # unix day: floor(expiresAt / 86400)
+  count: Int!
+}
+
 type registration_lifecycle {
   id: ID!                    # node hash (domain namehash)
   subregistryId: String! @index  # FK to subregistry
@@ -360,7 +370,7 @@ type registrar_action @index(fields: ["node", "timestamp"]) @index(fields: ["own
   incremental_duration: BigInt!
   baseCost: BigInt           # nullable (unknown for some controllers)
   premium: BigInt            # nullable
-  total: BigInt              # nullable
+  total: BigInt @index       # nullable; indexed for minCost / maxCost filters
   registrant: String!        # transaction.from address (the sender, not necessarily the owner)
   owner: String              # owner from the controller event params; null for renewals or when the controller event was not indexed
   encodedReferrer: String    # nullable, raw bytes32

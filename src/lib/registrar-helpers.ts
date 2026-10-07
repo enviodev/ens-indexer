@@ -86,7 +86,42 @@ export function upsertSubregistry(
   });
 }
 
+const SECONDS_PER_DAY = 86_400;
+
 // ─── Registration Lifecycle Management ──────────────────────────────────────
+
+/**
+ * Move one registration between per-day expiry buckets. `previous` is the
+ * expiry it had before (undefined for a brand-new lifecycle).
+ */
+async function moveExpiryBucket(
+  context: handlerContext,
+  subregistryId: string,
+  previous: bigint | undefined,
+  next: bigint,
+): Promise<void> {
+  const nextDay = Math.floor(Number(next) / SECONDS_PER_DAY);
+  const previousDay =
+    previous === undefined ? undefined : Math.floor(Number(previous) / SECONDS_PER_DAY);
+  if (previousDay === nextDay) return;
+
+  if (previousDay !== undefined) {
+    const id = `${subregistryId}:${previousDay}`;
+    const bucket = await context.Expiry_day_stat.get(id);
+    if (bucket) {
+      context.Expiry_day_stat.set({ ...bucket, count: Math.max(0, bucket.count - 1) });
+    }
+  }
+
+  const id = `${subregistryId}:${nextDay}`;
+  const bucket = await context.Expiry_day_stat.get(id);
+  context.Expiry_day_stat.set({
+    id,
+    subregistryId,
+    day: nextDay,
+    count: (bucket?.count ?? 0) + 1,
+  });
+}
 
 /**
  * Get or create a RegistrationLifecycle for a given node.
@@ -104,12 +139,14 @@ export async function getOrCreateRegistrationLifecycle(
       ...existing,
       expiresAt,
     });
+    await moveExpiryBucket(context, existing.subregistryId, existing.expiresAt, expiresAt);
   } else {
     context.Registration_lifecycle.set({
       id: node,
       subregistryId,
       expiresAt,
     });
+    await moveExpiryBucket(context, subregistryId, undefined, expiresAt);
   }
 }
 
@@ -127,12 +164,12 @@ export async function updateRegistrationLifecycleExpiry(
       ...existing,
       expiresAt,
     });
+    await moveExpiryBucket(context, existing.subregistryId, existing.expiresAt, expiresAt);
   }
 }
 
 // ─── Aggregates ─────────────────────────────────────────────────────────────
 
-const SECONDS_PER_DAY = 86_400;
 
 /**
  * Bump per-day and running totals for a subregistry. Called once when a
