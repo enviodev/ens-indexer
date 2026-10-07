@@ -14,6 +14,7 @@ import {
   upsertResolver,
   sharedEventValues,
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
+  syncParentSubdomainCountOnEmptinessChange,
   makeEventId,
   ensureRootDomain,
   setDomain,
@@ -83,6 +84,7 @@ async function handleNewOwner(
 
   // Load existing domain
   const domain = await context.Subgraph_domain.get(node);
+  const existedBefore = domain !== undefined;
 
   if (domain) {
     // For the old registry (isMigrated=false): if the domain has already been
@@ -138,10 +140,12 @@ async function handleNewOwner(
     }
   }
 
-  // Garbage collect: if the new owner is the zero address, the domain is
-  // being effectively deleted. Recursively decrement parent subdomain counts
-  // for any newly empty domains.
-  if (owner === ZERO_ADDRESS) {
+  // Keep parent subdomain counts in step. A new domain was counted on
+  // creation, so only a zero owner needs undoing; an existing domain only
+  // changes the count when it flips between empty and non-empty.
+  if (domain && existedBefore) {
+    await syncParentSubdomainCountOnEmptinessChange(context, domain);
+  } else if (owner === ZERO_ADDRESS) {
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
@@ -223,9 +227,10 @@ async function handleTransfer(
     });
   }
 
-  // Garbage collect if owner is zero address
-  if (owner === ZERO_ADDRESS) {
-    await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
+  // Keep parent subdomain counts in step (a minimal record created above has
+  // no parent, so there is nothing to adjust for it)
+  if (domain) {
+    await syncParentSubdomainCountOnEmptinessChange(context, domain);
   }
 
   // Log the Transfer event entity
@@ -286,8 +291,10 @@ async function handleNewResolver(
       });
     }
 
-    // Garbage collect newly empty domain if necessary
-    await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
+    // Keep parent subdomain counts in step
+    if (domain) {
+      await syncParentSubdomainCountOnEmptinessChange(context, domain);
+    }
   } else {
     // Upsert the resolver record
     const resolver = await upsertResolver(context, {
@@ -303,6 +310,7 @@ async function handleNewResolver(
         resolver_id: resolverId,
         resolvedAddress_id: resolver.addr_id,
       });
+      await syncParentSubdomainCountOnEmptinessChange(context, domain);
     }
   }
 
