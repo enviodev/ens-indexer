@@ -22,3 +22,18 @@ indexer.onEvent(
   upsertReverseNameRecord(context, addr, coinType, name);
   },
 );
+
+// ─── ReverseRegistrar.ReverseClaimed ────────────────────────────────────────
+// Records which address a legacy reverse node belongs to. Emitted before the
+// resolver's NameChanged in the same call, so Resolver.NameChanged can use it
+// as the exact address (contract wallets, relayed calls).
+
+indexer.onEvent(
+  { contract: "ReverseRegistrar", event: "ReverseClaimed" },
+  async ({ event, context }) => {
+  context.Reverse_claim.set({
+    id: event.params.node,
+    addr: event.params.addr.toLowerCase(),
+  });
+  },
+);

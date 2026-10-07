@@ -330,6 +330,21 @@ type reverse_name_record @index(fields: ["address", "coinType"]) {
   value: String! @index
 }
 
+# Address behind a legacy reverse node, from ReverseRegistrar.ReverseClaimed.
+type reverse_claim {
+  id: ID!                    # reverse node (namehash of "<address>.addr.reverse")
+  addr: String!              # lowercase address
+}
+
+# Legacy reverse names whose address could not be recovered (no ReverseClaimed,
+# and neither the node owner nor the transaction sender hashes to the node
+# label). Exists to size the coverage gap: select count(*) from this table.
+type unrecovered_reverse_name {
+  id: ID!                    # reverse node
+  name: String!              # last NameChanged value
+  blockNumber: Int!
+}
+
 type migrated_node_by_node {
   id: ID!
 }
