@@ -10,6 +10,7 @@ import {
   stripNullBytes,
   decodeDnsEncodedName,
   emptyToUndefined,
+  isIndexable,
   ADDR_REVERSE_NODE,
   setDomain,
 } from "../lib/helpers";
@@ -158,12 +159,21 @@ indexer.onEvent(
   if (event.chainId === 1) {
     const reverseDomain = await context.Subgraph_domain.get(node);
     if (reverseDomain?.parent_id === ADDR_REVERSE_NODE) {
+      const claim = await context.Reverse_claim.get(node);
       const address = addressForReverseLabel(reverseDomain.labelhash, [
+        claim?.addr,
         reverseDomain.owner_id,
         event.transaction.from,
       ]);
       if (address !== null) {
         upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
+        context.Unrecovered_reverse_name.deleteUnsafe(node);
+      } else if (isIndexable(name)) {
+        context.Unrecovered_reverse_name.set({
+          id: node,
+          name,
+          blockNumber: event.block.number,
+        });
       }
     }
   }
