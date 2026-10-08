@@ -18,6 +18,7 @@ import {
   decodeDnsEncodedName,
   ensureRootDomain,
   recursivelyRemoveEmptyDomainFromParentSubdomainCount,
+  syncParentSubdomainCountOnEmptinessChange,
   indexableOrUndefined,
   isInterpretableLabel,
   namehashFromLabels,
@@ -124,8 +125,12 @@ indexer.onEvent(
     }
   }
 
-  // Garbage collect if owner is zero address
-  if (owner === ZERO_ADDRESS) {
+  // Keep parent subdomain counts in step. A new domain was counted on
+  // creation, so only a zero owner needs undoing; an existing domain only
+  // changes the count when it flips between empty and non-empty.
+  if (domain) {
+    await syncParentSubdomainCountOnEmptinessChange(context, domain);
+  } else if (owner === ZERO_ADDRESS) {
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
@@ -166,9 +171,9 @@ indexer.onEvent(
     });
   }
 
-  // Garbage collect if owner is zero address
-  if (owner === ZERO_ADDRESS) {
-    await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
+  // Keep parent subdomain counts in step
+  if (domain) {
+    await syncParentSubdomainCountOnEmptinessChange(context, domain);
   }
 
   context.Subgraph_transfer.set({

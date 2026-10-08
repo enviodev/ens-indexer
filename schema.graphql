@@ -3,10 +3,13 @@
 
 # ─── Core Entities ───────────────────────────────────────────────────────────
 
-# Indexes serve the API's query patterns: exact and prefix label search, names
-# by owner / registrant sorted by expiry, subdomain listing sorted by creation,
-# and global "recently created" / "expiring" feeds.
-type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["effectiveOwner", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
+# Indexes serve the API's query patterns: exact label search, names by owner /
+# registrant sorted by expiry, subdomain listing sorted by creation, per-namespace
+# newest and expiring feeds, and global "recently created" / "expiring" feeds.
+# NOTE: the plain btree indexes on name / labelName do NOT serve `LIKE 'abc%'`
+# prefix search (that needs the text_pattern_ops operator class, which @index
+# cannot express). See research/ens-indexer-hiccups-round-2.md in envio-apis.
+type subgraph_domain @index(fields: ["owner", "expiryDate"]) @index(fields: ["registrant", "expiryDate"]) @index(fields: ["wrappedOwner", "expiryDate"]) @index(fields: ["effectiveOwner", "expiryDate"]) @index(fields: ["namespace", "createdAt"]) @index(fields: ["namespace", "expiryDate"]) @index(fields: ["parent", "createdAt"]) {
   id: ID!
   name: String @index
   labelName: String @index
@@ -327,6 +330,21 @@ type reverse_name_record @index(fields: ["address", "coinType"]) {
   value: String! @index
 }
 
+# Address behind a legacy reverse node, from ReverseRegistrar.ReverseClaimed.
+type reverse_claim {
+  id: ID!                    # reverse node (namehash of "<address>.addr.reverse")
+  addr: String!              # lowercase address
+}
+
+# Legacy reverse names whose address could not be recovered (no ReverseClaimed,
+# and neither the node owner nor the transaction sender hashes to the node
+# label). Exists to size the coverage gap: select count(*) from this table.
+type unrecovered_reverse_name {
+  id: ID!                    # reverse node
+  name: String!              # last NameChanged value
+  blockNumber: Int!
+}
+
 type migrated_node_by_node {
   id: ID!
 }
@@ -343,6 +361,16 @@ type subregistry {
   node: String! @index       # namehash of managed name (e.g. ETH_NODE)
 }
 
+# Number of registrations expiring on each UTC day, per subregistry, kept in step
+# with registration_lifecycle.expiresAt. Lets the API answer expiry-bucket
+# questions by summing a small day range instead of grouping millions of rows.
+type expiry_day_stat @index(fields: ["subregistryId", "day"]) {
+  id: ID!                    # "{subregistryId}:{day}"
+  subregistryId: String!
+  day: Int!                  # unix day: floor(expiresAt / 86400)
+  count: Int!
+}
+
 type registration_lifecycle {
   id: ID!                    # node hash (domain namehash)
   subregistryId: String! @index  # FK to subregistry
@@ -357,7 +385,7 @@ type registrar_action @index(fields: ["node", "timestamp"]) @index(fields: ["own
   incremental_duration: BigInt!
   baseCost: BigInt           # nullable (unknown for some controllers)
   premium: BigInt            # nullable
-  total: BigInt              # nullable
+  total: BigInt @index       # nullable; indexed for minCost / maxCost filters
   registrant: String!        # transaction.from address (the sender, not necessarily the owner)
   owner: String              # owner from the controller event params; null for renewals or when the controller event was not indexed
   encodedReferrer: String    # nullable, raw bytes32
@@ -437,4 +465,12 @@ type referrer_stat @index(fields: ["subregistryId", "actions"]) {
   registrations: Int!
   renewals: Int!
   totalCost: BigInt!
+}
+
+# Basenames controllers emit ETHPaymentProcessed(payee, price) just before
+# NameRegistered / NameRenewed in the same transaction. The price is held here
+# until the paired controller event consumes it, then deleted.
+type internal_base_payment {
+  id: ID!                    # "{chainId}-{transactionHash}"
+  price: BigInt!
 }

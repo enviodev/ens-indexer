@@ -260,7 +260,7 @@ export function sharedEventValues(
 
 // ─── Domain Empty Check / Garbage Collection ────────────────────────────────
 
-function isDomainEmpty(domain: Domain): boolean {
+export function isDomainEmpty(domain: Domain): boolean {
   return (
     domain.resolver_id === undefined &&
     domain.owner_id === ZERO_ADDRESS &&
@@ -289,6 +289,57 @@ export async function recursivelyRemoveEmptyDomainFromParentSubdomainCount(
       context,
       domain.parent_id,
     );
+  }
+}
+
+/**
+ * Mirror of the removal above: a previously empty domain became non-empty, so
+ * it counts towards its parent again. If the parent was itself empty it
+ * becomes non-empty and counts towards the grandparent.
+ */
+export async function recursivelyAddNonEmptyDomainToParentSubdomainCount(
+  context: handlerContext,
+  node: string,
+): Promise<void> {
+  const domain = await context.Subgraph_domain.get(node);
+  if (!domain || domain.parent_id === undefined) return;
+
+  const parent = await context.Subgraph_domain.get(domain.parent_id);
+  if (!parent) return;
+
+  const parentWasEmpty = isDomainEmpty(parent);
+  setDomain(context, {
+    ...parent,
+    subdomainCount: parent.subdomainCount + 1,
+  });
+
+  if (parentWasEmpty) {
+    await recursivelyAddNonEmptyDomainToParentSubdomainCount(context, parent.id);
+  }
+}
+
+/**
+ * Keep parent subdomain counts in step with a domain that has just been
+ * updated. subdomainCount is the number of non-empty children, so it only
+ * changes when a domain flips between empty and non-empty: repeated zero-owner
+ * or zero-resolver events on an already-empty domain must not decrement again,
+ * and re-claiming an emptied domain must count it again. `before` is the
+ * domain as it was prior to the update.
+ */
+export async function syncParentSubdomainCountOnEmptinessChange(
+  context: handlerContext,
+  before: Domain,
+): Promise<void> {
+  const after = await context.Subgraph_domain.get(before.id);
+  if (!after) return;
+
+  const wasEmpty = isDomainEmpty(before);
+  const isEmpty = isDomainEmpty(after);
+
+  if (!wasEmpty && isEmpty) {
+    await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, after.id);
+  } else if (wasEmpty && !isEmpty) {
+    await recursivelyAddNonEmptyDomainToParentSubdomainCount(context, after.id);
   }
 }
 

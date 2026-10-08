@@ -148,6 +148,10 @@ contracts:
 
   - name: EAController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
@@ -155,6 +159,10 @@ contracts:
 
   - name: RegController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
@@ -166,6 +174,10 @@ contracts:
 
   - name: UpgController_Base
     events:
+      - event: "ETHPaymentProcessed(address indexed payee, uint256 price)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameRegistered(string name, bytes32 indexed label, address indexed owner, uint256 expires)"
         field_selection:
           transaction_fields:
@@ -323,6 +335,16 @@ contracts:
           transaction_fields:
             - hash
 
+  # ─── ReverseRegistrar (legacy addr.reverse; mainnet only) ───────────────────
+  # ReverseClaimed maps an address to its reverse node exactly, which covers
+  # contract wallets and relayed calls that the hash-recovery fallback misses.
+  - name: ReverseRegistrar
+    events:
+      - event: "ReverseClaimed(address indexed addr, bytes32 indexed node)"
+        field_selection:
+          transaction_fields:
+            - hash
+
   # ─── StandaloneReverseRegistrar (PA plugin) ────────────────────────────────
   - name: StandaloneReverseRegistrar
     events:
@@ -336,6 +358,9 @@ chains:
   - id: 1 # Ethereum Mainnet
     start_block: 3327417
     contracts:
+      - name: ReverseRegistrar
+        address:
+          - "0xa58e81fe9b61b5c3fe2afd33cf304c454abfc7cb"
       - name: RegistryOld
         address:
           - "0x314159265dd8dbb310642f98f50c066173c1259b"

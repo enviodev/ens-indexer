@@ -17,6 +17,7 @@ import {
   MAX_INDEXED_STRING_BYTES,
   sharedEventValues,
   setDomain,
+  syncParentSubdomainCountOnEmptinessChange,
   namespaceForNewDomain,
   tokenIdToLabelHash,
   decodeDnsEncodedName,
@@ -470,5 +471,83 @@ describe("namehashFromLabels", () => {
       ETH_NODE,
     );
     expect(namehashFromLabels(["a\ufffd", "eth"])).not.toBe(original);
+  });
+});
+
+describe("syncParentSubdomainCountOnEmptinessChange", () => {
+  const mk = (id: string, over: Record<string, unknown> = {}): any => ({
+    id,
+    name: undefined,
+    labelName: undefined,
+    labelhash: undefined,
+    parent_id: undefined,
+    subdomainCount: 0,
+    resolvedAddress_id: undefined,
+    resolver_id: undefined,
+    ttl: undefined,
+    isMigrated: true,
+    createdAt: 1n,
+    owner_id: "0xowner",
+    registrant_id: undefined,
+    wrappedOwner_id: undefined,
+    expiryDate: undefined,
+    ...over,
+  });
+
+  function store(domains: any[]) {
+    const m = new Map(domains.map((d) => [d.id, d]));
+    const context = {
+      Subgraph_domain: {
+        get: async (id: string) => m.get(id),
+        set: (d: any) => m.set(d.id, d),
+      },
+    } as any;
+    return { m, context };
+  }
+
+  it("decrements the parent once when a domain becomes empty", async () => {
+    const parent = mk("p", { subdomainCount: 2, owner_id: "0xp" });
+    const before = mk("c", { parent_id: "p" });
+    const { m, context } = store([parent, before]);
+    m.set("c", { ...before, owner_id: ZERO_ADDRESS });
+    await syncParentSubdomainCountOnEmptinessChange(context, before);
+    expect(m.get("p").subdomainCount).toBe(1);
+  });
+
+  it("does not decrement again for another zero event on an empty domain", async () => {
+    const parent = mk("p", { subdomainCount: 1, owner_id: "0xp" });
+    const before = mk("c", { parent_id: "p", owner_id: ZERO_ADDRESS });
+    const { m, context } = store([parent, before]);
+    await syncParentSubdomainCountOnEmptinessChange(context, before);
+    expect(m.get("p").subdomainCount).toBe(1);
+  });
+
+  it("counts a re-claimed domain again", async () => {
+    const parent = mk("p", { subdomainCount: 0, owner_id: "0xp" });
+    const before = mk("c", { parent_id: "p", owner_id: ZERO_ADDRESS });
+    const { m, context } = store([parent, before]);
+    m.set("c", { ...before, owner_id: "0xnew" });
+    await syncParentSubdomainCountOnEmptinessChange(context, before);
+    expect(m.get("p").subdomainCount).toBe(1);
+  });
+
+  it("re-counts up the chain when the parent was itself empty", async () => {
+    const gp = mk("gp", { subdomainCount: 0, owner_id: "0xgp" });
+    const parent = mk("p", { parent_id: "gp", subdomainCount: 0, owner_id: ZERO_ADDRESS });
+    const before = mk("c", { parent_id: "p", owner_id: ZERO_ADDRESS });
+    const { m, context } = store([gp, parent, before]);
+    m.set("c", { ...before, resolver_id: "r" });
+    await syncParentSubdomainCountOnEmptinessChange(context, before);
+    expect(m.get("p").subdomainCount).toBe(1);
+    expect(m.get("gp").subdomainCount).toBe(1);
+  });
+
+  it("does nothing when emptiness does not change", async () => {
+    const parent = mk("p", { subdomainCount: 3, owner_id: "0xp" });
+    const before = mk("c", { parent_id: "p" });
+    const { m, context } = store([parent, before]);
+    m.set("c", { ...before, owner_id: "0xother" });
+    await syncParentSubdomainCountOnEmptinessChange(context, before);
+    expect(m.get("p").subdomainCount).toBe(3);
   });
 });
