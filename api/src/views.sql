@@ -36,3 +36,9 @@ SELECT
   s.registrant_id, s."wrappedOwner_id", s."expiryDate", 'v1'::text AS protocol
 FROM subgraph_domain s
 WHERE NOT EXISTS (SELECT 1 FROM ens_v2_active a WHERE a.node = s.id AND a."chainId" = s."chainId");
+
+-- The subgraph keys Registration by labelhash. Stored rows are keyed by node.
+CREATE OR REPLACE VIEW ens_unified_registration AS
+SELECT d.labelhash AS id, r."chainId", r."registrationDate", r."expiryDate", r.cost, r."labelName", r.domain_id, r.registrant_id
+FROM subgraph_registration r
+JOIN subgraph_domain d ON d.id = r.domain_id AND d."chainId" = r."chainId";

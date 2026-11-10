@@ -445,16 +445,15 @@ contracts:
       - event: "TextUpdated(uint256 indexed recordId, string indexed keyHash, string key, string value)"
       - event: "ContenthashUpdated(uint256 indexed recordId, bytes hash)"
       - event: "NameUpdated(uint256 indexed recordId, string primaryName)"
+      - event: "DataUpdated(uint256 indexed recordId, string indexed keyHash, string key, bytes value)"
+      - event: "ABIUpdated(uint256 indexed recordId, uint256 indexed contentType)"
+      - event: "InterfaceUpdated(uint256 indexed recordId, bytes4 indexed interfaceId, address implementer)"
       - event: "EACRolesChanged(uint256 indexed resource, address indexed account, uint256 oldRoleBitmap, uint256 newRoleBitmap)"
       # Emitted by deployments before 2026-09 (contracts/deployments/sepolia-*). Later ones use Linked.
       - event: "AliasChanged(bytes indexed indexedFromName, bytes indexed indexedToName, bytes fromName, bytes toName)"
 
 chains:
   - id: 1 # Ethereum Mainnet
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_1:-}
-        for: sync
     start_block: 3327417
     contracts:
       - name: V2RegistryDiscovery
@@ -520,10 +519,6 @@ chains:
         address:
           - "0x283f227c4bd38ece252c4ae7ece650b0e913f1f9"
   - id: 8453 # Base
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_8453:-}
-        for: sync
     start_block: 17522624
     contracts:
       - name: Registry
@@ -552,10 +547,6 @@ chains:
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
   - id: 59144 # Linea
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_59144:-}
-        for: sync
     start_block: 6682888
     contracts:
       - name: Registry
@@ -576,10 +567,6 @@ chains:
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
   - id: 10 # Optimism
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_10:-}
-        for: sync
     start_block: 110393959
     contracts:
       - name: ThreeDNSToken
@@ -592,30 +579,18 @@ chains:
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
   - id: 42161 # Arbitrum
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_42161:-}
-        for: sync
     start_block: 349263357
     contracts:
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
   - id: 534352 # Scroll
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_534352:-}
-        for: sync
     start_block: 16604272
     contracts:
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
   - id: 11155111 # Sepolia. ENSv2 only: the v1 contracts are not indexed here.
-    rpc:
-      # Optional. When set, this RPC replaces HyperSync as the historical source, for self-hosting without an API token.
-      - url: ${ENS_RPC_URL_11155111:-}
-        for: sync
     start_block: 11820000
     contracts:
       - name: V2RegistryDiscovery

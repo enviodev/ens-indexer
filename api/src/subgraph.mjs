@@ -37,7 +37,7 @@ const ENTITIES = {
     },
   },
   Registration: {
-    table: "subgraph_registration", plural: "registrations",
+    table: "ens_unified_registration", plural: "registrations",
     fields: {
       id: { t: "ID", col: "id" }, registrationDate: { t: "BigInt" }, expiryDate: { t: "BigInt" }, cost: { t: "BigInt" }, labelName: { t: "String" },
       domain: { ref: "Domain", col: "domain_id" }, registrant: { ref: "Account", col: "registrant_id" },

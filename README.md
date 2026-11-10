@@ -77,15 +77,13 @@ Add `?chain=<id>` to query a chain other than the default. GraphQL `block` argum
 ## Self-hosting
 
 ```bash
-cp .env.example .env   # set ENVIO_API_TOKEN, or ENS_RPC_URL_<chainId> per chain
+cp .env.example .env   # set ENVIO_API_TOKEN
 docker compose up -d --build
 ```
 
 A Helm chart is in `deploy/helm/ens-indexer`. It expects an external Postgres and existing Secrets.
 
-`ENS_RPC_URL_<chainId>` replaces HyperSync with an RPC source for that chain. `node scripts/local-config.mjs <chainId...>` writes `config.local.yaml`, narrowed to those chains and the v2 contracts; use it with `ENVIO_CONFIG=config.local.yaml`.
-
-`api/parity/` compares indexed state with the chain: `onchain.mjs` for registry state, `resolution.mjs` for records through the Universal Resolver.
+`api/parity/latency.mjs` measures API latency against a synced database.
 
 ## Run locally
 

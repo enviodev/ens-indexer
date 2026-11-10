@@ -1,6 +1,6 @@
 # Self-hosted stack: Postgres, the indexer, and the API.
 #
-#   cp .env.example .env   # set ENVIO_API_TOKEN, or ENS_RPC_URL_<chainId> for each chain
+#   cp .env.example .env   # set ENVIO_API_TOKEN
 #   docker compose up -d --build
 #
 # GraphQL: http://localhost:4350/subgraphs/name/ensdomains/ens
@@ -35,15 +35,7 @@ services:
       ENVIO_PG_DATABASE: envio-dev
       ENVIO_HASURA: "false"
       ENVIO_API_TOKEN: ${ENVIO_API_TOKEN:-}
-      ENS_RPC_URL_1: ${ENS_RPC_URL_1:-}
-      ENS_RPC_URL_8453: ${ENS_RPC_URL_8453:-}
-      ENS_RPC_URL_59144: ${ENS_RPC_URL_59144:-}
-      ENS_RPC_URL_10: ${ENS_RPC_URL_10:-}
-      ENS_RPC_URL_42161: ${ENS_RPC_URL_42161:-}
-      ENS_RPC_URL_534352: ${ENS_RPC_URL_534352:-}
-      ENS_RPC_URL_11155111: ${ENS_RPC_URL_11155111:-}
       TUI_OFF: "true"
-      ENVIO_CONFIG: ${ENVIO_CONFIG:-config.yaml}
     restart: unless-stopped
 
   api:

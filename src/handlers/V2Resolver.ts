@@ -1,6 +1,6 @@
 import { indexer } from "envio";
 import { decodeDnsEncodedName, namehashFromLabels, type handlerContext } from "../lib/helpers";
-import { ensureV2Resolver, makeV2RegistryId } from "../lib/v2-helpers";
+import { ensureV2Resolver, makeV2RegistryId, nullableAddress } from "../lib/v2-helpers";
 
 // ─── Discovery ───────────────────────────────────────────────────────────────
 // As with registries: watch every resolver from creation so records written in
@@ -78,6 +78,15 @@ indexer.onEvent({ contract: "V2Resolver", event: "Cleared" }, async ({ event, co
   for (const row of await context.V2_record_address.getWhere({ record_id: { _eq: id } })) {
     context.V2_record_address.deleteUnsafe(row.id);
   }
+  for (const row of await context.V2_record_data.getWhere({ record_id: { _eq: id } })) {
+    context.V2_record_data.deleteUnsafe(row.id);
+  }
+  for (const row of await context.V2_record_abi.getWhere({ record_id: { _eq: id } })) {
+    context.V2_record_abi.deleteUnsafe(row.id);
+  }
+  for (const row of await context.V2_record_interface.getWhere({ record_id: { _eq: id } })) {
+    context.V2_record_interface.deleteUnsafe(row.id);
+  }
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated" }, async ({ event, context }) => {
@@ -112,6 +121,39 @@ indexer.onEvent({ contract: "V2Resolver", event: "NameUpdated" }, async ({ event
   const { recordId, primaryName } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record.set({ ...record, primaryName: primaryName === "" ? undefined : primaryName });
+});
+
+indexer.onEvent({ contract: "V2Resolver", event: "DataUpdated" }, async ({ event, context }) => {
+  const { recordId, key, value } = event.params;
+  const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
+  const id = `${record.id}-${key}`;
+  if (value === "0x") {
+    context.V2_record_data.deleteUnsafe(id);
+    return;
+  }
+  context.V2_record_data.set({ id, record_id: record.id, key, value });
+});
+
+indexer.onEvent({ contract: "V2Resolver", event: "ABIUpdated" }, async ({ event, context }) => {
+  const { recordId, contentType } = event.params;
+  const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
+  context.V2_record_abi.set({
+    id: `${record.id}-${contentType}`,
+    record_id: record.id,
+    contentType,
+    blockNumber: event.block.number,
+  });
+});
+
+indexer.onEvent({ contract: "V2Resolver", event: "InterfaceUpdated" }, async ({ event, context }) => {
+  const { recordId, interfaceId, implementer } = event.params;
+  const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
+  context.V2_record_interface.set({
+    id: `${record.id}-${interfaceId}`,
+    record_id: record.id,
+    interfaceId,
+    implementer: nullableAddress(implementer),
+  });
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "EACRolesChanged" }, async ({ event, context }) => {

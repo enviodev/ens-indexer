@@ -12,7 +12,7 @@ postgres:
   # Name of an existing Secret holding key `password`. The chart never stores a password.
   existingSecret: ""
 
-# Name of an existing Secret with ENVIO_API_TOKEN and/or ENS_RPC_URL_<chainId> keys.
+# Name of an existing Secret with an ENVIO_API_TOKEN key.
 sourceSecret: ""
 
 api:

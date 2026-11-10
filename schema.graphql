@@ -691,6 +691,28 @@ type v2_record_address @index(fields: ["record", "coinType"]) {
   value: String
 }
 
+type v2_record_data @index(fields: ["record", "key"]) {
+  id: ID!
+  record: v2_record! @index
+  key: String!
+  value: String
+}
+
+# ABIUpdated carries only the content type; the ABI itself stays in contract storage.
+type v2_record_abi {
+  id: ID!
+  record: v2_record! @index
+  contentType: BigInt!
+  blockNumber: Int!
+}
+
+type v2_record_interface @index(fields: ["record", "interfaceId"]) {
+  id: ID!
+  record: v2_record! @index
+  interfaceId: String!
+  implementer: String
+}
+
 # node -> record. Node 0x00..00 is the resolver's default record.
 type v2_record_link @index(fields: ["resolver", "node"]) {
   id: ID!                         # {resolverId}-{node}

@@ -39,6 +39,5 @@ generated
 
 SCHEMA_COMPARISON.md
 
-config.local.yaml
 .worktrees/
 api/node_modules

@@ -17,8 +17,6 @@ import { ETH_NODE, ZERO_ADDRESS } from "../src/lib/helpers";
 // Every chain test indexes real Sepolia blocks. Fixtures are the raw logs of
 // those blocks, decoded here with viem so expected values do not come from the
 // indexer's own decoder.
-//
-// Set ENS_RPC_URL_11155111 to run without a HyperSync token.
 
 const CHAIN = 11155111;
 const ROOT_REGISTRY = "0xb458d6a3a77919449d03e7a6903c26827c1ec43f";
