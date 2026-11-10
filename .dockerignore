@@ -1,0 +1,6 @@
+node_modules
+.envio
+generated
+.worktrees
+api/node_modules
+.git

@@ -1,0 +1,27 @@
+image:
+  indexer: ens-indexer:local
+  api: ens-indexer-api:local
+  pullPolicy: IfNotPresent
+
+# Postgres is external: point this at your own database.
+postgres:
+  host: ""
+  port: 5432
+  database: envio-dev
+  user: postgres
+  # Name of an existing Secret holding key `password`. The chart never stores a password.
+  existingSecret: ""
+
+# Name of an existing Secret with ENVIO_API_TOKEN and/or ENS_RPC_URL_<chainId> keys.
+sourceSecret: ""
+
+api:
+  replicas: 2
+  defaultChain: 1
+  service:
+    type: ClusterIP
+    port: 4350
+
+indexer:
+  resources:
+    requests: { cpu: "1", memory: 2Gi }

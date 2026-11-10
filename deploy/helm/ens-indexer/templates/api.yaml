@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-api }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-api }
+    spec:
+      containers:
+        - name: api
+          image: {{ .Values.image.api }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 4350
+          readinessProbe:
+            httpGet: { path: /healthz, port: 4350 }
+          env:
+            - { name: ENVIO_PG_HOST, value: {{ .Values.postgres.host | quote }} }
+            - { name: ENVIO_PG_PORT, value: {{ .Values.postgres.port | quote }} }
+            - { name: ENVIO_PG_USER, value: {{ .Values.postgres.user | quote }} }
+            - { name: ENVIO_PG_DATABASE, value: {{ .Values.postgres.database | quote }} }
+            - { name: API_DEFAULT_CHAIN, value: {{ .Values.api.defaultChain | quote }} }
+            - name: ENVIO_PG_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ .Values.postgres.existingSecret }}, key: password }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-api
+spec:
+  type: {{ .Values.api.service.type }}
+  selector: { app: {{ .Release.Name }}-api }
+  ports:
+    - port: {{ .Values.api.service.port }}
+      targetPort: 4350

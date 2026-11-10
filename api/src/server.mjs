@@ -64,7 +64,17 @@ async function route(req, res) {
   return send(res, 404, { error: "not found" });
 }
 
-await applyViews();
+// The indexer creates its tables on first start; wait for them.
+for (;;) {
+  try {
+    await applyViews();
+    break;
+  } catch (err) {
+    console.error(`waiting for indexer tables: ${err.message}`);
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+  }
+}
+
 http
   .createServer((req, res) => route(req, res).catch((err) => { console.error(err); send(res, 500, { error: "internal error" }); }))
   .listen(PORT, () => console.log(`ens api listening on :${PORT}`));

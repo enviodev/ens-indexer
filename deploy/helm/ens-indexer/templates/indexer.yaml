@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-indexer
+spec:
+  # One writer per database.
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: {{ .Release.Name }}-indexer }
+  template:
+    metadata:
+      labels: { app: {{ .Release.Name }}-indexer }
+    spec:
+      containers:
+        - name: indexer
+          image: {{ .Values.image.indexer }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - { name: ENVIO_PG_HOST, value: {{ required "postgres.host is required" .Values.postgres.host | quote }} }
+            - { name: ENVIO_PG_PORT, value: {{ .Values.postgres.port | quote }} }
+            - { name: ENVIO_PG_USER, value: {{ .Values.postgres.user | quote }} }
+            - { name: ENVIO_PG_DATABASE, value: {{ .Values.postgres.database | quote }} }
+            - { name: ENVIO_HASURA, value: "false" }
+            - { name: TUI_OFF, value: "true" }
+            - name: ENVIO_PG_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ required "postgres.existingSecret is required" .Values.postgres.existingSecret }}, key: password }
+          envFrom:
+            - secretRef: { name: {{ required "sourceSecret is required" .Values.sourceSecret }} }
+          resources: {{- toYaml .Values.indexer.resources | nindent 12 }}

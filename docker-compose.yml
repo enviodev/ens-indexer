@@ -1,0 +1,65 @@
+# Self-hosted stack: Postgres, the indexer, and the API.
+#
+#   cp .env.example .env   # set ENVIO_API_TOKEN, or ENS_RPC_URL_<chainId> for each chain
+#   docker compose up -d --build
+#
+# GraphQL: http://localhost:4350/subgraphs/name/ensdomains/ens
+# REST:    http://localhost:4350/v1/resolve/nick.eth
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: ${ENVIO_PG_PASSWORD:-testing}
+      POSTGRES_DB: envio-dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d envio-dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  indexer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIO_PG_HOST: postgres
+      ENVIO_PG_PORT: "5432"
+      ENVIO_PG_PASSWORD: ${ENVIO_PG_PASSWORD:-testing}
+      ENVIO_PG_DATABASE: envio-dev
+      ENVIO_HASURA: "false"
+      ENVIO_API_TOKEN: ${ENVIO_API_TOKEN:-}
+      ENS_RPC_URL_1: ${ENS_RPC_URL_1:-}
+      ENS_RPC_URL_8453: ${ENS_RPC_URL_8453:-}
+      ENS_RPC_URL_59144: ${ENS_RPC_URL_59144:-}
+      ENS_RPC_URL_10: ${ENS_RPC_URL_10:-}
+      ENS_RPC_URL_42161: ${ENS_RPC_URL_42161:-}
+      ENS_RPC_URL_534352: ${ENS_RPC_URL_534352:-}
+      ENS_RPC_URL_11155111: ${ENS_RPC_URL_11155111:-}
+      TUI_OFF: "true"
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIO_PG_HOST: postgres
+      ENVIO_PG_PORT: "5432"
+      ENVIO_PG_PASSWORD: ${ENVIO_PG_PASSWORD:-testing}
+      ENVIO_PG_DATABASE: envio-dev
+      API_DEFAULT_CHAIN: ${API_DEFAULT_CHAIN:-1}
+    ports:
+      - "${API_PORT:-4350}:4350"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
