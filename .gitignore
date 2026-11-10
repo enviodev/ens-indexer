@@ -40,3 +40,4 @@ generated
 SCHEMA_COMPARISON.md
 
 config.local.yaml
+.worktrees/

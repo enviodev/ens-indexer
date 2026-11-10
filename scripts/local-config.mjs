@@ -27,7 +27,11 @@ const chains = body.split(/^(?=  - id: )/m).filter((b) => b.startsWith("  - id: 
 const out = [];
 for (const chain of chains) {
   const id = chain.match(/- id: (\d+)/)[1];
-  if (!wanted.has(id)) continue;
+  if (!wanted.has(id)) {
+    // skip keeps the chain in the generated types, so handlers still type-check.
+    out.push(chain.replace(/^(  - id: [^\n]*\n)/, "$1    skip: true\n"));
+    continue;
+  }
   const at2 = chain.indexOf("    contracts:\n") + "    contracts:\n".length;
   const contracts = chain.slice(at2).split(/^(?=      - name: )/m).filter(keepContract);
   const kept = contracts.map((c) =>
