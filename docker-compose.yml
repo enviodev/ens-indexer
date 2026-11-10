@@ -43,6 +43,7 @@ services:
       ENS_RPC_URL_534352: ${ENS_RPC_URL_534352:-}
       ENS_RPC_URL_11155111: ${ENS_RPC_URL_11155111:-}
       TUI_OFF: "true"
+      ENVIO_CONFIG: ${ENVIO_CONFIG:-config.yaml}
     restart: unless-stopped
 
   api:
