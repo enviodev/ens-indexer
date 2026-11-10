@@ -40,7 +40,7 @@ The ENSNode Ponder indexer is a monorepo with **8 plugins** across **6 chains** 
 | 4 | Protocol Acceleration | DONE | — |
 | 5 | Registrars | DONE | — |
 | 6 | TokenScope | DONE | — |
-| 7 | ENSv2 | NOT STARTED | Low (future protocol) |
+| 7 | ENSv2 | IN PROGRESS | v2 entities, discovery, API (see README) |
 
 ---
 
