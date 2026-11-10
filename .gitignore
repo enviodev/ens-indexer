@@ -38,3 +38,5 @@ generated
 .envio/
 
 SCHEMA_COMPARISON.md
+
+config.local.yaml

@@ -1,0 +1,392 @@
+import { indexer } from "envio";
+import type { handlerContext } from "../lib/helpers";
+import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
+import { isBatchRegistrar, isMigrationController, isMirrorResolver } from "../lib/v2-deployments";
+import {
+  type V2Domain,
+  ensureV2Registry,
+  ensureV2Resolver,
+  makeV2DomainId,
+  makeV2EventId,
+  makeV2RegistryId,
+  nameInRegistry,
+  nullableAddress,
+  propagateV2Registry,
+  setV2Edge,
+  storageIdOf,
+  toHex32,
+} from "../lib/v2-helpers";
+
+// ─── Discovery ───────────────────────────────────────────────────────────────
+// RegistryCreated is matched on any address. It only gets a contract watched,
+// from the block it was created, so nothing it emits before being linked is
+// lost. It proves nothing: names stay null until a proven parent links to it.
+
+indexer.contractRegister(
+  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true },
+  async ({ event, context }) => {
+    context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
+  },
+);
+
+indexer.onEvent(
+  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true },
+  async ({ event, context }) => {
+    await ensureV2Registry(context, event.chainId, event.srcAddress, {
+      block: event.block.number,
+      timestamp: event.block.timestamp,
+    });
+  },
+);
+
+// A subregistry is watched as soon as a watched registry points at it, even if
+// it never emitted RegistryCreated (a custom IRegistry implementation).
+indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated" }, async ({ event, context }) => {
+  if (event.params.subregistry !== ZERO_ADDRESS) {
+    context.chain.V2Registry.add(event.params.subregistry as `0x${string}`);
+  }
+});
+
+indexer.contractRegister({ contract: "V2Registry", event: "ResolverUpdated" }, async ({ event, context }) => {
+  const resolver = event.params.resolver;
+  if (resolver !== ZERO_ADDRESS && !isMirrorResolver(event.chainId, resolver)) {
+    context.chain.V2Resolver.add(resolver as `0x${string}`);
+    context.chain.Resolver.add(resolver as `0x${string}`);
+  }
+});
+
+// ─── Labels ──────────────────────────────────────────────────────────────────
+
+type Meta = { chainId: number; block: { number: number; timestamp: number }; srcAddress: string };
+
+async function loadOrCreateDomain(
+  event: Meta,
+  context: handlerContext,
+  tokenId: bigint,
+): Promise<V2Domain> {
+  const id = makeV2DomainId(event.chainId, event.srcAddress, tokenId);
+  const existing = await context.V2_domain.get(id);
+  if (existing) return existing;
+  await ensureV2Registry(context, event.chainId, event.srcAddress);
+  // Only reached when an event refers to a label we never saw registered.
+  return {
+    id,
+    registry_id: makeV2RegistryId(event.chainId, event.srcAddress),
+    storageId: toHex32(storageIdOf(tokenId)),
+    tokenId,
+    resource: undefined,
+    labelhash: toHex32(storageIdOf(tokenId)),
+    label: undefined,
+    node: undefined,
+    name: undefined,
+    status: "UNREGISTERED",
+    owner: undefined,
+    expiry: undefined,
+    subregistry: undefined,
+    resolver: undefined,
+    reservedBy: undefined,
+    isPremigrated: false,
+    isMigrated: false,
+    migrationController: undefined,
+    registrationCount: 0,
+    createdBlock: event.block.number,
+    createdTimestamp: BigInt(event.block.timestamp),
+    registeredTimestamp: undefined,
+    updatedBlock: event.block.number,
+  };
+}
+
+interface LabelEvent {
+  chainId: number;
+  block: { number: number; timestamp: number };
+  srcAddress: string;
+  transaction: { hash: string };
+  params: {
+    tokenId: bigint;
+    labelHash: string;
+    label: string;
+    expiry: bigint;
+    sender: string;
+  };
+}
+
+async function handleLabel(
+  event: LabelEvent,
+  context: handlerContext,
+  status: "RESERVED" | "REGISTERED",
+  owner: string | undefined,
+): Promise<void> {
+  const { tokenId, labelHash, expiry, sender } = event.params;
+  const label = hasNullByte(event.params.label) ? stripNullBytes(event.params.label) : event.params.label;
+  const registry = await ensureV2Registry(context, event.chainId, event.srcAddress);
+  const existing = await loadOrCreateDomain(event, context, tokenId);
+  const { name, node } = nameInRegistry(registry, label, labelHash);
+
+  const isReservedByBatch = status === "RESERVED" && isBatchRegistrar(event.chainId, sender);
+  const isMigration = status === "REGISTERED" && isMigrationController(event.chainId, sender);
+
+  // _register() rewrites subregistry and resolver. It emits an event only for
+  // non-zero values, so clear what was here and let the events that follow fill it in.
+  if (existing.subregistry) {
+    await setV2Edge(context, event.chainId, existing.id, existing.subregistry, false, {
+      block: event.block.number,
+      timestamp: event.block.timestamp,
+    });
+  }
+
+  context.V2_domain.set({
+    ...existing,
+    tokenId,
+    labelhash: labelHash,
+    label,
+    node,
+    name,
+    status,
+    owner,
+    expiry,
+    subregistry: undefined,
+    resolver: undefined,
+    reservedBy: status === "RESERVED" ? sender.toLowerCase() : existing.reservedBy,
+    isPremigrated: existing.isPremigrated || isReservedByBatch,
+    isMigrated: existing.isMigrated || isMigration,
+    migrationController: isMigration ? sender.toLowerCase() : existing.migrationController,
+    registrationCount: existing.registrationCount + (status === "REGISTERED" ? 1 : 0),
+    registeredTimestamp: status === "REGISTERED" ? BigInt(event.block.timestamp) : existing.registeredTimestamp,
+    updatedBlock: event.block.number,
+  });
+
+  if (isMigration && node && owner) {
+    context.V2_migration.set({
+      id: node,
+      domain_id: existing.id,
+      node,
+      label,
+      controller: sender.toLowerCase(),
+      owner,
+      blockNumber: event.block.number,
+      timestamp: BigInt(event.block.timestamp),
+      transactionHash: event.transaction.hash,
+    });
+  }
+}
+
+indexer.onEvent({ contract: "V2Registry", event: "LabelRegistered" }, async ({ event, context }) => {
+  await handleLabel(event, context, "REGISTERED", event.params.owner.toLowerCase());
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "LabelReserved" }, async ({ event, context }) => {
+  await handleLabel(event, context, "RESERVED", undefined);
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered" }, async ({ event, context }) => {
+  const domain = await loadOrCreateDomain(event, context, event.params.tokenId);
+  if (domain.subregistry) {
+    await setV2Edge(context, event.chainId, domain.id, domain.subregistry, false, {
+      block: event.block.number,
+      timestamp: event.block.timestamp,
+    });
+  }
+  context.V2_domain.set({
+    ...domain,
+    status: "UNREGISTERED",
+    owner: undefined,
+    expiry: BigInt(event.block.timestamp),
+    updatedBlock: event.block.number,
+  });
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated" }, async ({ event, context }) => {
+  const domain = await loadOrCreateDomain(event, context, event.params.tokenId);
+  context.V2_domain.set({
+    ...domain,
+    expiry: event.params.newExpiry,
+    updatedBlock: event.block.number,
+  });
+});
+
+// ─── Links ───────────────────────────────────────────────────────────────────
+
+indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated" }, async ({ event, context }) => {
+  const { tokenId, subregistry, sender } = event.params;
+  const meta = { block: event.block.number, timestamp: event.block.timestamp, sender: sender.toLowerCase() };
+  const domain = await loadOrCreateDomain(event, context, tokenId);
+  const next = nullableAddress(subregistry);
+
+  const previous = domain.subregistry;
+  context.V2_domain.set({ ...domain, subregistry: next, updatedBlock: event.block.number });
+
+  if (previous && previous !== next) {
+    await setV2Edge(context, event.chainId, domain.id, previous, false, meta);
+  }
+  if (next) {
+    await ensureV2Registry(context, event.chainId, next);
+    await setV2Edge(context, event.chainId, domain.id, next, true, meta);
+  }
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated" }, async ({ event, context }) => {
+  const { tokenId, resolver } = event.params;
+  const domain = await loadOrCreateDomain(event, context, tokenId);
+  const next = nullableAddress(resolver);
+  context.V2_domain.set({ ...domain, resolver: next, updatedBlock: event.block.number });
+  if (next) {
+    const registry = await context.V2_registry.get(domain.registry_id);
+    await ensureV2Resolver(context, event.chainId, next, {
+      discoveredVia: "ResolverUpdated",
+      linkedBlock: event.block.number,
+      proven: registry?.proven === true,
+    });
+  }
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated" }, async ({ event, context }) => {
+  const registry = await ensureV2Registry(context, event.chainId, event.srcAddress);
+  context.V2_registry.set({
+    ...registry,
+    claimedParent: event.params.parent.toLowerCase(),
+    claimedLabel: event.params.label,
+  });
+  await propagateV2Registry(context, event.chainId, event.srcAddress);
+});
+
+// ─── Tokens ──────────────────────────────────────────────────────────────────
+
+indexer.onEvent({ contract: "V2Registry", event: "TokenResource" }, async ({ event, context }) => {
+  const { tokenId, resource } = event.params;
+  const domain = await loadOrCreateDomain(event, context, tokenId);
+  context.V2_domain.set({ ...domain, resource, updatedBlock: event.block.number });
+  const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
+  context.V2_token_resource.set({
+    id: `${registryId}-${tokenId}`,
+    registry_id: registryId,
+    domain_id: domain.id,
+    tokenId,
+    resource,
+    regeneratedFrom: undefined,
+    isCurrent: true,
+  });
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "TokenRegenerated" }, async ({ event, context }) => {
+  const { oldTokenId, newTokenId } = event.params;
+  const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
+  const domain = await loadOrCreateDomain(event, context, oldTokenId);
+  context.V2_domain.set({ ...domain, tokenId: newTokenId, updatedBlock: event.block.number });
+
+  const oldMappingId = `${registryId}-${oldTokenId}`;
+  const oldMapping = await context.V2_token_resource.get(oldMappingId);
+  if (oldMapping) context.V2_token_resource.set({ ...oldMapping, isCurrent: false });
+
+  context.V2_token_resource.set({
+    id: `${registryId}-${newTokenId}`,
+    registry_id: registryId,
+    domain_id: domain.id,
+    tokenId: newTokenId,
+    resource: oldMapping?.resource ?? domain.resource ?? 0n,
+    regeneratedFrom: oldTokenId,
+    isCurrent: true,
+  });
+
+  context.V2_token_regeneration.set({
+    id: makeV2EventId(event.chainId, event.block.number, event.logIndex),
+    domain_id: domain.id,
+    oldTokenId,
+    newTokenId,
+    resource: oldMapping?.resource ?? domain.resource,
+    blockNumber: event.block.number,
+    timestamp: BigInt(event.block.timestamp),
+    transactionHash: event.transaction.hash,
+  });
+
+  // _regenerate() burns, emits TokenRegenerated, then mints. The burn is the
+  // log before this one, so it can be reclassified here: it was not a real burn.
+  const burnId = makeV2EventId(event.chainId, event.block.number, event.logIndex - 1);
+  const burn = await context.V2_transfer.get(burnId);
+  if (burn && burn.tokenId === oldTokenId && burn.to === ZERO_ADDRESS) {
+    context.V2_transfer.set({ ...burn, kind: "REGENERATION_BURN" });
+  }
+});
+
+async function applyTransfer(
+  event: {
+    chainId: number;
+    block: { number: number; timestamp: number };
+    logIndex: number;
+    srcAddress: string;
+    transaction: { hash: string };
+  },
+  context: handlerContext,
+  operator: string,
+  from: string,
+  to: string,
+  tokenId: bigint,
+  id: string,
+): Promise<void> {
+  const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
+  const domainId = makeV2DomainId(event.chainId, event.srcAddress, tokenId);
+  const fromAddress = from.toLowerCase();
+  const toAddress = to.toLowerCase();
+
+  let kind: "MINT" | "BURN" | "TRANSFER" | "REGENERATION_MINT";
+  if (fromAddress === ZERO_ADDRESS) {
+    const mapping = await context.V2_token_resource.get(`${registryId}-${tokenId}`);
+    kind = mapping?.regeneratedFrom !== undefined ? "REGENERATION_MINT" : "MINT";
+  } else if (toAddress === ZERO_ADDRESS) {
+    kind = "BURN";
+  } else {
+    kind = "TRANSFER";
+  }
+
+  const domain = await context.V2_domain.get(domainId);
+  if (domain) {
+    context.V2_domain.set({
+      ...domain,
+      owner: toAddress === ZERO_ADDRESS ? undefined : toAddress,
+      updatedBlock: event.block.number,
+    });
+  }
+
+  context.V2_transfer.set({
+    id,
+    registry_id: registryId,
+    domain_id: domain ? domainId : undefined,
+    tokenId,
+    from: fromAddress,
+    to: toAddress,
+    operator: operator.toLowerCase(),
+    kind,
+    blockNumber: event.block.number,
+    logIndex: event.logIndex,
+    timestamp: BigInt(event.block.timestamp),
+    transactionHash: event.transaction.hash,
+  });
+}
+
+indexer.onEvent({ contract: "V2Registry", event: "TransferSingle" }, async ({ event, context }) => {
+  const { operator, from, to, id } = event.params;
+  await applyTransfer(event, context, operator, from, to, id, makeV2EventId(event.chainId, event.block.number, event.logIndex));
+});
+
+indexer.onEvent({ contract: "V2Registry", event: "TransferBatch" }, async ({ event, context }) => {
+  const { operator, from, to, ids } = event.params;
+  for (const [i, id] of ids.entries()) {
+    await applyTransfer(event, context, operator, from, to, id, `${makeV2EventId(event.chainId, event.block.number, event.logIndex)}-${i}`);
+  }
+});
+
+// ─── Access control ──────────────────────────────────────────────────────────
+
+indexer.onEvent({ contract: "V2Registry", event: "EACRolesChanged" }, async ({ event, context }) => {
+  const { resource, account, newRoleBitmap } = event.params;
+  const contract = event.srcAddress.toLowerCase();
+  const holder = account.toLowerCase();
+  context.V2_permission.set({
+    id: `${event.chainId}-${contract}-${resource}-${holder}`,
+    contract,
+    resource,
+    account: holder,
+    roles: newRoleBitmap,
+    active: newRoleBitmap !== 0n,
+    updatedBlock: event.block.number,
+  });
+});

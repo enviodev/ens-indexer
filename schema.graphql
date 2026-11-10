@@ -474,3 +474,241 @@ type internal_base_payment {
   id: ID!                    # "{chainId}-{transactionHash}"
   price: BigInt!
 }
+
+# ─── ENSv2 ───────────────────────────────────────────────────────────────────
+# v1 lives in the subgraph_* tables, keyed by node. v2 is keyed by registry and
+# storage id, because a v2 name has no node until its parent chain is proven.
+# The two meet on node: v2_domain.node = subgraph_domain.id.
+#
+# ID conventions:
+#   v2_registry / v2_resolver   {chainId}-{address}
+#   v2_domain                   {chainId}-{registry}-{storageId}
+# storageId is the tokenId with its low 32 version bits cleared. It survives
+# TokenRegenerated and re-registration, so it is the stable key. tokenId is not.
+
+enum v2_status {
+  RESERVED
+  REGISTERED
+  UNREGISTERED
+}
+
+type v2_registry {
+  id: ID!
+  address: String! @index
+  kind: String!                   # "root" | "eth" | "user"
+  # A proven registry is a seed or is linked from a domain in a proven registry.
+  # Discovery alone never makes a registry proven.
+  proven: Boolean! @index
+  node: String @index             # namehash this registry serves; null until proven
+  name: String                    # "" for root, "eth", "sub.eth"; null until proven
+  parentDomain: v2_domain         # the proven link that sets node and name
+  claimedParent: String           # from ParentUpdated; a claim, not proof
+  claimedLabel: String
+  claimMatchesLink: Boolean       # false: the registry claims a parent that does not link to it
+  createdBlock: Int
+  createdTimestamp: BigInt
+  domains: [v2_domain!]! @derivedFrom(field: "registry")
+}
+
+# Many-to-many: one registry can be the subregistry of several domains.
+type v2_registry_edge @index(fields: ["childRegistry", "active"]) {
+  id: ID!                         # {parentDomainId}-{childRegistryId}
+  parentDomain: v2_domain! @index
+  childRegistry: v2_registry! @index
+  active: Boolean!
+  linkedBlock: Int!
+  linkedTimestamp: BigInt!
+  unlinkedBlock: Int
+  sender: String
+}
+
+type v2_domain @index(fields: ["registry", "status"]) @index(fields: ["owner", "expiry"]) @index(fields: ["status", "expiry"]) {
+  id: ID!
+  registry: v2_registry! @index
+  storageId: String!
+  tokenId: BigInt! @index         # current token; changes on regeneration
+  resource: BigInt                # current EAC resource
+  labelhash: String! @index
+  label: String @index
+  node: String @index             # null until the registry is proven
+  name: String @index             # null until the registry is proven
+  status: v2_status! @index
+  owner: String @index            # null while reserved
+  expiry: BigInt @index
+  subregistry: String @index
+  resolver: String @index
+  reservedBy: String              # contract that reserved it, e.g. BatchRegistrar
+  isPremigrated: Boolean!
+  isMigrated: Boolean! @index     # moved from v1 by a migration controller
+  migrationController: String
+  registrationCount: Int!
+  createdBlock: Int!
+  createdTimestamp: BigInt!
+  registeredTimestamp: BigInt
+  updatedBlock: Int!
+}
+
+# Authoritative tokenId -> resource mapping. tokenId is unstable, so never use
+# it as a foreign key; resolve it here.
+type v2_token_resource {
+  id: ID!                         # {registryId}-{tokenId}
+  registry: v2_registry! @index
+  domain: v2_domain! @index
+  tokenId: BigInt! @index
+  resource: BigInt! @index
+  regeneratedFrom: BigInt
+  isCurrent: Boolean!
+}
+
+type v2_token_regeneration @index(fields: ["domain", "blockNumber"]) {
+  id: ID!
+  domain: v2_domain!
+  oldTokenId: BigInt!
+  newTokenId: BigInt!
+  resource: BigInt
+  blockNumber: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+enum v2_transfer_kind {
+  MINT
+  BURN
+  TRANSFER
+  REGENERATION_BURN   # burn half of a token regeneration: not a change of owner
+  REGENERATION_MINT   # mint half of a token regeneration
+}
+
+type v2_transfer @index(fields: ["domain", "blockNumber"]) @index(fields: ["to", "blockNumber"]) @index(fields: ["from", "blockNumber"]) {
+  id: ID!                         # {chainId}-{block}-{logIndex}[-{batchIndex}]
+  registry: v2_registry! @index
+  domain: v2_domain
+  tokenId: BigInt! @index
+  from: String!
+  to: String!
+  operator: String!
+  kind: v2_transfer_kind!
+  blockNumber: Int!
+  logIndex: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+# Enhanced access control. Resource ids survive token regeneration.
+type v2_permission @index(fields: ["account", "active"]) @index(fields: ["contract", "resource"]) {
+  id: ID!                         # {chainId}-{contract}-{resource}-{account}
+  contract: String!
+  resource: BigInt!
+  account: String!
+  roles: BigInt!
+  active: Boolean!
+  updatedBlock: Int!
+}
+
+# paymentToken, base and premium are stored as emitted, per the ERC-20 used.
+# Normalising across tokens is left to the consumer.
+type v2_registration @index(fields: ["domain", "blockNumber"]) @index(fields: ["paymentToken", "blockNumber"]) {
+  id: ID!
+  domain: v2_domain! @index
+  label: String!
+  owner: String!
+  subregistry: String
+  resolver: String
+  duration: BigInt!
+  paymentToken: String!
+  base: BigInt!
+  premium: BigInt!
+  referrer: String!
+  registrar: String!
+  blockNumber: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+# Renewals carry one amount, and no premium.
+type v2_renewal @index(fields: ["domain", "blockNumber"]) {
+  id: ID!
+  domain: v2_domain @index        # null for a renewal of a name still only on v1
+  label: String!
+  duration: BigInt!
+  newExpiry: BigInt!
+  paymentToken: String!
+  amount: BigInt!
+  referrer: String!
+  registrar: String!
+  blockNumber: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+# Unified migration ledger. A name is listed once it leaves v1.
+type v2_migration {
+  id: ID!                         # node
+  domain: v2_domain! @index
+  node: String! @index
+  label: String
+  controller: String!
+  owner: String!
+  blockNumber: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+}
+
+type v2_resolver {
+  id: ID!
+  address: String! @index
+  # A proven resolver is referenced by a domain in a proven registry.
+  proven: Boolean! @index
+  discoveredVia: String!          # "ResolverCreated" | "ResolverUpdated"
+  createdBlock: Int
+  firstLinkedBlock: Int
+  records: [v2_record!]! @derivedFrom(field: "resolver")
+}
+
+# A storage record. Several nodes can share one record: that is an alias.
+type v2_record {
+  id: ID!                         # {resolverId}-{recordId}
+  resolver: v2_resolver! @index
+  recordId: BigInt!
+  contenthash: String
+  primaryName: String
+  texts: [v2_record_text!]! @derivedFrom(field: "record")
+  addresses: [v2_record_address!]! @derivedFrom(field: "record")
+  links: [v2_record_link!]! @derivedFrom(field: "record")
+}
+
+type v2_record_text @index(fields: ["record", "key"]) {
+  id: ID!
+  record: v2_record! @index
+  key: String!
+  value: String
+}
+
+type v2_record_address @index(fields: ["record", "coinType"]) {
+  id: ID!
+  record: v2_record! @index
+  coinType: BigInt!
+  value: String
+}
+
+# node -> record. Node 0x00..00 is the resolver's default record.
+type v2_record_link @index(fields: ["resolver", "node"]) {
+  id: ID!                         # {resolverId}-{node}
+  resolver: v2_resolver! @index
+  record: v2_record! @index
+  node: String! @index
+  name: String
+  active: Boolean!
+  updatedBlock: Int!
+}
+
+# Legacy aliases (AliasChanged). Rewrites one name to another before lookup.
+type v2_alias @index(fields: ["resolver", "fromNode"]) {
+  id: ID!                         # {resolverId}-{fromNode}
+  resolver: v2_resolver! @index
+  fromNode: String! @index
+  fromName: String
+  toNode: String
+  toName: String
+  updatedBlock: Int!
+}
