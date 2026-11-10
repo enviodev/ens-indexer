@@ -1,0 +1,405 @@
+import { readFileSync } from "node:fs";
+import { describe, it, expect } from "vitest";
+import { createTestIndexer } from "envio";
+import { decodeEventLog, namehash, parseAbi } from "viem";
+import {
+  makeV2DomainId,
+  makeV2RegistryId,
+  pickCanonicalEdge,
+  propagateV2Registry,
+  storageIdOf,
+  type V2Domain,
+  type V2Edge,
+  type V2Registry,
+} from "../src/lib/v2-helpers";
+import { ETH_NODE, ZERO_ADDRESS } from "../src/lib/helpers";
+
+// Every chain test indexes real Sepolia blocks. Fixtures are the raw logs of
+// those blocks, decoded here with viem so expected values do not come from the
+// indexer's own decoder.
+//
+// Set ENS_RPC_URL_11155111 to run without a HyperSync token.
+
+const CHAIN = 11155111;
+const ROOT_REGISTRY = "0xb458d6a3a77919449d03e7a6903c26827c1ec43f";
+const ETH_REGISTRY = "0xd4ebcbbdf463c9c45784603db0ddd499bc44a8b4";
+const BATCH_REGISTRAR = "0x4a4c8b7cdab6b19dc2cdb417cdb53a2ccbaf5322";
+const UNLOCKED_MIGRATION = "0x2a35b94df22cc7354570be2284655e2cdc0e64a2";
+
+const fixtures = JSON.parse(readFileSync("test/fixtures/v2-sepolia.json", "utf8"));
+
+const ABI = parseAbi([
+  "event LabelRegistered(uint256 indexed tokenId, bytes32 indexed labelHash, string label, address owner, uint64 expiry, address indexed sender)",
+  "event LabelReserved(uint256 indexed tokenId, bytes32 indexed labelHash, string label, uint64 expiry, address indexed sender)",
+  "event NameRegistered(uint256 indexed tokenId, string label, address owner, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 indexed referrer, uint256 base, uint256 premium)",
+  "event NameRenewed(uint256 indexed tokenId, string label, uint64 duration, uint64 newExpiry, address paymentToken, bytes32 indexed referrer, uint256 amount)",
+]);
+
+const decode = (log: { data: `0x${string}`; topics: [`0x${string}`, ...`0x${string}`[]] }) =>
+  decodeEventLog({ abi: ABI, data: log.data, topics: log.topics }).args as Record<string, any>;
+const blockOf = (log: { blockNumber: string }) => parseInt(log.blockNumber, 16);
+const logIndexOf = (log: { logIndex: string }) => parseInt(log.logIndex, 16);
+const process1 = (indexer: ReturnType<typeof createTestIndexer>, startBlock: number, endBlock: number) =>
+  indexer.process({ chains: { [CHAIN]: { startBlock, endBlock } } });
+
+// ─── Storage ids ─────────────────────────────────────────────────────────────
+
+describe("storageIdOf", () => {
+  it("clears exactly the 32 version bits", () => {
+    expect(storageIdOf(0xdec08c9dbbdd0890e300eb5062089b2d4b1c40e3673bbccb5423f7b300000001n)).toBe(
+      0xdec08c9dbbdd0890e300eb5062089b2d4b1c40e3673bbccb5423f7b300000000n,
+    );
+  });
+
+  it("maps a tokenId and its labelhash to the same storage id", () => {
+    const { topics } = fixtures.migrated;
+    expect(storageIdOf(BigInt(topics[1]))).toBe(storageIdOf(BigInt(topics[2])));
+  });
+});
+
+// ─── Provenance ──────────────────────────────────────────────────────────────
+
+describe("provenance", () => {
+  const child = "0xd00c33fe5123ba984226e12494c3e5c69ec486d8";
+  const parent = "0xcba9a5bc4e04c810d1f7c49df5c1abd732efcded";
+
+  it("discovers a registry from RegistryCreated but does not trust it", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 11825459, 11825459);
+    const row = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, child));
+    expect(row.proven).toBe(false);
+    expect(row.name).toBeUndefined();
+    expect(row.createdBlock).toBe(11825459);
+    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(child);
+  });
+
+  it("does not trust a link from an unproven parent", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 11825459, 11825459);
+    // The parent emitted the link in this block, but nothing proves the parent.
+    const row = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, child));
+    expect(row.proven).toBe(false);
+    const edges = await indexer.V2_registry_edge.getWhere({ childRegistry_id: { _eq: row.id } });
+    for (const e of edges) expect(e.active).toBe(true);
+    const domains = await indexer.V2_domain.getWhere({ registry_id: { _eq: makeV2RegistryId(CHAIN, parent) } });
+    for (const d of domains) expect(d.name).toBeUndefined();
+  });
+
+  it("watches a registry that never emitted RegistryCreated once a seed links it", async () => {
+    const custom = "0xe1215ed4e1886d008a2b52c051d459031bf66363";
+    const indexer = createTestIndexer();
+    await process1(indexer, 11868901, 11868901);
+    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(custom);
+  });
+});
+
+// ─── Order independence ──────────────────────────────────────────────────────
+
+describe("names do not depend on event order", () => {
+  const child = "0xd00c33fe5123ba984226e12494c3e5c69ec486d8";
+  const parent = "0xcba9a5bc4e04c810d1f7c49df5c1abd732efcded";
+
+  it("names a child created, linked and written in one block (Sepolia 11857104)", async () => {
+    // Log order in this block: child RegistryCreated@18, ETHRegistry link@34, child LabelRegistered@36.
+    const child2 = "0x9f55213ff24f9eef0c03fd80de898ef0c2a397c5";
+    const indexer = createTestIndexer();
+    await process1(indexer, 11857104, 11857104);
+
+    const registry = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, child2));
+    expect(registry.proven).toBe(true);
+    expect(registry.name?.split(".").length).toBe(2);
+    expect(registry.name?.endsWith(".eth")).toBe(true);
+    expect(registry.node).toBe(namehash(registry.name!));
+
+    const labels = await indexer.V2_domain.getWhere({ registry_id: { _eq: registry.id } });
+    expect(labels.length).toBeGreaterThan(0);
+    for (const d of labels) {
+      expect(d.name).toBe(`${d.label}.${registry.name}`);
+      expect(d.node).toBe(namehash(d.name!));
+    }
+  });
+
+  it("leaves a chain unproven when it never reaches a seed (Sepolia 11825459)", async () => {
+    // Real case: 0xcba9... claims a parent whose chain never links back to the root.
+    const indexer = createTestIndexer();
+    await process1(indexer, 11825459, 11825460);
+    const parentRow = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, parent));
+    expect(parentRow.proven).toBe(false);
+    expect(parentRow.claimedLabel).toBe("croquis-app");
+    expect(parentRow.claimMatchesLink).toBe(false);
+    const childRow = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, child));
+    expect(childRow.proven).toBe(false);
+    expect(childRow.name).toBeUndefined();
+  });
+
+  it("names a label written before its registry was linked", () => {
+    return runPropagation();
+  });
+});
+
+// A small fake of the handler context, for propagation logic that is hard to
+// reach with a single real block.
+function fakeContext() {
+  const tables: Record<string, Map<string, any>> = {
+    V2_registry: new Map(), V2_domain: new Map(), V2_registry_edge: new Map(), V2_resolver: new Map(),
+  };
+  const ops = (name: string) => ({
+    get: async (id: string) => tables[name]!.get(id),
+    set: (row: any) => void tables[name]!.set(row.id, row),
+    getWhere: async (filter: Record<string, { _eq: unknown }>) => {
+      const [field, cond] = Object.entries(filter)[0]!;
+      return [...tables[name]!.values()].filter((r) => r[field] === cond._eq);
+    },
+  });
+  const context = {
+    V2_registry: ops("V2_registry"),
+    V2_domain: ops("V2_domain"),
+    V2_registry_edge: ops("V2_registry_edge"),
+    V2_resolver: ops("V2_resolver"),
+    log: { warn: () => undefined },
+  } as any;
+  return { context, tables };
+}
+
+const registryRow = (address: string, over: Partial<V2Registry> = {}): V2Registry => ({
+  id: makeV2RegistryId(1, address), chainId: 1, address, kind: "user", proven: false,
+  node: undefined, name: undefined, parentDomain_id: undefined, claimedParent: undefined,
+  claimedLabel: undefined, claimMatchesLink: undefined, createdBlock: 1, createdTimestamp: 0n, ...over,
+} as V2Registry);
+
+const domainRow = (registry: string, tokenId: bigint, label: string, over: Partial<V2Domain> = {}): V2Domain => ({
+  id: makeV2DomainId(1, registry, tokenId), chainId: 1, registry_id: makeV2RegistryId(1, registry),
+  storageId: "0x", tokenId, resource: undefined, labelhash: `0x${"ab".repeat(32)}`, label,
+  node: undefined, name: undefined, status: "REGISTERED", owner: "0xowner", expiry: 9999999999n,
+  subregistry: undefined, resolver: undefined, reservedBy: undefined, isPremigrated: false, isMigrated: false,
+  migrationController: undefined, registrationCount: 1, createdBlock: 1, createdTimestamp: 0n,
+  registeredTimestamp: 0n, updatedBlock: 1, ...over,
+} as V2Domain);
+
+async function runPropagation() {
+  const { context, tables } = fakeContext();
+  const seed = "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2"; // mainnet ETHRegistry
+  const child = "0x00000000000000000000000000000000000000c1";
+  const grandchild = "0x00000000000000000000000000000000000000c2";
+
+  context.V2_registry.set(registryRow(seed, { kind: "eth", proven: true, node: ETH_NODE, name: "eth" }));
+  context.V2_registry.set(registryRow(child));
+  context.V2_registry.set(registryRow(grandchild));
+
+  // Labels exist first: nobody has linked these registries yet.
+  const parentDomain = domainRow(seed, 1n << 40n, "parent", {
+    node: namehash("parent.eth"), name: "parent.eth", subregistry: child,
+  });
+  const inChild = domainRow(child, 2n << 40n, "sub", { subregistry: grandchild });
+  const inGrandchild = domainRow(grandchild, 3n << 40n, "leaf");
+  context.V2_domain.set(parentDomain);
+  context.V2_domain.set(inChild);
+  context.V2_domain.set(inGrandchild);
+
+  const edge = (parentDomainId: string, childAddress: string): V2Edge => ({
+    id: `${parentDomainId}-${childAddress}`, chainId: 1, parentDomain_id: parentDomainId,
+    childRegistry_id: makeV2RegistryId(1, childAddress), active: true, linkedBlock: 5,
+    linkedTimestamp: 0n, unlinkedBlock: undefined, sender: undefined,
+  } as V2Edge);
+  context.V2_registry_edge.set(edge(parentDomain.id, child));
+  context.V2_registry_edge.set(edge(inChild.id, grandchild));
+
+  await propagateV2Registry(context, 1, child);
+
+  expect(tables.V2_registry!.get(makeV2RegistryId(1, child)).name).toBe("parent.eth");
+  expect(tables.V2_domain!.get(inChild.id).name).toBe("sub.parent.eth");
+  expect(tables.V2_registry!.get(makeV2RegistryId(1, grandchild)).name).toBe("sub.parent.eth");
+  expect(tables.V2_domain!.get(inGrandchild.id).name).toBe("leaf.sub.parent.eth");
+
+  // Removing the top link takes the whole subtree's names with it.
+  context.V2_registry_edge.set({ ...tables.V2_registry_edge!.get(`${parentDomain.id}-${child}`), active: false });
+  await propagateV2Registry(context, 1, child);
+  expect(tables.V2_registry!.get(makeV2RegistryId(1, child)).proven).toBe(false);
+  expect(tables.V2_domain!.get(inGrandchild.id).name).toBeUndefined();
+}
+
+describe("registry graph edge cases", () => {
+  it("terminates on a registry that links to itself (seen on Sepolia, block 11918095)", async () => {
+    const { context, tables } = fakeContext();
+    const seed = "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2";
+    const loop = "0xb36e0ede0ed38653c5ab8222b409a6b2ba78b409";
+    context.V2_registry.set(registryRow(seed, { kind: "eth", proven: true, node: ETH_NODE, name: "eth" }));
+    context.V2_registry.set(registryRow(loop));
+    const top = domainRow(seed, 1n << 40n, "top", { node: namehash("top.eth"), name: "top.eth", subregistry: loop });
+    const self = domainRow(loop, 2n << 40n, "self", { subregistry: loop });
+    context.V2_domain.set(top);
+    context.V2_domain.set(self);
+    for (const parentId of [top.id, self.id]) {
+      context.V2_registry_edge.set({
+        id: `${parentId}-${loop}`, chainId: 1, parentDomain_id: parentId, childRegistry_id: makeV2RegistryId(1, loop),
+        active: true, linkedBlock: parentId === top.id ? 5 : 6, linkedTimestamp: 0n, unlinkedBlock: undefined, sender: undefined,
+      } as V2Edge);
+    }
+    await propagateV2Registry(context, 1, loop);
+    expect(tables.V2_registry!.get(makeV2RegistryId(1, loop)).proven).toBe(true);
+  });
+
+  it("prefers the link a registry claims, but only among real links", () => {
+    const registry = registryRow("0xc1", { claimedParent: "0xa2", claimedLabel: "two" });
+    const mk = (addr: string, label: string, block: number) => ({
+      edge: { id: addr, linkedBlock: block } as V2Edge,
+      parentRegistry: registryRow(addr, { proven: true }),
+      parentDomain: domainRow(addr, 1n << 40n, label),
+    });
+    const newest = mk("0xa1", "one", 9);
+    const claimed = mk("0xa2", "two", 3);
+    expect(pickCanonicalEdge(registry, [newest, claimed])?.parentRegistry.address).toBe("0xa2");
+    const noClaimMatch = registryRow("0xc1", { claimedParent: "0xff", claimedLabel: "x" });
+    expect(pickCanonicalEdge(noClaimMatch, [newest, claimed])?.parentRegistry.address).toBe("0xa1");
+  });
+
+  it("ignores links from unproven parents when picking a name", () => {
+    const registry = registryRow("0xc1");
+    const unproven = {
+      edge: { id: "u", linkedBlock: 9 } as V2Edge,
+      parentRegistry: registryRow("0xa1", { proven: false }),
+      parentDomain: domainRow("0xa1", 1n << 40n, "x"),
+    };
+    expect(pickCanonicalEdge(registry, [unproven])).toBeUndefined();
+  });
+});
+
+// ─── Token regeneration ──────────────────────────────────────────────────────
+
+describe("TokenRegenerated", () => {
+  const { regen, regenBlockLogs } = fixtures;
+
+  it("keeps the domain on one row and maps both token ids to one resource", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 11820291, regen.block);
+    const domainId = makeV2DomainId(CHAIN, ROOT_REGISTRY, BigInt(regen.old));
+    const domain = await indexer.V2_domain.getOrThrow(domainId);
+    expect(domain.tokenId).toBe(BigInt(regen.new));
+    const registryId = makeV2RegistryId(CHAIN, ROOT_REGISTRY);
+    const before = await indexer.V2_token_resource.getOrThrow(`${registryId}-${BigInt(regen.old)}`);
+    const after = await indexer.V2_token_resource.getOrThrow(`${registryId}-${BigInt(regen.new)}`);
+    expect(before.isCurrent).toBe(false);
+    expect(after.isCurrent).toBe(true);
+    expect(after.resource).toBe(before.resource);
+    expect(after.regeneratedFrom).toBe(BigInt(regen.old));
+  });
+
+  it("reclassifies the burn and the mint, and keeps the owner", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 11820291, regen.block);
+    const transfers = await indexer.V2_transfer.getWhere({ tokenId: { _in: [BigInt(regen.old), BigInt(regen.new)] } });
+    const atBlock = transfers.filter((t: any) => t.blockNumber === regen.block);
+    const burn = atBlock.find((t: any) => t.logIndex === regen.log - 1);
+    const mint = atBlock.find((t: any) => t.logIndex === regen.log + 1);
+    expect(burn?.kind).toBe("REGENERATION_BURN");
+    expect(mint?.kind).toBe("REGENERATION_MINT");
+    expect(regenBlockLogs.length).toBeGreaterThan(0);
+    const domain = await indexer.V2_domain.getOrThrow(makeV2DomainId(CHAIN, ROOT_REGISTRY, BigInt(regen.old)));
+    expect(domain.owner).toBe(mint?.to);
+    expect(domain.owner).not.toBe(ZERO_ADDRESS);
+  });
+});
+
+// ─── Premigration and migration ──────────────────────────────────────────────
+
+describe("BatchRegistrar premigration", () => {
+  it("records a reservation with the batch registrar as its source", async () => {
+    const { reserved } = fixtures;
+    const args = decode(reserved);
+    const indexer = createTestIndexer();
+    await process1(indexer, blockOf(reserved), blockOf(reserved));
+    const domain = await indexer.V2_domain.getOrThrow(makeV2DomainId(CHAIN, ETH_REGISTRY, args.tokenId));
+    expect(domain.status).toBe("RESERVED");
+    expect(domain.owner).toBeUndefined();
+    expect(domain.label).toBe(args.label);
+    expect(domain.expiry).toBe(args.expiry);
+    expect(domain.isPremigrated).toBe(true);
+    expect(domain.reservedBy).toBe(BATCH_REGISTRAR);
+    expect(domain.name).toBe(`${args.label}.eth`);
+    expect(domain.node).toBe(namehash(`${args.label}.eth`));
+  });
+});
+
+describe("v1 to v2 migration", () => {
+  it("detects a migration from the controller that registered the name", async () => {
+    const { migrated } = fixtures;
+    const args = decode(migrated);
+    const indexer = createTestIndexer();
+    await process1(indexer, blockOf(migrated), blockOf(migrated));
+    const domain = await indexer.V2_domain.getOrThrow(makeV2DomainId(CHAIN, ETH_REGISTRY, args.tokenId));
+    expect(domain.isMigrated).toBe(true);
+    expect(domain.migrationController).toBe(UNLOCKED_MIGRATION);
+    expect(domain.status).toBe("REGISTERED");
+    expect(domain.owner).toBe(args.owner.toLowerCase());
+    const ledger = await indexer.V2_migration.getOrThrow(namehash(`${args.label}.eth`));
+    expect(ledger.controller).toBe(UNLOCKED_MIGRATION);
+  });
+});
+
+// ─── Cost fields ─────────────────────────────────────────────────────────────
+
+describe("cost fields", () => {
+  it("stores paymentToken, base and premium as emitted on NameRegistered", async () => {
+    const { nameRegistered } = fixtures;
+    const args = decode(nameRegistered);
+    const indexer = createTestIndexer();
+    await process1(indexer, blockOf(nameRegistered), blockOf(nameRegistered));
+    const row = await indexer.V2_registration.getOrThrow(`${CHAIN}-${blockOf(nameRegistered)}-${logIndexOf(nameRegistered)}`);
+    expect(row.paymentToken).toBe(args.paymentToken.toLowerCase());
+    expect(row.base).toBe(args.base);
+    expect(row.premium).toBe(args.premium);
+    expect(row.duration).toBe(args.duration);
+    expect(row.label).toBe(args.label);
+  });
+
+  it("stores a renewal's single amount", async () => {
+    const { nameRenewed } = fixtures;
+    const args = decode(nameRenewed);
+    const indexer = createTestIndexer();
+    await process1(indexer, blockOf(nameRenewed), blockOf(nameRenewed));
+    const row = await indexer.V2_renewal.getOrThrow(`${CHAIN}-${blockOf(nameRenewed)}-${logIndexOf(nameRenewed)}`);
+    expect(row.amount).toBe(args.amount);
+    expect(row.newExpiry).toBe(args.newExpiry);
+    expect(row.paymentToken).toBe(args.paymentToken.toLowerCase());
+  });
+});
+
+// ─── Resolvers ───────────────────────────────────────────────────────────────
+
+describe("resolver records", () => {
+  it("treats two nodes on one record as aliases", async () => {
+    const resolver = "0xd25d0a2cc153982ce2e097b2ae56e570f386b695";
+    const [first, second] = fixtures.aliasLinks;
+    const indexer = createTestIndexer();
+    await process1(indexer, 11841670, blockOf(second));
+    const resolverId = makeV2RegistryId(CHAIN, resolver);
+    const a = await indexer.V2_record_link.getOrThrow(`${resolverId}-${first.topics[2]}`);
+    const b = await indexer.V2_record_link.getOrThrow(`${resolverId}-${second.topics[2]}`);
+    expect(a.record_id).toBe(b.record_id);
+    expect(a.record_id).toBe(`${resolverId}-1`);
+  });
+
+  it("watches a resolver from creation, before any registry links it", async () => {
+    const resolver = "0xd25d0a2cc153982ce2e097b2ae56e570f386b695";
+    const indexer = createTestIndexer();
+    await process1(indexer, 11841670, 11841670);
+    const row = await indexer.V2_resolver.getOrThrow(makeV2RegistryId(CHAIN, resolver));
+    expect(row.discoveredVia).toBe("ResolverCreated");
+    expect(indexer.chains[CHAIN].V2Resolver.addresses).toContain(resolver);
+  });
+});
+
+// ─── Access control ──────────────────────────────────────────────────────────
+
+describe("EACRolesChanged", () => {
+  it("records the role bitmap per contract, resource and account", async () => {
+    const { regen, regenBlockLogs } = fixtures;
+    const eac = regenBlockLogs.find((l: any) => l.topics[0].startsWith("0x0d35bf72"));
+    const indexer = createTestIndexer();
+    await process1(indexer, 11820291, regen.block);
+    const resource = BigInt(eac.topics[1]);
+    const account = `0x${eac.topics[2].slice(26)}`;
+    const row = await indexer.V2_permission.getOrThrow(`${CHAIN}-${ROOT_REGISTRY}-${resource}-${account}`);
+    expect(row.roles).toBe(BigInt(`0x${eac.data.slice(66, 130)}`));
+  });
+});
