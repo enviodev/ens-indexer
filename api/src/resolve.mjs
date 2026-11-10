@@ -10,6 +10,7 @@ export const DEPLOYMENTS = {
 };
 
 const ROOT = `0x${"00".repeat(32)}`;
+const EMPTY_RECORDS = { addresses: {}, texts: {}, contenthash: null, recordSource: "none" };
 const labelhash = (l) => keccak256(toBytes(l));
 const storageId = (hash) => `0x${(BigInt(hash) & ~0xffffffffn).toString(16).padStart(64, "0")}`;
 
@@ -87,28 +88,44 @@ export async function resolveName(chainId, name, { coinTypes, texts } = {}) {
   const normalized = name.toLowerCase();
   const node = namehash(normalized);
   const v2 = await walkV2(chainId, normalized);
-  const mirror = v2.deployment ? v2.deployment.v1Mirror.includes(v2.resolver) : false;
+  const leaf = v2.leaf;
+  const deployment = v2.deployment;
+  const v1Mirror = deployment?.v1Mirror.includes(v2.resolver) ?? false;
+  const v2Mirror = deployment?.v2Mirror.includes(v2.resolver) ?? false;
 
-  if (v2.found && v2.resolver && !mirror && !(v2.deployment?.v2Mirror.includes(v2.resolver))) {
+  // A reservation does not move a name: until it registers, v1 is the authority.
+  const v2OwnsName = leaf !== undefined && (leaf.status === "REGISTERED" || (v2.resolver !== undefined && !v1Mirror));
+
+  if (v2OwnsName && v2.resolver && !v1Mirror && !v2Mirror) {
     const records =
       (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
       (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
-    return {
-      name: normalized, node, chainId, protocol: "v2",
-      registered: Boolean(v2.leaf), owner: v2.leaf?.owner ?? null, expiry: v2.leaf?.expiry ?? null,
-      status: v2.leaf?.status ?? null, resolver: v2.resolver, exactResolver: v2.exact,
-      ...(records ?? { addresses: {}, texts: {}, contenthash: null, recordSource: "none" }),
-    };
+    return { name: normalized, node, chainId, protocol: "v2", registered: true, owner: leaf.owner ?? null, expiry: leaf.expiry ?? null, status: leaf.status, resolver: v2.resolver, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS) };
+  }
+
+  if (v2OwnsName) {
+    // Registered on v2 with no resolver, or with one that mirrors v1 records.
+    const v1 = v1Mirror ? await v1Resolver(chainId, normalized) : undefined;
+    const records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
+    return { name: normalized, node, chainId, protocol: "v2", registered: true, owner: leaf.owner ?? null, expiry: leaf.expiry ?? null, status: leaf.status, resolver: v2.resolver ?? null, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS) };
+  }
+
+  if (v2.resolver && !v1Mirror && !v2Mirror) {
+    // No exact entry, but an ancestor has a resolver: a wildcard name.
+    const records =
+      (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+      (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
+    return { name: normalized, node, chainId, protocol: "v2", registered: false, owner: null, expiry: null, status: null, resolver: v2.resolver, exactResolver: false, ...(records ?? EMPTY_RECORDS) };
   }
 
   const v1 = await v1Resolver(chainId, normalized);
   const [domain] = await q(`SELECT "owner_id", "wrappedOwner_id", "expiryDate" FROM subgraph_domain WHERE id = $1 AND "chainId" = $2`, [node, chainId]);
   const records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
   return {
-    name: normalized, node, chainId, protocol: "v1",
+    name: normalized, node, chainId, protocol: domain ? "v1" : null,
     registered: Boolean(domain), owner: domain?.wrappedOwner_id ?? domain?.owner_id ?? null, expiry: domain?.expiryDate ?? null,
     status: domain ? "REGISTERED" : null, resolver: v1?.resolver ?? null, exactResolver: v1?.exact ?? false,
-    ...(records ?? { addresses: {}, texts: {}, contenthash: null, recordSource: "none" }),
+    ...(records ?? EMPTY_RECORDS),
   };
 }
 
