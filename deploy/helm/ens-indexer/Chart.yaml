@@ -1,6 +1,0 @@
-apiVersion: v2
-name: ens-indexer
-description: ENS v1 and v2 indexer with a subgraph-compatible API
-type: application
-version: 0.1.0
-appVersion: "0.1.0"

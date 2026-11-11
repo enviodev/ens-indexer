@@ -74,16 +74,7 @@ ENSv2 lives on Ethereum (and Sepolia). The other chains here have v1-era contrac
 
 Add `?chain=<id>` to query a chain other than the default. GraphQL `block` arguments are rejected: past-block queries are not implemented.
 
-## Self-hosting
-
-```bash
-cp .env.example .env   # set ENVIO_API_TOKEN
-docker compose up -d --build
-```
-
-A Helm chart is in `deploy/helm/ens-indexer`. It expects an external Postgres and existing Secrets.
-
-`api/parity/latency.mjs` measures API latency against a synced database.
+`api/parity/replay.mjs` checks indexed ENSv2 state against raw HyperSync event data. `api/parity/latency.mjs` measures API latency against a synced database.
 
 ## Run locally
 
