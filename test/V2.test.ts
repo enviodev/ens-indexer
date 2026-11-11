@@ -389,6 +389,20 @@ describe("resolver records", () => {
 
 // ─── Discovery order ─────────────────────────────────────────────────────────
 
+describe("transfers on a registry nothing links to", () => {
+  it("watches the registry from its first label (Sepolia 11820083)", async () => {
+    // 0x657e... never emits RegistryCreated and is never a subregistry in this range.
+    const registry = "0x657ea849311d3d5823348dded7c2aaafb3ede09e";
+    const indexer = createTestIndexer();
+    await process1(indexer, 11820083, 11820083);
+    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(registry);
+    const mint = await indexer.V2_transfer.getOrThrow(`${CHAIN}-11820083-194`);
+    expect(mint.kind).toBe("MINT");
+    const row = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, registry));
+    expect(row.proven).toBe(false);
+  });
+});
+
 describe("records written before the resolver is registered", () => {
   it("keeps records from blocks before discovery (Sepolia 11947405)", async () => {
     // Real case: resolver 0x7c48... wrote records at 11947405. With address-based

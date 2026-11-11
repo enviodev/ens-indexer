@@ -54,6 +54,17 @@ indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated", 
   }
 });
 
+// A registry that emits labels is watched for transfers from its first label,
+// whether or not anything links to it. The mint follows the label in the same
+// block, so it is covered.
+indexer.contractRegister({ contract: "V2Registry", event: "LabelRegistered", wildcard: true }, async ({ event, context }) => {
+  context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
+});
+
+indexer.contractRegister({ contract: "V2Registry", event: "LabelReserved", wildcard: true }, async ({ event, context }) => {
+  context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
+});
+
 indexer.contractRegister({ contract: "V2Registry", event: "ResolverUpdated", wildcard: true }, async ({ event, context }) => {
   const resolver = event.params.resolver;
   if (resolver !== ZERO_ADDRESS && !isMirrorResolver(event.chainId, resolver)) {
