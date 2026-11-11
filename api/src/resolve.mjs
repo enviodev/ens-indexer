@@ -57,6 +57,16 @@ async function recordsFromV2Resolver(chainId, resolver, node, coinTypes, textKey
   return shape(addresses, texts, record?.contenthash, coinTypes, textKeys, "v2-record", recordId);
 }
 
+// Node-keyed records seen on any address since the ENSv2 start block. Used for
+// resolvers a proven v2 domain points at, which may not be watched as v1 resolvers.
+async function recordsFromV2NodeResolver(chainId, resolver, node, coinTypes, textKeys) {
+  const addresses = await q(`SELECT "coinType", value FROM v2_node_address WHERE resolver = $1 AND node = $2 AND "chainId" = $3`, [resolver, node, chainId]);
+  const texts = await q(`SELECT key, value FROM v2_node_text WHERE resolver = $1 AND node = $2 AND "chainId" = $3`, [resolver, node, chainId]);
+  const [row] = await q(`SELECT contenthash FROM v2_node_record WHERE id = $1 AND "chainId" = $2`, [`${chainId}-${resolver}-${node}`, chainId]);
+  if (addresses.length === 0 && texts.length === 0 && !row?.contenthash) return undefined;
+  return shape(addresses, texts, row?.contenthash, coinTypes, textKeys, "v2-node-record");
+}
+
 async function recordsFromNodeResolver(chainId, resolver, node, coinTypes, textKeys) {
   const addresses = await q(`SELECT "coinType", value FROM resolver_address_record WHERE address = $1 AND node = $2 AND "chainId" = $3`, [resolver, node, chainId]);
   const texts = await q(`SELECT key, value FROM resolver_text_record WHERE address = $1 AND node = $2 AND "chainId" = $3`, [resolver, node, chainId]);
@@ -99,6 +109,7 @@ export async function resolveName(chainId, name, { coinTypes, texts } = {}) {
   if (v2OwnsName && v2.resolver && !v1Mirror && !v2Mirror) {
     const records =
       (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+      (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
       (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
     return { name: normalized, node, chainId, protocol: "v2", registered: true, owner: leaf.owner ?? null, expiry: leaf.expiry ?? null, status: leaf.status, resolver: v2.resolver, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS) };
   }
@@ -114,6 +125,7 @@ export async function resolveName(chainId, name, { coinTypes, texts } = {}) {
     // No exact entry, but an ancestor has a resolver: a wildcard name.
     const records =
       (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+      (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
       (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
     return { name: normalized, node, chainId, protocol: "v2", registered: false, owner: null, expiry: null, status: null, resolver: v2.resolver, exactResolver: false, ...(records ?? EMPTY_RECORDS) };
   }

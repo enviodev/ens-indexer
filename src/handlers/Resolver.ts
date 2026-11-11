@@ -158,7 +158,9 @@ indexer.onEvent(
   // the address's coin type 60 reverse record (H-04). Mainnet only.
   if (event.chainId === 1) {
     const reverseDomain = await context.Subgraph_domain.get(node);
-    if (reverseDomain?.parent_id === ADDR_REVERSE_NODE) {
+    // Only the resolver the registry assigns to the reverse node can set it.
+    // Without this check any watched resolver could claim another address's name.
+    if (reverseDomain?.parent_id === ADDR_REVERSE_NODE && reverseDomain.resolver_id === resolverId) {
       const claim = await context.Reverse_claim.get(node);
       const address = addressForReverseLabel(reverseDomain.labelhash, [
         claim?.addr,

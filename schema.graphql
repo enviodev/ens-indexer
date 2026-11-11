@@ -734,3 +734,29 @@ type v2_alias @index(fields: ["resolver", "fromNode"]) {
   toName: String
   updatedBlock: Int!
 }
+
+# Node-keyed records (AddrChanged, TextChanged, ...) from any resolver, from the
+# ENSv2 start block. Trusted only for resolvers a proven v2 domain points at.
+type v2_node_record @index(fields: ["resolver", "node"]) {
+  id: ID!                         # {resolverId}-{node}
+  resolver: String! @index
+  node: String! @index
+  contenthash: String
+  name: String
+}
+
+type v2_node_address @index(fields: ["resolver", "node"]) {
+  id: ID!                         # {resolverId}-{node}-{coinType}
+  resolver: String!
+  node: String!
+  coinType: BigInt!
+  value: String
+}
+
+type v2_node_text @index(fields: ["resolver", "node"]) {
+  id: ID!                         # {resolverId}-{node}-{key}
+  resolver: String!
+  node: String!
+  key: String!
+  value: String
+}

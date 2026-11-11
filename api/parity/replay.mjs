@@ -37,6 +37,9 @@ const T = {
   Linked: sig("Linked(uint256,bytes32,bytes)"),
   AddressUpdated: sig("AddressUpdated(uint256,uint256,bytes)"),
   TextUpdated: sig("TextUpdated(uint256,string,string,string)"),
+  AddrChanged: sig("AddrChanged(bytes32,address)"),
+  AddressChanged: sig("AddressChanged(bytes32,uint256,bytes)"),
+  TextChanged: sig("TextChanged(bytes32,string,string,string)"),
 };
 const NAME = Object.fromEntries(Object.entries(T).map(([k, v]) => [v, k]));
 
@@ -213,6 +216,32 @@ for (const [k, v] of recState) {
 }
 const links = { checked: 0, matched: 0 };
 for (const [k, v] of linkState) { links.checked++; if (dbLink.get(k) === v) links.matched++; else if (recMismatch.length < 40) recMismatch.push({ id: k, indexed: dbLink.get(k), replay: v }); }
+// Node-keyed records from any address, compared with v2_node_address / v2_node_text.
+const nodeLogs = await hypersync({ from_block: fromBlock, to_block: toBlock, logs: [{ topics: [[T.AddrChanged, T.AddressChanged, T.TextChanged]] }], field_selection: FIELDS });
+const nodeState = new Map();
+for (const l of nodeLogs.sort((a, b) => a.block_number - b.block_number || a.log_index - b.log_index)) {
+  const base = `${chainId}-${l.address.toLowerCase()}-${l.topic1}`;
+  if (NAME[l.topic0] === "AddrChanged") {
+    const [a] = decodeAbiParameters(parseAbiParameters("address"), l.data);
+    nodeState.set(`${base}-60`, a.toLowerCase() === ZERO ? null : a.toLowerCase());
+  } else if (NAME[l.topic0] === "AddressChanged") {
+    const [coin, bytes] = decodeAbiParameters(parseAbiParameters("uint256, bytes"), l.data);
+    nodeState.set(`${base}-${coin}`, bytes === "0x" ? null : bytes.toLowerCase());
+  } else {
+    try {
+      const [k, v] = decodeAbiParameters(parseAbiParameters("string, string"), l.data);
+      if (!k.includes("\u0000")) nodeState.set(`${base}-${k}`, v === "" ? null : v);
+    } catch { /* malformed log data: the indexer skips it too */ }
+  }
+}
+const dbNodeAddr = new Map((await db.query(`SELECT id, value FROM v2_node_address WHERE "chainId" = $1`, [chainId])).rows.map((x) => [x.id, x.value]));
+const dbNodeText = new Map((await db.query(`SELECT id, value FROM v2_node_text WHERE "chainId" = $1`, [chainId])).rows.map((x) => [x.id, x.value]));
+const nodeRecords = { checked: 0, matched: 0 };
+for (const [k, v] of nodeState) {
+  nodeRecords.checked++;
+  const got = dbNodeAddr.has(k) ? dbNodeAddr.get(k) : dbNodeText.has(k) ? dbNodeText.get(k) : null;
+  if (String(got ?? null) === String(v ?? null)) nodeRecords.matched++; else if (recMismatch.length < 60) recMismatch.push({ id: k, indexed: got, replay: v });
+}
 await db.query("COMMIT");
 await db.end();
 
@@ -224,6 +253,7 @@ const out = {
   fields: Object.fromEntries(Object.entries(stats).map(([f, s]) => [f, { ...s, rate: s.checked ? +(s.matched / s.checked).toFixed(6) : null }])),
   records: { ...rec, rate: rec.checked ? +(rec.matched / rec.checked).toFixed(6) : null },
   links: { ...links, rate: links.checked ? +(links.matched / links.checked).toFixed(6) : null },
+  nodeRecords: { ...nodeRecords, logs: nodeLogs.length, rate: nodeRecords.checked ? +(nodeRecords.matched / nodeRecords.checked).toFixed(6) : null },
   mismatchCount: mismatches.length, mismatches: mismatches.slice(0, 200), recordMismatches: recMismatch,
 };
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));

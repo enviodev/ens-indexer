@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
-import { decodeEventLog, namehash, parseAbi } from "viem";
+import { decodeEventLog, keccak256, namehash, parseAbi, toBytes } from "viem";
 import {
   makeV2DomainId,
   makeV2RegistryId,
@@ -418,6 +418,133 @@ describe("records written before the resolver is registered", () => {
     expect(addresses.length).toBe(2);
     const texts = await indexer.V2_record_text.getWhere({ record_id: { _eq: link.record_id } });
     expect(texts.length).toBe(1);
+  });
+});
+
+// ─── Provenance gate ─────────────────────────────────────────────────────────
+// Wildcard handlers see these signatures from any contract. These tests drive a
+// contract that emits every one of them but is never linked from a seed.
+
+const SPOOF = "0x5900000000000000000000000000000000000f00";
+const SPOOF_CHILD = "0x5900000000000000000000000000000000000c01";
+const SPOOF_RESOLVER = "0x5900000000000000000000000000000000000e02";
+const ATTACKER = "0x00000000000000000000000000000000000a77ac";
+const labelId = (label: string) => BigInt(keccak256(toBytes(label)));
+
+function spoofEvents(block: number) {
+  const vitalik = labelId("vitalik");
+  const ethTokenId = labelId("eth");
+  const head = { block: { number: block, timestamp: 1_790_000_000 } };
+  return [
+    { contract: "V2RegistryDiscovery", event: "RegistryCreated", srcAddress: SPOOF, ...head },
+    { contract: "V2Registry", event: "LabelRegistered", srcAddress: SPOOF, ...head,
+      params: { tokenId: vitalik, labelHash: keccak256(toBytes("vitalik")), label: "vitalik", owner: ATTACKER, expiry: 9_999_999_999n, sender: ATTACKER } },
+    { contract: "V2Registry", event: "SubregistryUpdated", srcAddress: SPOOF, ...head, params: { tokenId: vitalik, subregistry: SPOOF_CHILD, sender: ATTACKER } },
+    { contract: "V2Registry", event: "ResolverUpdated", srcAddress: SPOOF, ...head, params: { tokenId: vitalik, resolver: SPOOF_RESOLVER, sender: ATTACKER } },
+    // Claim to be the parent of the real .eth registry, and to be "eth" itself.
+    { contract: "V2Registry", event: "LabelRegistered", srcAddress: SPOOF, ...head,
+      params: { tokenId: ethTokenId, labelHash: keccak256(toBytes("eth")), label: "eth", owner: ATTACKER, expiry: 9_999_999_999n, sender: ATTACKER } },
+    { contract: "V2Registry", event: "SubregistryUpdated", srcAddress: SPOOF, ...head, params: { tokenId: ethTokenId, subregistry: ETH_REGISTRY, sender: ATTACKER } },
+    { contract: "V2Registry", event: "ParentUpdated", srcAddress: SPOOF, ...head, params: { parent: ETH_REGISTRY, label: "vitalik", sender: ATTACKER } },
+    { contract: "V2Registry", event: "LabelRegistered", srcAddress: SPOOF_CHILD, ...head,
+      params: { tokenId: labelId("wallet"), labelHash: keccak256(toBytes("wallet")), label: "wallet", owner: ATTACKER, expiry: 9_999_999_999n, sender: ATTACKER } },
+    { contract: "V2Resolver", event: "Linked", srcAddress: SPOOF_RESOLVER, ...head, params: { recordId: 1n, node: namehash("vitalik.eth"), name: "0x0776697461 6c696b0365746800".replace(/ /g, "") } },
+    { contract: "V2Resolver", event: "AddressUpdated", srcAddress: SPOOF_RESOLVER, ...head, params: { recordId: 1n, coinType: 60n, addressBytes: ATTACKER } },
+  ] as any[];
+}
+
+describe("provenance gate", () => {
+  it("gives a never-linked contract no names, even when it mimics the .eth tree", async () => {
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { [CHAIN]: { simulate: spoofEvents(12_000_000) } } });
+
+    for (const address of [SPOOF, SPOOF_CHILD]) {
+      const row = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, address));
+      expect(row.proven).toBe(false);
+      expect(row.name).toBeUndefined();
+      const domains = await indexer.V2_domain.getWhere({ registry_id: { _eq: row.id } });
+      expect(domains.length).toBeGreaterThan(0);
+      for (const d of domains) {
+        expect(d.name).toBeUndefined();
+        expect(d.node).toBeUndefined();
+      }
+    }
+    // The spoof's link to the real .eth registry does not rename or re-prove it.
+    const eth = await indexer.V2_registry.get(makeV2RegistryId(CHAIN, ETH_REGISTRY));
+    if (eth) {
+      expect(eth.name).toBe("eth");
+      expect(eth.parentDomain_id).toBeUndefined();
+    }
+    const resolver = await indexer.V2_resolver.getOrThrow(makeV2RegistryId(CHAIN, SPOOF_RESOLVER));
+    expect(resolver.proven).toBe(false);
+    // Nothing named "vitalik.eth" exists.
+    const named = await indexer.V2_domain.getWhere({ name: { _eq: "vitalik.eth" } });
+    expect(named).toHaveLength(0);
+  });
+
+  it("applies a contract's earlier events once a seed links it, in their original order", async () => {
+    const LATE = "0x5900000000000000000000000000000000000a7e";
+    const parentLabel = "latecomer";
+    const parentToken = labelId(parentLabel);
+    const childToken = labelId("first");
+    const regenerated = (childToken & ~0xffffffffn) | 1n;
+    const at = (n: number) => ({ block: { number: n, timestamp: 1_790_000_000 + n } });
+    const NEW_OWNER = "0x00000000000000000000000000000000000b0b01";
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            // Activity on the unlinked registry, in order: register, regenerate, transfer.
+            { contract: "V2Registry", event: "LabelRegistered", srcAddress: LATE, ...at(12_000_100),
+              params: { tokenId: childToken, labelHash: keccak256(toBytes("first")), label: "first", owner: ATTACKER, expiry: 9_999_999_999n, sender: ATTACKER } },
+            { contract: "V2Registry", event: "TokenRegenerated", srcAddress: LATE, ...at(12_000_101), params: { oldTokenId: childToken, newTokenId: regenerated } },
+            { contract: "V2Registry", event: "TransferSingle", srcAddress: LATE, ...at(12_000_102),
+              params: { operator: ATTACKER, from: ATTACKER, to: NEW_OWNER, id: regenerated, value: 1n } },
+            // The proof arrives later: the real .eth registry links it.
+            { contract: "V2Registry", event: "LabelRegistered", srcAddress: ETH_REGISTRY, ...at(12_000_200),
+              params: { tokenId: parentToken, labelHash: keccak256(toBytes(parentLabel)), label: parentLabel, owner: ATTACKER, expiry: 9_999_999_999n, sender: ATTACKER } },
+            { contract: "V2Registry", event: "SubregistryUpdated", srcAddress: ETH_REGISTRY, ...at(12_000_200), params: { tokenId: parentToken, subregistry: LATE, sender: ATTACKER } },
+          ] as any[],
+        },
+      },
+    });
+    const registry = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, LATE));
+    expect(registry.proven).toBe(true);
+    expect(registry.name).toBe("latecomer.eth");
+    const domain = await indexer.V2_domain.getOrThrow(makeV2DomainId(CHAIN, LATE, childToken));
+    expect(domain.name).toBe("first.latecomer.eth");
+    expect(domain.node).toBe(namehash("first.latecomer.eth"));
+    expect(domain.tokenId).toBe(regenerated);
+    expect(domain.owner).toBe(NEW_OWNER);
+  });
+});
+
+// ─── Late registration on real blocks ───────────────────────────────────────
+// On Sepolia, HyperIndex 3.16 registered these contracts from a later block than
+// their first event, and kept that start block. Each window is the real range
+// between the first event and the late start block.
+
+describe("events before late registration (Sepolia, all affected addresses)", () => {
+  const cases = (JSON.parse(readFileSync("test/fixtures/v2-late-discovery.json", "utf8")) as any[])
+    .filter((c) => c.logsBeforeRegistration > 0);
+
+  it.each(cases.map((c) => [c.address, c]))("indexes the gap for %s", async (_address, c: any) => {
+    const indexer = createTestIndexer();
+    await process1(indexer, c.firstLogBlock, c.registeredFrom - 1);
+    const id = makeV2RegistryId(CHAIN, c.address);
+    if (c.kind === "registry") {
+      const row = await indexer.V2_registry.getOrThrow(id);
+      expect(row.createdBlock).toBe(c.firstLogBlock);
+      return;
+    }
+    const resolver = await indexer.V2_resolver.get(id);
+    const links = await indexer.V2_record_link.getWhere({ resolver_id: { _eq: id } });
+    const nodeTexts = await indexer.V2_node_text.getWhere({ resolver: { _eq: c.address } });
+    const nodeAddrs = await indexer.V2_node_address.getWhere({ resolver: { _eq: c.address } });
+    if (c.distinctLinkedNodes > 0) expect(links.length).toBe(c.distinctLinkedNodes);
+    else if (c.hasRecords || nodeTexts.length + nodeAddrs.length > 0) expect(nodeTexts.length + nodeAddrs.length).toBeGreaterThan(0);
+    else expect(resolver?.createdBlock).toBe(c.firstLogBlock);
   });
 });
 

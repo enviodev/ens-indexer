@@ -422,6 +422,18 @@ contracts:
           transaction_fields:
             - hash
 
+  # Node-keyed (v1-style) record events, matched on any address from the ENSv2
+  # start block. A v2 registry can point at a resolver of this kind; matching by
+  # signature keeps its records even if HyperIndex registers the address late.
+  # Read only for resolvers a proven v2 domain points at.
+  - name: V2NodeResolver
+    events:
+      - event: "AddrChanged(bytes32 indexed node, address a)"
+      - event: "AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress)"
+      - event: "TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value)"
+      - event: "ContenthashChanged(bytes32 indexed node, bytes hash)"
+      - event: "NameChanged(bytes32 indexed node, string name)"
+
   # ETHRegistrar and ETHRenewerV1. Both emit NameRenewed with this signature.
   - name: V2Registrar
     events:
@@ -472,6 +484,8 @@ chains:
           - "0x56c447f308f463a01121c41e72b0e7e7557fcb68" # ETHRenewerV1
           - "0xe038b778b1fbf47a84018820626afc908c9c62b1" # ETHRenewerV1, superseded 2026-10-18
       - name: V2Resolver
+        start_block: 26105000
+      - name: V2NodeResolver
         start_block: 26105000
       - name: ReverseRegistrar
         address:
@@ -603,6 +617,7 @@ chains:
           - "0xf633e7fc17e2bbe0d0965d18ec1821dcb754a3d3" # ETHRegistrar
           - "0xf2ece44980778966b8a0fccb3a9e339440f6e045" # ETHRenewerV1
       - name: V2Resolver
+      - name: V2NodeResolver
       - name: Resolver
 
 address_format: lowercase
