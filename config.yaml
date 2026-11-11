@@ -448,7 +448,6 @@ contracts:
       - event: "DataUpdated(uint256 indexed recordId, string indexed keyHash, string key, bytes value)"
       - event: "ABIUpdated(uint256 indexed recordId, uint256 indexed contentType)"
       - event: "InterfaceUpdated(uint256 indexed recordId, bytes4 indexed interfaceId, address implementer)"
-      - event: "EACRolesChanged(uint256 indexed resource, address indexed account, uint256 oldRoleBitmap, uint256 newRoleBitmap)"
       # Emitted by deployments before 2026-09 (contracts/deployments/sepolia-*). Later ones use Linked.
       - event: "AliasChanged(bytes indexed indexedFromName, bytes indexed indexedToName, bytes fromName, bytes toName)"
 

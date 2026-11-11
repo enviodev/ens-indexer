@@ -3,8 +3,11 @@ import { decodeDnsEncodedName, namehashFromLabels, type handlerContext } from ".
 import { ensureV2Resolver, makeV2RegistryId, nullableAddress } from "../lib/v2-helpers";
 
 // ─── Discovery ───────────────────────────────────────────────────────────────
-// As with registries: watch every resolver from creation so records written in
-// initialize(), before any registry links to it, are kept.
+// Record events are matched on any address (wildcard), so records written before
+// a registry links the resolver are kept regardless of discovery order. A
+// resolver is trusted only once a proven registry points at it.
+// ResolverCreated still adds the address to `Resolver`, for resolvers that also
+// emit node-keyed (v1-style) record events.
 
 indexer.contractRegister(
   { contract: "V2ResolverDiscovery", event: "ResolverCreated", wildcard: true },
@@ -51,7 +54,7 @@ async function ensureRecord(context: handlerContext, chainId: number, resolver: 
   return row;
 }
 
-indexer.onEvent({ contract: "V2Resolver", event: "Linked" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "Linked", wildcard: true }, async ({ event, context }) => {
   const { recordId, node, name } = event.params;
   const resolverId = makeV2RegistryId(event.chainId, event.srcAddress);
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
@@ -66,7 +69,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "Linked" }, async ({ event, con
   });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "Cleared" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "Cleared", wildcard: true }, async ({ event, context }) => {
   const resolverId = makeV2RegistryId(event.chainId, event.srcAddress);
   const id = recordRowId(resolverId, event.params.recordId);
   const record = await context.V2_record.get(id);
@@ -89,7 +92,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "Cleared" }, async ({ event, co
   }
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, coinType, addressBytes } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   const id = `${record.id}-${coinType}`;
@@ -100,7 +103,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated" }, async ({ ev
   context.V2_record_address.set({ id, record_id: record.id, coinType, value: addressBytes });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "TextUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "TextUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, key, value } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   const id = `${record.id}-${key}`;
@@ -111,19 +114,19 @@ indexer.onEvent({ contract: "V2Resolver", event: "TextUpdated" }, async ({ event
   context.V2_record_text.set({ id, record_id: record.id, key, value });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "ContenthashUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "ContenthashUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, hash } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record.set({ ...record, contenthash: hash === "0x" ? undefined : hash });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "NameUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "NameUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, primaryName } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record.set({ ...record, primaryName: primaryName === "" ? undefined : primaryName });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "DataUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "DataUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, key, value } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   const id = `${record.id}-${key}`;
@@ -134,7 +137,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "DataUpdated" }, async ({ event
   context.V2_record_data.set({ id, record_id: record.id, key, value });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "ABIUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "ABIUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, contentType } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record_abi.set({
@@ -145,7 +148,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "ABIUpdated" }, async ({ event,
   });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "InterfaceUpdated" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "InterfaceUpdated", wildcard: true }, async ({ event, context }) => {
   const { recordId, interfaceId, implementer } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record_interface.set({
@@ -156,23 +159,11 @@ indexer.onEvent({ contract: "V2Resolver", event: "InterfaceUpdated" }, async ({ 
   });
 });
 
-indexer.onEvent({ contract: "V2Resolver", event: "EACRolesChanged" }, async ({ event, context }) => {
-  const { resource, account, newRoleBitmap } = event.params;
-  const contract = event.srcAddress.toLowerCase();
-  const holder = account.toLowerCase();
-  context.V2_permission.set({
-    id: `${event.chainId}-${contract}-${resource}-${holder}`,
-    contract,
-    resource,
-    account: holder,
-    roles: newRoleBitmap,
-    active: newRoleBitmap !== 0n,
-    updatedBlock: event.block.number,
-  });
-});
+// EACRolesChanged on resolvers is handled by the V2Registry wildcard handler:
+// one signature, one handler, whichever contract emitted it.
 
 // Deployments before 2026-09 aliased through AliasChanged; the current ones use Linked.
-indexer.onEvent({ contract: "V2Resolver", event: "AliasChanged" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Resolver", event: "AliasChanged", wildcard: true }, async ({ event, context }) => {
   const { fromName, toName } = event.params;
   const resolverId = makeV2RegistryId(event.chainId, event.srcAddress);
   await ensureV2Resolver(context, event.chainId, event.srcAddress, { discoveredVia: "ResolverCreated" });

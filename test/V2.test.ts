@@ -387,6 +387,26 @@ describe("resolver records", () => {
   });
 });
 
+// ─── Discovery order ─────────────────────────────────────────────────────────
+
+describe("records written before the resolver is registered", () => {
+  it("keeps records from blocks before discovery (Sepolia 11947405)", async () => {
+    // Real case: resolver 0x7c48... wrote records at 11947405. With address-based
+    // discovery it was first registered from 11951226, and these were lost.
+    const resolver = "0x7c48b782cf9c132441844aeba8b46ec2d80ca067";
+    const node = "0xbcd07235245d3cc5604d3e5451b3b88e61883fc266b3823f92429249285db373";
+    const indexer = createTestIndexer();
+    await process1(indexer, 11947405, 11947405);
+    const resolverId = makeV2RegistryId(CHAIN, resolver);
+    const link = await indexer.V2_record_link.getOrThrow(`${resolverId}-${node}`);
+    expect(link.record_id).toBe(`${resolverId}-${BigInt(node)}`);
+    const addresses = await indexer.V2_record_address.getWhere({ record_id: { _eq: link.record_id } });
+    expect(addresses.length).toBe(2);
+    const texts = await indexer.V2_record_text.getWhere({ record_id: { _eq: link.record_id } });
+    expect(texts.length).toBe(1);
+  });
+});
+
 // ─── Access control ──────────────────────────────────────────────────────────
 
 describe("EACRolesChanged", () => {
