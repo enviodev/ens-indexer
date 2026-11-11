@@ -297,6 +297,41 @@ describe("Resolver", () => {
     }, 120_000);
   });
 
+  // ─── Resolver events do not depend on when the address is watched ─────
+
+  describe("PublicResolver 0x4976fb03 after its first NewResolver (block 9,413,818)", () => {
+    const resolver = "0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41";
+
+    it("activates the resolver at its first NewResolver", async () => {
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 9_413_818, endBlock: 9_413_818 } } });
+      const activation = await indexer.Resolver_activation.getOrThrow(`1-${resolver}`);
+      expect(activation.firstBlock).toBe(9_413_818);
+    }, 120_000);
+
+    it("indexes its records at block 9,418,322 once activated", async () => {
+      // In a full sync HyperIndex 3.16 registered this address from block
+      // 9,466,703 and kept that start, losing 1,027 events. Events are now
+      // matched by signature and applied once a registry has assigned the resolver.
+      const indexer = createTestIndexer();
+      indexer.Resolver_activation.set({ id: `1-${resolver}`, chainId: 1, firstBlock: 9_413_818 } as any);
+      await indexer.process({ chains: { 1: { startBlock: 9_418_322, endBlock: 9_418_322 } } });
+      const addrChanges = (await indexer.Subgraph_addr_changed.getAll()).filter((e: any) =>
+        e.resolver_id.startsWith(`1-${resolver}-`),
+      );
+      expect(addrChanges).toHaveLength(1);
+    }, 120_000);
+
+    it("ignores resolver events before any registry assigned the resolver", async () => {
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 9_418_322, endBlock: 9_418_322 } } });
+      const addrChanges = (await indexer.Subgraph_addr_changed.getAll()).filter((e: any) =>
+        e.resolver_id.startsWith("1-0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41-"),
+      );
+      expect(addrChanges).toHaveLength(0);
+    }, 120_000);
+  });
+
   // ─── Full resolver flow in a single block ─────────────────────────────
 
   describe("Full resolver flow — block 18,965,734", () => {

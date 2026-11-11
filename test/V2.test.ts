@@ -383,7 +383,8 @@ describe("resolver records", () => {
     await process1(indexer, 11841670, 11841670);
     const row = await indexer.V2_resolver.getOrThrow(makeV2RegistryId(CHAIN, resolver));
     expect(row.discoveredVia).toBe("ResolverCreated");
-    expect(indexer.chains[CHAIN].V2Resolver.addresses).toContain(resolver);
+    const activation = await indexer.Resolver_activation.getOrThrow(makeV2RegistryId(CHAIN, resolver));
+    expect(activation.firstBlock).toBe(11841670);
   });
 });
 

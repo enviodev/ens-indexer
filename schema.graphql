@@ -760,3 +760,12 @@ type v2_node_text @index(fields: ["resolver", "node"]) {
   key: String!
   value: String
 }
+
+# First block a resolver was assigned through NewResolver (v1) or ResolverUpdated
+# and ResolverCreated (v2). Resolver events are matched on any address and only
+# applied from that block on, which matches the subgraph's dynamic data sources
+# without depending on when HyperIndex starts watching the address.
+type resolver_activation {
+  id: ID!                    # {chainId}-{address}
+  firstBlock: Int!
+}

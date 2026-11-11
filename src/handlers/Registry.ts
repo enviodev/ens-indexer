@@ -25,34 +25,13 @@ import {
   migrateNode,
   nodeIsMigrated,
 } from "../lib/protocol-acceleration";
+import { activateResolver } from "../lib/resolver-activation";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
 // the very first NewOwner event from the old registry.
 
 const rootNodeInitializedChains = new Set<number>();
-
-// ─── Dynamic Contract Registration ──────────────────────────────────────────
-// Register Resolver contract addresses dynamically from NewResolver events so
-// that the Resolver handler can process events from those addresses.
-
-indexer.contractRegister(
-  { contract: "RegistryOld", event: "NewResolver" },
-  async ({ event, context }) => {
-    if (event.params.resolver !== ZERO_ADDRESS) {
-      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
-    }
-  },
-);
-
-indexer.contractRegister(
-  { contract: "Registry", event: "NewResolver" },
-  async ({ event, context }) => {
-    if (event.params.resolver !== ZERO_ADDRESS) {
-      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
-    }
-  },
-);
 
 // ─── Shared NewOwner Handler ────────────────────────────────────────────────
 
@@ -275,6 +254,9 @@ async function handleNewResolver(
 ): Promise<void> {
   const { node, resolver: resolverAddress } = event.params;
   const isZeroResolver = resolverAddress === ZERO_ADDRESS;
+  if (!isZeroResolver) {
+    await activateResolver(context, event.chainId, resolverAddress, event.block.number);
+  }
 
   const resolverId = makeResolverId(event.chainId, resolverAddress, node);
 

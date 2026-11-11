@@ -2,6 +2,7 @@ import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
 import { isBatchRegistrar, isMigrationController, isMirrorResolver } from "../lib/v2-deployments";
+import { activateResolver } from "../lib/resolver-activation";
 import {
   type V2Domain,
   ensureV2Registry,
@@ -65,13 +66,6 @@ indexer.contractRegister({ contract: "V2Registry", event: "LabelReserved", wildc
   context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
 });
 
-indexer.contractRegister({ contract: "V2Registry", event: "ResolverUpdated", wildcard: true }, async ({ event, context }) => {
-  const resolver = event.params.resolver;
-  if (resolver !== ZERO_ADDRESS && !isMirrorResolver(event.chainId, resolver)) {
-    context.chain.V2Resolver.add(resolver as `0x${string}`);
-    context.chain.Resolver.add(resolver as `0x${string}`);
-  }
-});
 
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
@@ -248,6 +242,9 @@ indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: tr
   const next = nullableAddress(resolver);
   context.V2_domain.set({ ...domain, resolver: next, updatedBlock: event.block.number });
   if (next) {
+    if (!isMirrorResolver(event.chainId, next)) {
+      await activateResolver(context, event.chainId, next, event.block.number);
+    }
     const registry = await context.V2_registry.get(domain.registry_id);
     await ensureV2Resolver(context, event.chainId, next, {
       discoveredVia: "ResolverUpdated",
