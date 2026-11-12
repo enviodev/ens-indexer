@@ -40,6 +40,8 @@ const T = {
   AddrChanged: sig("AddrChanged(bytes32,address)"),
   AddressChanged: sig("AddressChanged(bytes32,uint256,bytes)"),
   TextChanged: sig("TextChanged(bytes32,string,string,string)"),
+  RegistryCreated: sig("RegistryCreated()"),
+  ParentUpdated: sig("ParentUpdated(address,string,address)"),
 };
 const NAME = Object.fromEntries(Object.entries(T).map(([k, v]) => [v, k]));
 
@@ -97,6 +99,34 @@ for (let i = 0; i < registries.length; i += 500) {
 const recordLogs = await hypersync({ from_block: fromBlock, to_block: toBlock, logs: [{ topics: [[T.Linked, T.AddressUpdated, T.TextUpdated]] }], field_selection: FIELDS });
 
 const all = [...regLogs, ...transferLogs].sort((a, b) => a.block_number - b.block_number || a.log_index - b.log_index);
+
+// ─── Transfers before the registry row ───────────────────────────────────────
+// The indexer applies an ERC-1155 transfer only if its address is a seed or
+// already has a v2_registry row. A row is created by RegistryCreated, any label,
+// link or token event from the address, ParentUpdated, or a SubregistryUpdated
+// that points at it. A transfer emitted before that would be skipped; count them.
+const pos = (l) => l.block_number * 1_000_000 + l.log_index;
+const discovered = new Map(); // address -> position of the event that creates its row
+const discover = (a, p) => { if (a && a !== ZERO && (!discovered.has(a) || p < discovered.get(a))) discovered.set(a, p); };
+const extraLogs = await hypersync({ from_block: fromBlock, to_block: toBlock, logs: [{ topics: [[T.RegistryCreated, T.ParentUpdated]] }], field_selection: FIELDS });
+for (const l of [...regLogs, ...extraLogs]) discover(l.address.toLowerCase(), pos(l));
+for (const l of regLogs) if (l.topic0 === T.SubregistryUpdated) discover(addr(l.topic2), pos(l));
+for (const a of [SEEDS.root, SEEDS.eth]) discovered.set(a, -1);
+const transferCheck = { registries: discovered.size, transfers: 0, beforeRegistryRow: 0, samples: [] };
+{
+  const addrs = [...discovered.keys()];
+  for (let i = 0; i < addrs.length; i += 500) {
+    const logs = await hypersync({ from_block: fromBlock, to_block: toBlock, logs: [{ address: addrs.slice(i, i + 500), topics: [[T.TransferSingle, T.TransferBatch]] }], field_selection: FIELDS });
+    for (const l of logs) {
+      transferCheck.transfers++;
+      const a = l.address.toLowerCase();
+      if (pos(l) < discovered.get(a)) {
+        transferCheck.beforeRegistryRow++;
+        if (transferCheck.samples.length < 20) transferCheck.samples.push({ registry: a, block: l.block_number, logIndex: l.log_index, registryRowAt: discovered.get(a) });
+      }
+    }
+  }
+}
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
 const domains = new Map();
@@ -264,6 +294,8 @@ const out = {
   records: { ...rec, rate: rec.checked ? +(rec.matched / rec.checked).toFixed(6) : null },
   links: { ...links, rate: links.checked ? +(links.matched / links.checked).toFixed(6) : null },
   nodeRecords: { ...nodeRecords, logs: nodeLogs.length, rate: nodeRecords.checked ? +(nodeRecords.matched / nodeRecords.checked).toFixed(6) : null },
+  // Expected 0. Non-zero means a registry emitted transfers before the indexer knew it.
+  transfersBeforeRegistryRow: transferCheck,
   mismatchCount: mismatches.length, mismatches: mismatches.slice(0, 200), recordMismatches: recMismatch,
 };
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
