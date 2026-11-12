@@ -94,47 +94,67 @@ async function v1Resolver(chainId, name) {
   }
 }
 
+/**
+ * Which protocol answers for a name, from the ENSv2 walk alone.
+ *
+ * - A name registered on v2 is answered by v2. If its resolver only mirrors
+ *   v1 (ENSV1Resolver), its records still come from v1.
+ * - A name only reserved on v2 (premigration) is still answered by v1, unless
+ *   its owner has set a real v2 resolver.
+ * - With no exact entry, a v2 ancestor's resolver answers (wildcard).
+ * - Otherwise v1 answers.
+ */
+export function decideAuthority({ leaf, resolver, deployment }) {
+  const v1Mirror = deployment?.v1Mirror.includes(resolver) ?? false;
+  const v2Mirror = deployment?.v2Mirror.includes(resolver) ?? false;
+  const realV2Resolver = Boolean(resolver) && !v1Mirror && !v2Mirror;
+  if (leaf && (leaf.status === "REGISTERED" || (leaf.status === "RESERVED" && realV2Resolver))) {
+    return { authority: "v2", records: realV2Resolver ? "v2" : v1Mirror ? "v1" : "none", wildcard: false };
+  }
+  if (!leaf && realV2Resolver) return { authority: "v2", records: "v2", wildcard: true };
+  return { authority: "v1", records: "v1", wildcard: false, reason: leaf?.status === "RESERVED" ? "reserved on v2, not migrated" : "not on v2" };
+}
+
+async function migrationInfo(chainId, node, leaf) {
+  const [m] = await q(`SELECT controller, "blockNumber", timestamp, "transactionHash" FROM v2_migration WHERE id = $1 AND "chainId" = $2`, [node, chainId]);
+  return {
+    premigrated: leaf?.isPremigrated ?? false,
+    migrated: Boolean(m) || (leaf?.isMigrated ?? false),
+    migratedAt: m ? { block: m.blockNumber, timestamp: m.timestamp, transactionHash: m.transactionHash, controller: m.controller } : null,
+  };
+}
+
 export async function resolveName(chainId, name, { coinTypes, texts } = {}) {
   const normalized = name.toLowerCase();
   const node = namehash(normalized);
   const v2 = await walkV2(chainId, normalized);
   const leaf = v2.leaf;
-  const deployment = v2.deployment;
-  const v1Mirror = deployment?.v1Mirror.includes(v2.resolver) ?? false;
-  const v2Mirror = deployment?.v2Mirror.includes(v2.resolver) ?? false;
+  const decision = decideAuthority({ leaf, resolver: v2.resolver, deployment: v2.deployment });
+  const migration = await migrationInfo(chainId, node, leaf);
 
-  // A reservation does not move a name: until it registers, v1 is the authority.
-  const v2OwnsName = leaf !== undefined && (leaf.status === "REGISTERED" || (v2.resolver !== undefined && !v1Mirror));
-
-  if (v2OwnsName && v2.resolver && !v1Mirror && !v2Mirror) {
-    const records =
-      (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-      (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-      (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
-    return { name: normalized, node, chainId, protocol: "v2", registered: true, owner: leaf.owner ?? null, expiry: leaf.expiry ?? null, status: leaf.status, resolver: v2.resolver, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS) };
-  }
-
-  if (v2OwnsName) {
-    // Registered on v2 with no resolver, or with one that mirrors v1 records.
-    const v1 = v1Mirror ? await v1Resolver(chainId, normalized) : undefined;
-    const records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
-    return { name: normalized, node, chainId, protocol: "v2", registered: true, owner: leaf.owner ?? null, expiry: leaf.expiry ?? null, status: leaf.status, resolver: v2.resolver ?? null, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS) };
-  }
-
-  if (v2.resolver && !v1Mirror && !v2Mirror) {
-    // No exact entry, but an ancestor has a resolver: a wildcard name.
-    const records =
-      (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-      (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-      (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
-    return { name: normalized, node, chainId, protocol: "v2", registered: false, owner: null, expiry: null, status: null, resolver: v2.resolver, exactResolver: false, ...(records ?? EMPTY_RECORDS) };
+  if (decision.authority === "v2") {
+    let records;
+    if (decision.records === "v2") {
+      records =
+        (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+        (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+        (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
+    } else if (decision.records === "v1") {
+      const v1 = await v1Resolver(chainId, normalized);
+      records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
+    }
+    return {
+      name: normalized, node, chainId, protocol: "v2", authority: "v2", recordsFrom: decision.records, migration,
+      registered: !decision.wildcard, owner: leaf?.owner ?? null, expiry: leaf?.expiry ?? null, status: leaf?.status ?? null,
+      resolver: v2.resolver ?? null, exactResolver: v2.exact, ...(records ?? EMPTY_RECORDS),
+    };
   }
 
   const v1 = await v1Resolver(chainId, normalized);
   const [domain] = await q(`SELECT "owner_id", "wrappedOwner_id", "expiryDate" FROM subgraph_domain WHERE id = $1 AND "chainId" = $2`, [node, chainId]);
   const records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
   return {
-    name: normalized, node, chainId, protocol: domain ? "v1" : null,
+    name: normalized, node, chainId, protocol: domain ? "v1" : null, authority: "v1", recordsFrom: "v1", migration,
     registered: Boolean(domain), owner: domain?.wrappedOwner_id ?? domain?.owner_id ?? null, expiry: domain?.expiryDate ?? null,
     status: domain ? "REGISTERED" : null, resolver: v1?.resolver ?? null, exactResolver: v1?.exact ?? false,
     ...(records ?? EMPTY_RECORDS),

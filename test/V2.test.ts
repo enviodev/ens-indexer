@@ -117,6 +117,30 @@ describe("names do not depend on event order", () => {
     }
   });
 
+  it("names labels written before their registry's first link, two levels deep in one block (mainnet 26,357,161)", async () => {
+    // Log order in block 26,357,161: child 0xdd1d... writes labels at 110-128, its
+    // parent 0x8490... links it at 154, and ETHRegistry links the parent at 156.
+    // The parent's own .eth label was registered at block 26,357,113.
+    const child = "0xdd1dece58eb7a5cebf8c1e0834b7ed4096e7ed20";
+    const parentRegistry = "0x84909f7e499c85dc47f9e4f5f068fd83b5a7c843";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 26_357_113, endBlock: 26_357_161 } } });
+
+    const parentRow = await indexer.V2_registry.getOrThrow(makeV2RegistryId(1, parentRegistry));
+    expect(parentRow.proven).toBe(true);
+    expect(parentRow.name?.endsWith(".eth")).toBe(true);
+    const childRow = await indexer.V2_registry.getOrThrow(makeV2RegistryId(1, child));
+    expect(childRow.proven).toBe(true);
+    expect(childRow.name?.endsWith(`.${parentRow.name}`)).toBe(true);
+
+    const labels = await indexer.V2_domain.getWhere({ registry_id: { _eq: childRow.id } });
+    expect(labels.length).toBeGreaterThanOrEqual(5);
+    for (const d of labels) {
+      expect(d.name).toBe(`${d.label}.${childRow.name}`);
+      expect(d.node).toBe(namehash(d.name!));
+    }
+  });
+
   it("leaves a chain unproven when it never reaches a seed (Sepolia 11825459)", async () => {
     // Real case: 0xcba9... claims a parent whose chain never links back to the root.
     const indexer = createTestIndexer();
