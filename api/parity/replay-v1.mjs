@@ -6,7 +6,7 @@
 // compares the result with every row in the database:
 //   - registry owner and resolver per node (subgraph_domain)
 //   - registrar expiry per name (subgraph_registration)
-//   - ETH address record per resolver and node (resolver_address_record)
+//   - ETH address record per resolver and node, from any address (resolver_address_record)
 //   - reverse names from StandaloneReverseRegistrar (reverse_name_record)
 // Needs ENVIO_API_TOKEN in the environment.
 //
@@ -48,11 +48,6 @@ const T = {
   AddrChanged: sig("AddrChanged(bytes32,address)"),
   AddressChanged: sig("AddressChanged(bytes32,uint256,bytes)"),
   NameForAddrChanged: sig("NameForAddrChanged(address,string)"),
-};
-const STATIC_RESOLVERS = {
-  1: ["0x231b0ee14048e9dccd1d247744d114a4eb5e8e63", "0xa7d635c8de9a58a228aa69353a1699c7cc240dcf", "0xc800dbc8ff9796e58efba2d7b35028ddd1997e5e", "0x0ce08a41bdb10420fb5cac7da8ca508ea313aef8", "0xf9edb1a21867ac11b023ce34abad916d29abf107", "0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898", "0xc4842814ca523e481ca5aa85f719fed1e9cac614"],
-  8453: ["0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8"],
-  10: ["0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8"],
 };
 const ZERO = "0x0000000000000000000000000000000000000000";
 const addr = (topic) => `0x${topic.slice(26)}`.toLowerCase();
@@ -101,7 +96,6 @@ if (C.registry) {
   const owner = new Map();
   const resolver = new Map();
   const migrated = new Set();
-  const firstAssigned = new Map(); // resolver -> first block a registry assigned it
   const registries = [C.registry, C.oldRegistry].filter(Boolean);
   const n = await stream({ from_block: C.start, to_block: toBlock, logs: [{ address: registries, topics: [[T.NewOwner, T.Transfer, T.NewResolver]] }], field_selection: FIELDS }, (logs) => {
     for (const l of logs) {
@@ -116,10 +110,7 @@ if (C.registry) {
         if (isOld && migrated.has(node)) continue;
         const a = decodeAbiParameters(parseAbiParameters("address"), l.data)[0].toLowerCase();
         if (l.topic0 === T.Transfer) owner.set(node, a);
-        else {
-          resolver.set(node, a === ZERO ? null : a);
-          if (a !== ZERO && !firstAssigned.has(a)) firstAssigned.set(a, l.block_number);
-        }
+        else resolver.set(node, a === ZERO ? null : a);
       }
     }
   });
@@ -144,23 +135,22 @@ if (C.registry) {
   record("registryOwner", ownerChecked, ownerMatched, ownerMismatch);
   record("registryResolver", resolverChecked, resolverMatched, resolverMismatch);
 
-  // ─── Resolver ETH address records, applied once a registry assigned the resolver ─
+  // ─── Resolver ETH address records, from any address (the subgraph's Resolver
+  // data source has no address and no start block) ─
   const addrState = new Map();
-  for (const a of STATIC_RESOLVERS[chainId] ?? []) firstAssigned.set(a, 0);
   out.addrLogs = await stream({ from_block: C.start, to_block: toBlock, logs: [{ topics: [[T.AddrChanged, T.AddressChanged]] }], field_selection: FIELDS }, (logs) => {
     for (const l of logs) {
       const r = l.address.toLowerCase();
-      const first = firstAssigned.get(r);
-      if (first === undefined || first > l.block_number) continue;
+      if (!l.topic1) continue; // same signature without an indexed node: not a resolver event
       let value;
-      if (l.topic0 === T.AddrChanged) value = decodeAbiParameters(parseAbiParameters("address"), l.data)[0].toLowerCase();
-      else {
-        try {
+      try {
+        if (l.topic0 === T.AddrChanged) value = decodeAbiParameters(parseAbiParameters("address"), l.data)[0].toLowerCase();
+        else {
           const [coin, bytes] = decodeAbiParameters(parseAbiParameters("uint256, bytes"), l.data);
           if (coin !== 60n) continue;
           value = bytes.toLowerCase();
-        } catch { continue; }
-      }
+        }
+      } catch { continue; }
       addrState.set(`${chainId}-${r}-${l.topic1}-60`, value === ZERO || value === "0x" ? null : value);
     }
   });
