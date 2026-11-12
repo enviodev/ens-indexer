@@ -84,6 +84,8 @@ async function feed() {
 }
 
 export const MAX_BATCH = 500;
+// Largest Postgres int: a cursor past every log in a block.
+const MAX_LOG_INDEX = 2147483647;
 
 /**
  * Changes strictly after `cursor` (block, log, id) up to `toBlock`, in order.
@@ -159,8 +161,11 @@ export async function serveStream(req, res, url) {
   const REORG_WINDOW = Number(process.env.STREAM_REORG_WINDOW ?? 256);
   const pollMs = Number(process.env.STREAM_POLL_MS ?? 1000);
   let lastPing = Date.now();
+  const pingMs = Number(process.env.STREAM_PING_MS ?? 15000);
+  let failures = 0;
 
   while (open) {
+    try {
     const state = await chainState(chainId, Math.max(0, cursor.block - REORG_WINDOW));
     const reorgAt = findReorg(seen, state.checkpoints, state.progress);
     if (reorgAt !== undefined) {
@@ -180,9 +185,18 @@ export async function serveStream(req, res, url) {
     // Nothing more below the committed head: move the cursor up to it, so a
     // resume does not rescan empty blocks.
     if (state.progress >= cursor.block && rows.length === 0 && cursor.block < state.progress) {
-      cursor = { block: state.progress, log: Number.MAX_SAFE_INTEGER, id: "~" };
+      cursor = { block: state.progress, log: MAX_LOG_INDEX, id: "~" };
     }
-    if (Date.now() - lastPing > 15000) { res.write(`: ping ${state.progress}\n\n`); lastPing = Date.now(); }
+    if (Date.now() - lastPing > pingMs) { res.write(`: ping ${state.progress}\n\n`); lastPing = Date.now(); }
+    failures = 0;
     await new Promise((r) => setTimeout(r, pollMs));
+    } catch (err) {
+      // A failed read must not end the stream: report it and retry from the same cursor.
+      failures++;
+      console.error(`stream read failed (${failures}):`, err.message);
+      if (open) res.write(`event: error\ndata: ${JSON.stringify({ message: "read failed, retrying", attempt: failures })}\n\n`);
+      await new Promise((r) => setTimeout(r, Math.min(30000, 1000 * 2 ** failures)));
+    }
   }
+  res.end();
 }

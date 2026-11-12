@@ -79,5 +79,11 @@ for (;;) {
 }
 
 http
-  .createServer((req, res) => route(req, res).catch((err) => { console.error(err); send(res, 500, { error: "internal error" }); }))
+  .createServer((req, res) =>
+    route(req, res).catch((err) => {
+      console.error(err);
+      if (res.headersSent) res.end();
+      else send(res, 500, { error: "internal error" });
+    }),
+  )
   .listen(PORT, () => console.log(`ens api listening on :${PORT}`));

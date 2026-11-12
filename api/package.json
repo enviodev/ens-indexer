@@ -9,9 +9,12 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
+    "@duckdb/node-api": "1.5.6-r.1",
     "graphql": "16.9.0",
     "pg": "8.13.1",
     "viem": "2.46.3"
   },
-  "engines": { "node": ">=22.0.0" }
+  "engines": {
+    "node": ">=22.0.0"
+  }
 }

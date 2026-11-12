@@ -28,7 +28,7 @@ async function readAll(cursor, toBlock, filters) {
 }
 
 function startServer(port) {
-  const child = spawn(process.execPath, ["src/server.mjs"], { env: { ...process.env, API_PORT: String(port), STREAM_POLL_MS: "200" }, stdio: ["ignore", "pipe", "inherit"] });
+  const child = spawn(process.execPath, ["src/server.mjs"], { env: { ...process.env, API_PORT: String(port), STREAM_POLL_MS: "200", STREAM_PING_MS: "500" }, stdio: ["ignore", "pipe", "inherit"] });
   return new Promise((resolve) => child.stdout.on("data", (d) => { if (String(d).includes("listening")) resolve(child); }));
 }
 
@@ -65,6 +65,29 @@ test("findReorg flags a changed or vanished block", () => {
   assert.equal(findReorg(seen, new Map([[100, "0xa"], [101, "0xb"], [102, "0xc"]]), 102), undefined);
   assert.equal(findReorg(seen, new Map([[100, "0xa"], [101, "0xX"], [102, "0xc"]]), 102), 101);
   assert.equal(findReorg(seen, new Map([[100, "0xa"]]), 100), 101);
+});
+
+test("stream stays open at the committed head and keeps sending pings", { skip, timeout: 60_000 }, async () => {
+  const server = await startServer(4394);
+  try {
+    const [{ progress_block: head }] = (await pool.query(`select progress_block from envio_chains where id = $1`, [CHAIN])).rows;
+    const ctrl = new AbortController();
+    const res = await fetch(`http://127.0.0.1:4394/v1/stream?chain=${CHAIN}&from=${head - 5}`, { signal: ctrl.signal });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let text = "";
+    const until = Date.now() + 5000;
+    while (Date.now() < until && !/: ping \d+/.test(text)) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += dec.decode(value, { stream: true });
+    }
+    ctrl.abort();
+    assert.match(text, /: ping \d+/, "pings at head");
+    assert.doesNotMatch(text, /event: error/);
+  } finally {
+    server.kill();
+  }
 });
 
 test("stream delivers every change in a block range once, in order", { skip, timeout: 300_000 }, async () => {
