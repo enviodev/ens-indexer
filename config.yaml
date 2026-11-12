@@ -254,7 +254,7 @@ contracts:
           transaction_fields:
             - hash
 
-  # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
+  # ─── Resolver (matched by signature on any address; see src/handlers/Resolver.ts)
   - name: Resolver
     events:
       - event: "AddrChanged(bytes32 indexed node, address a)"
@@ -557,7 +557,7 @@ chains:
           - "0xf9edb1a21867ac11b023ce34abad916d29abf107" # OptimismReverseResolver
           - "0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898" # ArbitrumReverseResolver
           - "0xc4842814ca523e481ca5aa85f719fed1e9cac614" # ScrollReverseResolver
-        # Also dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address; the addresses are informational.
       - name: StandaloneReverseRegistrar
         address:
           - "0x283f227c4bd38ece252c4ae7ece650b0e913f1f9"
@@ -585,7 +585,7 @@ chains:
       - name: Resolver
         address:
           - "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8" # ThreeDNS resolver (static)
-        # Also dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address; the addresses are informational.
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
@@ -605,7 +605,7 @@ chains:
         address:
           - "0xdb75db974b1f2bd3b5916d503036208064d18295"
       - name: Resolver
-        # Dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address.
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"

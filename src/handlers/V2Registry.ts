@@ -1,7 +1,7 @@
 import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
-import { isBatchRegistrar, isMigrationController, onV2Chains } from "../lib/v2-deployments";
+import { isBatchRegistrar, isMigrationController, onV2Chains, seedKind } from "../lib/v2-deployments";
 import { emitNameEvent } from "../lib/name-events";
 import {
   type V2Domain,
@@ -25,17 +25,14 @@ import {
 // discovery events from different contracts can be handled out of block order,
 // so address-based discovery alone loses events (seen on Sepolia).
 //
-// Only ERC-1155 transfers, whose signature is shared with every ERC-1155 token,
-// still need the registry to be watched. RegistryCreated and links add it.
+// ERC-1155 transfers share their signature with every ERC-1155 token. They are
+// matched on any address too, and applied only for an address that already has
+// a v2_registry row: RegistryCreated, or any label, link or token event from the
+// address, or a SubregistryUpdated pointing at it, creates one. Handlers run in
+// log order, so this does not depend on fetch order. On Ethereum and Sepolia no
+// registry emitted a transfer before its first such event.
 //
 // Matching proves nothing: names stay null until a proven parent links to it.
-
-indexer.contractRegister(
-  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true, where: onV2Chains },
-  async ({ event, context }) => {
-    context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
-  },
-);
 
 indexer.onEvent(
   { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true, where: onV2Chains },
@@ -46,25 +43,6 @@ indexer.onEvent(
     });
   },
 );
-
-// A subregistry is watched as soon as a watched registry points at it, even if
-// it never emitted RegistryCreated (a custom IRegistry implementation).
-indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
-  if (event.params.subregistry !== ZERO_ADDRESS) {
-    context.chain.V2Registry.add(event.params.subregistry as `0x${string}`);
-  }
-});
-
-// A registry that emits labels is watched for transfers from its first label,
-// whether or not anything links to it. The mint follows the label in the same
-// block, so it is covered.
-indexer.contractRegister({ contract: "V2Registry", event: "LabelRegistered", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
-  context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
-});
-
-indexer.contractRegister({ contract: "V2Registry", event: "LabelReserved", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
-  context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
-});
 
 
 // ─── Labels ──────────────────────────────────────────────────────────────────
@@ -400,12 +378,20 @@ async function applyTransfer(
   });
 }
 
-indexer.onEvent({ contract: "V2Registry", event: "TransferSingle" }, async ({ event, context }) => {
+// Applied only for a known registry (a seed, or one with a v2_registry row); any
+// other ERC-1155 token is skipped.
+const isKnownRegistry = async (context: handlerContext, chainId: number, address: string) =>
+  seedKind(chainId, address) !== undefined ||
+  (await context.V2_registry.get(makeV2RegistryId(chainId, address))) !== undefined;
+
+indexer.onEvent({ contract: "V2Registry", event: "TransferSingle", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
+  if (!(await isKnownRegistry(context, event.chainId, event.srcAddress))) return;
   const { operator, from, to, id } = event.params;
   await applyTransfer(event, context, operator, from, to, id, makeV2EventId(event.chainId, event.block.number, event.logIndex));
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "TransferBatch" }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "TransferBatch", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
+  if (!(await isKnownRegistry(context, event.chainId, event.srcAddress))) return;
   const { operator, from, to, ids } = event.params;
   for (const [i, id] of ids.entries()) {
     await applyTransfer(event, context, operator, from, to, id, `${makeV2EventId(event.chainId, event.block.number, event.logIndex)}-${i}`);

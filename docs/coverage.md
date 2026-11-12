@@ -42,7 +42,7 @@ How a contract is found:
 | ENSv2 resolvers (permissioned and others) | Signature | ResolverCreated, Linked, Cleared, AddressUpdated, TextUpdated, ContenthashUpdated, NameUpdated, DataUpdated, ABIUpdated, InterfaceUpdated, AliasChanged |
 | Node-keyed resolvers linked from ENSv2 | Signature, from the ENSv2 start block | AddrChanged, AddressChanged, TextChanged, ContenthashChanged, NameChanged |
 
-ERC-1155 transfers on ENSv2 registries share their signature with every ERC-1155 token. They are read only from registries that have created a registry, been linked, or registered a label.
+ERC-1155 transfers on ENSv2 registries share their signature with every ERC-1155 token. They are matched on any address from the ENSv2 start block and applied only for the root and .eth registries and for addresses already known as registries: one that emitted RegistryCreated or any label, link or token event, or that a SubregistryUpdated points at. Transfers from other ERC-1155 contracts are skipped. No contract is watched by address after discovery, so no data depends on when HyperIndex starts watching one.
 
 ## Rules that differ from the ENS subgraph
 

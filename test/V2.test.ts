@@ -68,7 +68,6 @@ describe("provenance", () => {
     expect(row.proven).toBe(false);
     expect(row.name).toBeUndefined();
     expect(row.createdBlock).toBe(11825459);
-    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(child);
   });
 
   it("does not trust a link from an unproven parent", async () => {
@@ -83,11 +82,12 @@ describe("provenance", () => {
     for (const d of domains) expect(d.name).toBeUndefined();
   });
 
-  it("watches a registry that never emitted RegistryCreated once a seed links it", async () => {
+  it("knows a registry that never emitted RegistryCreated once a seed links it", async () => {
+    // Its transfers are applied from here on (v2_registry row present).
     const custom = "0xe1215ed4e1886d008a2b52c051d459031bf66363";
     const indexer = createTestIndexer();
     await process1(indexer, 11868901, 11868901);
-    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(custom);
+    expect(await indexer.V2_registry.get(makeV2RegistryId(CHAIN, custom))).toBeDefined();
   });
 });
 
@@ -413,12 +413,11 @@ describe("resolver records", () => {
 // ─── Discovery order ─────────────────────────────────────────────────────────
 
 describe("transfers on a registry nothing links to", () => {
-  it("watches the registry from its first label (Sepolia 11820083)", async () => {
+  it("applies transfers from its first label (Sepolia 11820083)", async () => {
     // 0x657e... never emits RegistryCreated and is never a subregistry in this range.
     const registry = "0x657ea849311d3d5823348dded7c2aaafb3ede09e";
     const indexer = createTestIndexer();
     await process1(indexer, 11820083, 11820083);
-    expect(indexer.chains[CHAIN].V2Registry.addresses).toContain(registry);
     const mint = await indexer.V2_transfer.getOrThrow(`${CHAIN}-11820083-194`);
     expect(mint.kind).toBe("MINT");
     const row = await indexer.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, registry));
@@ -540,6 +539,76 @@ describe("provenance gate", () => {
     expect(domain.node).toBe(namehash("first.latecomer.eth"));
     expect(domain.tokenId).toBe(regenerated);
     expect(domain.owner).toBe(NEW_OWNER);
+  });
+});
+
+// ─── ERC-1155 transfers matched by signature ────────────────────────────────
+// One Sepolia sync of the same code lost these 14 transfer logs: HyperIndex 3.16
+// watched each registry from a later block than its discovery and kept that start
+// ("Skipping same-contract re-registration"). Transfers are now matched on any
+// address and applied for an address with a v2_registry row, so they do not depend
+// on which addresses HyperIndex watches.
+
+describe("transfers do not depend on the watched address list (Sepolia)", () => {
+  const lost: [string, number, number[]][] = [
+    // registry, discovery block, blocks with a lost transfer
+    ["0x2b5dda1d452e9efb4b258ea458e53dddd98845f2", 12080666, [12080683]],
+    ["0x8ca3dc27639766aec78e11cb9fb27443148fc639", 12080645, [12080960]],
+    ["0xfb0fab95e73b99e4b43083d593fddd051598d5ea", 12081712, [12081715]],
+    ["0xdcbbfc531da58ede81a8e122bddb271f6366954c", 12097153, [12097484, 12097495, 12097500, 12098138, 12099367]],
+    ["0xb19b8a4b8cb1e612d0964cc46f37589705e06fa9", 12096666, [12097601, 12097608]],
+    ["0x3723b26814c3590195ff89ea22e330a6f3d4f3a8", 12097160, [12098172]],
+  ];
+  const expected: Record<string, string> = {
+    "12080683-133": "MINT", "12080960-142": "MINT", "12081715-81": "MINT", "12097484-119": "MINT",
+    "12097495-139": "MINT", "12097500-153": "MINT", "12097601-155": "MINT", "12097608-206": "BURN",
+    "12098138-1555": "MINT", "12098172-417": "MINT", "12099367-663": "BURN", "12099367-665": "BURN",
+    "12099367-667": "BURN", "12099367-669": "BURN",
+  };
+
+  // One case per transfer block. The registry row comes from processing the real
+  // discovery block; each transfer block then runs in a fresh indexer that has the
+  // row but does not watch the address, which is the state the lossy sync was in.
+  // Before the change, the cases with a LabelRegistered earlier in the same block
+  // passed here anyway (the test indexer registers the address within the block;
+  // the real sync refused because it already had a later start); the two burn
+  // blocks, 12,097,608 and 12,099,367, failed.
+  const cases = lost.flatMap(([registry, discovery, blocks]) => blocks.map((b) => [registry, discovery, b] as const));
+  it.each(cases)("indexes the lost transfers of %s (discovered at %s) in block %s", async (registry, discovery, block) => {
+    const discovered = createTestIndexer();
+    await process1(discovered, discovery, discovery);
+    const row = await discovered.V2_registry.getOrThrow(makeV2RegistryId(CHAIN, registry));
+    const indexer = createTestIndexer();
+    indexer.V2_registry.set(row);
+    await process1(indexer, block, block);
+    const rows = await indexer.V2_transfer.getAll();
+    const want = Object.entries(expected).filter(([k]) => Number(k.split("-")[0]) === block);
+    expect(want.length).toBeGreaterThan(0);
+    for (const [k, kind] of want) expect(rows.find((t: any) => t.id === `${CHAIN}-${k}`)?.kind, k).toBe(kind);
+  });
+
+  it("skips ERC-1155 transfers from contracts that are not registries (Sepolia 12097484)", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 12097484, 12097484);
+    const rows = await indexer.V2_transfer.getAll();
+    expect(rows.some((t: any) => t.registry_id === makeV2RegistryId(CHAIN, "0xb62efc43c16b4e2bf1aaad33002368e55708538d"))).toBe(false);
+    expect(await indexer.V2_registry.get(makeV2RegistryId(CHAIN, "0xb62efc43c16b4e2bf1aaad33002368e55708538d"))).toBeUndefined();
+  });
+});
+
+describe("TransferBatch on the .eth registry (Ethereum 26,339,398)", () => {
+  it("writes one row per token id", async () => {
+    // ETHRegistry is listed in config.yaml, so this passed before the change too:
+    // no registry found by discovery has emitted a TransferBatch on Ethereum or Sepolia.
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 26_339_398, endBlock: 26_339_398 } } });
+    const rows = (await indexer.V2_transfer.getAll()).filter((t: any) => t.id.startsWith("1-26339398-225-"));
+    expect(rows).toHaveLength(9);
+    for (const r of rows) {
+      expect(r.registry_id).toBe("1-0xf60aba43e1f7f3dab1186ff03b561401c9df85e2");
+      expect(r.from).toBe("0x5438f076431321224969fc258d1c99d340b8af5a");
+      expect(r.to).toBe("0x31e0e1df5eec4f45dd85c432d4ef8092b276360c");
+    }
   });
 });
 
