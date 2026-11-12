@@ -74,7 +74,7 @@ ENSv2 lives on Ethereum (and Sepolia). The other chains here have v1-era contrac
 
 Add `?chain=<id>` to query a chain other than the default. GraphQL `block` arguments are rejected: past-block queries are not implemented.
 
-`api/parity/replay.mjs` checks indexed ENSv2 state against raw HyperSync event data. `api/parity/latency.mjs` measures API latency against a synced database.
+`api/parity/replay.mjs` (ENSv2) and `api/parity/replay-v1.mjs` (v1 owner, resolver, expiry, ETH address and reverse names) check indexed state against raw HyperSync event data. `api/parity/latency.mjs` measures API latency against a synced database.
 
 ## Run locally
 
