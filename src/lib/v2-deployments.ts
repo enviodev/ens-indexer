@@ -82,3 +82,12 @@ export function isMigrationController(chainId: number, sender: string): boolean 
 export function isMirrorResolver(chainId: number, address: string): boolean {
   return V2_DEPLOYMENTS[chainId]?.mirrorResolvers.includes(address.toLowerCase()) ?? false;
 }
+
+/**
+ * `where` filter for wildcard handlers: HyperIndex applies a wildcard handler on
+ * every configured chain, so ENSv2 handlers restrict themselves to the chains
+ * with an ENSv2 deployment. Returning false skips fetching on other chains.
+ */
+export function onV2Chains({ chain }: { chain: { id: number } }): boolean {
+  return V2_DEPLOYMENTS[chain.id] !== undefined;
+}

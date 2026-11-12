@@ -29,7 +29,7 @@ import {
   interpretTextRecordValue,
 } from "../lib/protocol-acceleration";
 
-import { isActiveResolver } from "../lib/resolver-activation";
+import { isActiveResolver, onResolverChains } from "../lib/resolver-activation";
 
 import dnsPacket, { type Answer } from "dns-packet";
 
@@ -41,7 +41,7 @@ import dnsPacket, { type Answer } from "dns-packet";
 // Emitted when the ETH address for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddrChanged", wildcard: true },
+  { contract: "Resolver", event: "AddrChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, a } = event.params;
@@ -92,7 +92,7 @@ indexer.onEvent(
 // Emitted when a multicoin address changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddressChanged", wildcard: true },
+  { contract: "Resolver", event: "AddressChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, coinType, newAddress } = event.params;
@@ -134,7 +134,7 @@ indexer.onEvent(
 // Emitted when the name for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "NameChanged", wildcard: true },
+  { contract: "Resolver", event: "NameChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name } = event.params;
@@ -195,7 +195,7 @@ indexer.onEvent(
 // Emitted when the ABI for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ABIChanged", wildcard: true },
+  { contract: "Resolver", event: "ABIChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, contentType } = event.params;
@@ -222,7 +222,7 @@ indexer.onEvent(
 // Emitted when the public key for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "PubkeyChanged", wildcard: true },
+  { contract: "Resolver", event: "PubkeyChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, x, y } = event.params;
@@ -250,7 +250,7 @@ indexer.onEvent(
 // Emitted when a text record for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "TextChanged", wildcard: true },
+  { contract: "Resolver", event: "TextChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, key, value } = event.params;
@@ -298,7 +298,7 @@ indexer.onEvent(
 // Emitted when the content hash for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ContenthashChanged", wildcard: true },
+  { contract: "Resolver", event: "ContenthashChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, hash } = event.params;
@@ -326,7 +326,7 @@ indexer.onEvent(
 // Emitted when the EIP-165 interface support changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "InterfaceChanged", wildcard: true },
+  { contract: "Resolver", event: "InterfaceChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, interfaceID, implementer } = event.params;
@@ -354,7 +354,7 @@ indexer.onEvent(
 // Emitted when an authorisation for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AuthorisationChanged", wildcard: true },
+  { contract: "Resolver", event: "AuthorisationChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, owner, target, isAuthorised } = event.params;
@@ -384,7 +384,7 @@ indexer.onEvent(
 // Emitted when the resolver version changes, clearing all stored data.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "VersionChanged", wildcard: true },
+  { contract: "Resolver", event: "VersionChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, newVersion } = event.params;
@@ -514,7 +514,7 @@ async function addDnsTextKey(
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged4", wildcard: true },
+  { contract: "Resolver", event: "DNSRecordChanged4", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource, record } = event.params;
@@ -535,7 +535,7 @@ indexer.onEvent(
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged5", wildcard: true },
+  { contract: "Resolver", event: "DNSRecordChanged5", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource, record } = event.params;
@@ -556,7 +556,7 @@ indexer.onEvent(
 // PA-only: deletes DNS TXT records from PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordDeleted", wildcard: true },
+  { contract: "Resolver", event: "DNSRecordDeleted", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource } = event.params;

@@ -549,6 +549,19 @@ describe("events before late registration (Sepolia, all affected addresses)", ()
   });
 });
 
+// ─── Chain scope ─────────────────────────────────────────────────────────────
+
+describe("wildcard handlers stay on their chains", () => {
+  it("writes no ENSv2 rows for resolver events on Base (block 17,600,946)", async () => {
+    // HyperIndex applies a wildcard handler on every chain; without the chain
+    // filter this AddrChanged on Base was copied into v2_node_address.
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 8453: { startBlock: 17_600_946, endBlock: 17_600_946 } } });
+    expect(await indexer.V2_node_address.getAll()).toHaveLength(0);
+    expect(await indexer.V2_node_record.getAll()).toHaveLength(0);
+  });
+});
+
 // ─── Access control ──────────────────────────────────────────────────────────
 
 describe("EACRolesChanged", () => {

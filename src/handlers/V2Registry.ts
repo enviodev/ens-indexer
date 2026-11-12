@@ -1,7 +1,7 @@
 import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
-import { isBatchRegistrar, isMigrationController, isMirrorResolver } from "../lib/v2-deployments";
+import { isBatchRegistrar, isMigrationController, isMirrorResolver, onV2Chains } from "../lib/v2-deployments";
 import { activateResolver } from "../lib/resolver-activation";
 import {
   type V2Domain,
@@ -31,14 +31,14 @@ import {
 // Matching proves nothing: names stay null until a proven parent links to it.
 
 indexer.contractRegister(
-  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true },
+  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true, where: onV2Chains },
   async ({ event, context }) => {
     context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
   },
 );
 
 indexer.onEvent(
-  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true },
+  { contract: "V2RegistryDiscovery", event: "RegistryCreated", wildcard: true, where: onV2Chains },
   async ({ event, context }) => {
     await ensureV2Registry(context, event.chainId, event.srcAddress, {
       block: event.block.number,
@@ -49,7 +49,7 @@ indexer.onEvent(
 
 // A subregistry is watched as soon as a watched registry points at it, even if
 // it never emitted RegistryCreated (a custom IRegistry implementation).
-indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated", wildcard: true }, async ({ event, context }) => {
+indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   if (event.params.subregistry !== ZERO_ADDRESS) {
     context.chain.V2Registry.add(event.params.subregistry as `0x${string}`);
   }
@@ -58,11 +58,11 @@ indexer.contractRegister({ contract: "V2Registry", event: "SubregistryUpdated", 
 // A registry that emits labels is watched for transfers from its first label,
 // whether or not anything links to it. The mint follows the label in the same
 // block, so it is covered.
-indexer.contractRegister({ contract: "V2Registry", event: "LabelRegistered", wildcard: true }, async ({ event, context }) => {
+indexer.contractRegister({ contract: "V2Registry", event: "LabelRegistered", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
 });
 
-indexer.contractRegister({ contract: "V2Registry", event: "LabelReserved", wildcard: true }, async ({ event, context }) => {
+indexer.contractRegister({ contract: "V2Registry", event: "LabelReserved", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   context.chain.V2Registry.add(event.srcAddress as `0x${string}`);
 });
 
@@ -182,15 +182,15 @@ async function handleLabel(
   }
 }
 
-indexer.onEvent({ contract: "V2Registry", event: "LabelRegistered", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "LabelRegistered", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   await handleLabel(event, context, "REGISTERED", event.params.owner.toLowerCase());
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "LabelReserved", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "LabelReserved", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   await handleLabel(event, context, "RESERVED", undefined);
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const domain = await loadOrCreateDomain(event, context, event.params.tokenId);
   if (domain.subregistry) {
     await setV2Edge(context, event.chainId, domain.id, domain.subregistry, false, {
@@ -207,7 +207,7 @@ indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: 
   });
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const domain = await loadOrCreateDomain(event, context, event.params.tokenId);
   context.V2_domain.set({
     ...domain,
@@ -218,7 +218,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated", wildcard: true
 
 // ─── Links ───────────────────────────────────────────────────────────────────
 
-indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { tokenId, subregistry, sender } = event.params;
   const meta = { block: event.block.number, timestamp: event.block.timestamp, sender: sender.toLowerCase() };
   const domain = await loadOrCreateDomain(event, context, tokenId);
@@ -236,7 +236,7 @@ indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated", wildcard:
   }
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { tokenId, resolver } = event.params;
   const domain = await loadOrCreateDomain(event, context, tokenId);
   const next = nullableAddress(resolver);
@@ -254,7 +254,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: tr
   }
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const registry = await ensureV2Registry(context, event.chainId, event.srcAddress);
   context.V2_registry.set({
     ...registry,
@@ -266,7 +266,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated", wildcard: true
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 
-indexer.onEvent({ contract: "V2Registry", event: "TokenResource", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "TokenResource", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { tokenId, resource } = event.params;
   const domain = await loadOrCreateDomain(event, context, tokenId);
   context.V2_domain.set({ ...domain, resource, updatedBlock: event.block.number });
@@ -282,7 +282,7 @@ indexer.onEvent({ contract: "V2Registry", event: "TokenResource", wildcard: true
   });
 });
 
-indexer.onEvent({ contract: "V2Registry", event: "TokenRegenerated", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "TokenRegenerated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { oldTokenId, newTokenId } = event.params;
   const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
   const domain = await loadOrCreateDomain(event, context, oldTokenId);
@@ -391,7 +391,7 @@ indexer.onEvent({ contract: "V2Registry", event: "TransferBatch" }, async ({ eve
 
 // ─── Access control ──────────────────────────────────────────────────────────
 
-indexer.onEvent({ contract: "V2Registry", event: "EACRolesChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2Registry", event: "EACRolesChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { resource, account, newRoleBitmap } = event.params;
   const contract = event.srcAddress.toLowerCase();
   const holder = account.toLowerCase();

@@ -1,4 +1,5 @@
 import { indexer } from "envio";
+import { onV2Chains } from "../lib/v2-deployments";
 import { makeV2RegistryId } from "../lib/v2-helpers";
 import { hasNullByte } from "../lib/helpers";
 import { ETH_COIN_TYPE } from "../lib/protocol-acceleration";
@@ -11,7 +12,7 @@ function recordId(chainId: number, resolver: string, node: string): string {
   return `${makeV2RegistryId(chainId, resolver)}-${node}`;
 }
 
-indexer.onEvent({ contract: "V2NodeResolver", event: "AddrChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2NodeResolver", event: "AddrChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { node, a } = event.params;
   const resolver = event.srcAddress.toLowerCase();
   const id = `${recordId(event.chainId, resolver, node)}-${ETH_COIN_TYPE}`;
@@ -23,7 +24,7 @@ indexer.onEvent({ contract: "V2NodeResolver", event: "AddrChanged", wildcard: tr
   context.V2_node_address.set({ id, resolver, node, coinType: BigInt(ETH_COIN_TYPE), value });
 });
 
-indexer.onEvent({ contract: "V2NodeResolver", event: "AddressChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2NodeResolver", event: "AddressChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { node, coinType, newAddress } = event.params;
   const resolver = event.srcAddress.toLowerCase();
   const id = `${recordId(event.chainId, resolver, node)}-${coinType}`;
@@ -34,7 +35,7 @@ indexer.onEvent({ contract: "V2NodeResolver", event: "AddressChanged", wildcard:
   context.V2_node_address.set({ id, resolver, node, coinType, value: newAddress.toLowerCase() });
 });
 
-indexer.onEvent({ contract: "V2NodeResolver", event: "TextChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2NodeResolver", event: "TextChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { node, key, value } = event.params;
   if (hasNullByte(key)) return;
   const resolver = event.srcAddress.toLowerCase();
@@ -66,12 +67,12 @@ async function upsertNodeRecord(
   });
 }
 
-indexer.onEvent({ contract: "V2NodeResolver", event: "ContenthashChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2NodeResolver", event: "ContenthashChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { node, hash } = event.params;
   await upsertNodeRecord(context, event.chainId, event.srcAddress, node, { contenthash: hash === "0x" ? undefined : hash });
 });
 
-indexer.onEvent({ contract: "V2NodeResolver", event: "NameChanged", wildcard: true }, async ({ event, context }) => {
+indexer.onEvent({ contract: "V2NodeResolver", event: "NameChanged", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { node, name } = event.params;
   if (hasNullByte(name)) return;
   await upsertNodeRecord(context, event.chainId, event.srcAddress, node, { name: name === "" ? undefined : name });
