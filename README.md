@@ -2,6 +2,10 @@
 
 ENS Protocol Indexer. Built with [Envio HyperIndex](https://docs.envio.dev).
 
+## Documentation
+
+See [docs/](docs/README.md): coverage, ENSv2 design, schema, API (GraphQL, REST, change stream), running locally, and the archive export.
+
 ## Chains
 
 | Network | Chain ID |
@@ -71,10 +75,13 @@ ENSv2 lives on Ethereum (and Sepolia). The other chains here have v1-era contrac
 | `GET /v1/resolve/:name` | Owner, resolver, addresses, texts and contenthash. `?coinTypes=60&texts=avatar` narrows the records |
 | `GET /v1/primary/:address` | Primary name, with a forward-resolution check |
 | `GET /v1/status` | Sync progress per chain |
+| `GET /v1/stream` | Name-level changes as Server-Sent Events, resumable by cursor, filtered by name, address and kind |
 
 Add `?chain=<id>` to query a chain other than the default. GraphQL `block` arguments are rejected: past-block queries are not implemented.
 
 `api/parity/replay.mjs` (ENSv2) and `api/parity/replay-v1.mjs` (v1 owner, resolver, expiry, ETH address and reverse names) check indexed state against raw HyperSync event data. `api/parity/latency.mjs` measures API latency against a synced database.
+
+`api/export/export.mjs` writes tables to Parquet by chain and block range, to a directory or S3-compatible storage (R2, MinIO). See [docs/export.md](docs/export.md).
 
 ## Run locally
 
