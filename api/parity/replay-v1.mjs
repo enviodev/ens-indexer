@@ -65,10 +65,15 @@ async function stream(query, onLogs) {
   for (;;) {
     let j;
     for (let attempt = 0; ; attempt++) {
-      const res = await fetch(`https://${chainId}.hypersync.xyz/query`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ ...query, from_block: from }) });
-      if (res.ok) { j = await res.json(); break; }
-      if (attempt >= 5) throw new Error(`HyperSync HTTP ${res.status}`);
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      // Retry network errors as well as HTTP errors: long runs meet transient timeouts.
+      try {
+        const res = await fetch(`https://${chainId}.hypersync.xyz/query`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ ...query, from_block: from }), signal: AbortSignal.timeout(120_000) });
+        if (res.ok) { j = await res.json(); break; }
+        if (attempt >= 8) throw new Error(`HyperSync HTTP ${res.status}`);
+      } catch (err) {
+        if (attempt >= 8) throw err;
+      }
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** Math.min(attempt, 5)));
     }
     const logs = (j.data ?? []).flatMap((d) => d.logs ?? []);
     n += logs.length;

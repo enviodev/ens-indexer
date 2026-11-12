@@ -47,13 +47,23 @@ async function hypersync(query) {
   const out = [];
   let from = query.from_block;
   for (;;) {
-    const res = await fetch(`https://${chainId}.hypersync.xyz/query`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ ...query, from_block: from }),
-    });
-    if (!res.ok) throw new Error(`HyperSync HTTP ${res.status}`);
-    const j = await res.json();
+    let j;
+    for (let attempt = 0; ; attempt++) {
+      // Retry network errors as well as HTTP errors: long runs meet transient timeouts.
+      try {
+        const res = await fetch(`https://${chainId}.hypersync.xyz/query`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ ...query, from_block: from }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        if (res.ok) { j = await res.json(); break; }
+        if (attempt >= 8) throw new Error(`HyperSync HTTP ${res.status}`);
+      } catch (err) {
+        if (attempt >= 8) throw err;
+      }
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** Math.min(attempt, 5)));
+    }
     for (const d of j.data ?? []) out.push(...(d.logs ?? []));
     if (query.to_block !== undefined && j.next_block >= query.to_block) break;
     if (j.next_block >= j.archive_height || j.next_block === from) { out.archiveHeight = j.archive_height; break; }
