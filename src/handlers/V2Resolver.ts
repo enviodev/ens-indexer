@@ -53,7 +53,10 @@ async function emitRecordChange(
   recordRowId: string,
   detail: Record<string, unknown>,
 ) {
-  const links = (await context.V2_record_link.getWhere({ record_id: { _eq: recordRowId } })).filter((l) => l.active);
+  // Sorted by link id so each name's event id does not depend on lookup order.
+  const links = (await context.V2_record_link.getWhere({ record_id: { _eq: recordRowId } }))
+    .filter((l) => l.active)
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const resolver = event.srcAddress.toLowerCase();
   if (links.length === 0) {
     emitNameEvent(context, event, { kind: "RECORD", protocol: "v2", address: resolver, detail: { resolver, record: recordRowId, ...detail } });

@@ -611,6 +611,31 @@ describe("name_event", () => {
     }
   });
 
+  it("numbers a fanned-out record change by link id, whatever the lookup order (Sepolia 11997481)", async () => {
+    // Record 1 of resolver 0x72d374ff is linked to five names. Before the sort,
+    // which name got which event id depended on lookup order and changed between runs.
+    const resolver = "0x72d374ff9f8600cd386e1fd4c853564836de45b1";
+    const nodes = [
+      "0xd63d1843e52b40220c960ac3ef80808280e827eff31199ef1d1e50d908e0260b",
+      "0x992291aceefbb945c0228d5796a050c56f851f2dec8d3026b93b158ac710b78c",
+      "0x710678729b0ce0b85a0203e3466c76ad001b0676d6e7bfe750a047eef43f6a97",
+      "0x2181159815208d30061797fffc862132ceada36df1780de77780c12d55f540cd",
+      "0x1a93e5a3133fe2125f58ce80c5c1baa2e4c9dd0049f9f64e84b1b20d98c22e08",
+    ];
+    const indexer = createTestIndexer();
+    for (const node of nodes) {
+      indexer.V2_record_link.set({
+        id: `${CHAIN}-${resolver}-${node}`, chainId: CHAIN, resolver_id: `${CHAIN}-${resolver}`,
+        record_id: `${CHAIN}-${resolver}-1`, node, name: undefined, active: true, updatedBlock: 11997000,
+      } as any);
+    }
+    await process1(indexer, 11997481, 11997481);
+    const events = (await indexer.Name_event.getWhere({ blockNumber: { _eq: 11997481 } }))
+      .filter((e: any) => e.kind === "RECORD" && e.logIndex === 321)
+      .sort((a: any, b: any) => (a.id < b.id ? -1 : 1));
+    expect(events.map((e: any) => e.node)).toEqual([...nodes].sort());
+  });
+
   it("logs a primary-name change from the standalone reverse registrar (Base 32,443,718)", async () => {
     const indexer = createTestIndexer();
     await indexer.process({ chains: { 8453: { startBlock: 32_443_718, endBlock: 32_443_718 } } });
