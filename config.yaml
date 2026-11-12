@@ -452,16 +452,46 @@ contracts:
   - name: V2Resolver
     events:
       - event: "Linked(uint256 indexed recordId, bytes32 indexed node, bytes name)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "Cleared(uint256 indexed recordId)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "AddressUpdated(uint256 indexed recordId, uint256 coinType, bytes addressBytes)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "TextUpdated(uint256 indexed recordId, string indexed keyHash, string key, string value)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "ContenthashUpdated(uint256 indexed recordId, bytes hash)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "NameUpdated(uint256 indexed recordId, string primaryName)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "DataUpdated(uint256 indexed recordId, string indexed keyHash, string key, bytes value)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "ABIUpdated(uint256 indexed recordId, uint256 indexed contentType)"
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "InterfaceUpdated(uint256 indexed recordId, bytes4 indexed interfaceId, address implementer)"
+        field_selection:
+          transaction_fields:
+            - hash
       # Emitted by deployments before 2026-09 (contracts/deployments/sepolia-*). Later ones use Linked.
       - event: "AliasChanged(bytes indexed indexedFromName, bytes indexed indexedToName, bytes fromName, bytes toName)"
+        field_selection:
+          transaction_fields:
+            - hash
 
 chains:
   - id: 1 # Ethereum Mainnet

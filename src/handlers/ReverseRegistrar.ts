@@ -1,4 +1,5 @@
 import { indexer } from "envio";
+import { emitNameEvent } from "../lib/name-events";
 
 import {
   upsertReverseNameRecord,
@@ -20,6 +21,10 @@ indexer.onEvent(
     : evmChainIdToCoinType(event.chainId);
 
   upsertReverseNameRecord(context, addr, coinType, name);
+  emitNameEvent(context, event, {
+    kind: "PRIMARY_NAME", protocol: "v1", address: addr, name: name === "" ? undefined : name,
+    detail: { coinType, source: "StandaloneReverseRegistrar" },
+  });
   },
 );
 

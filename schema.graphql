@@ -769,3 +769,21 @@ type resolver_activation {
   id: ID!                    # {chainId}-{address}
   firstBlock: Int!
 }
+
+# Name-level changes that have no event table of their own, for the change
+# stream (api/src/stream.mjs). The stream also reads the subgraph_* event
+# tables and the v2_registration, v2_renewal, v2_transfer and v2_migration
+# tables, so those changes are not repeated here.
+type name_event @index(fields: ["node", "blockNumber"]) @index(fields: ["address", "blockNumber"]) {
+  id: ID!                         # {chainId}-{block}-{logIndex}[-{n}]
+  blockNumber: Int! @index
+  logIndex: Int!
+  timestamp: BigInt!
+  transactionHash: String!
+  kind: String!                   # REGISTRATION, RESERVATION, UNREGISTRATION, EXPIRY, RESOLVER, SUBREGISTRY, RECORD, ALIAS, PRIMARY_NAME
+  protocol: String!               # v1 | v2
+  node: String @index
+  name: String
+  address: String @index          # owner, resolver, subregistry or the reverse address, by kind
+  detail: String                  # JSON with the kind's fields
+}

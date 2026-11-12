@@ -3,6 +3,7 @@ import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
 import { isBatchRegistrar, isMigrationController, isMirrorResolver, onV2Chains } from "../lib/v2-deployments";
 import { activateResolver } from "../lib/resolver-activation";
+import { emitNameEvent } from "../lib/name-events";
 import {
   type V2Domain,
   ensureV2Registry,
@@ -110,6 +111,7 @@ async function loadOrCreateDomain(
 
 interface LabelEvent {
   chainId: number;
+  logIndex: number;
   block: { number: number; timestamp: number };
   srcAddress: string;
   transaction: { hash: string };
@@ -167,6 +169,15 @@ async function handleLabel(
     updatedBlock: event.block.number,
   });
 
+  emitNameEvent(context, event, {
+    kind: status === "REGISTERED" ? "REGISTRATION" : "RESERVATION",
+    protocol: "v2",
+    node,
+    name,
+    address: owner ?? sender,
+    detail: { registry: event.srcAddress.toLowerCase(), tokenId, label, expiry, sender: sender.toLowerCase(), migration: isMigration },
+  });
+
   if (isMigration && node && owner) {
     context.V2_migration.set({
       id: node,
@@ -198,6 +209,10 @@ indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: 
       timestamp: event.block.timestamp,
     });
   }
+  emitNameEvent(context, event, {
+    kind: "UNREGISTRATION", protocol: "v2", node: domain.node, name: domain.name,
+    detail: { registry: event.srcAddress.toLowerCase(), tokenId: event.params.tokenId, sender: event.params.sender.toLowerCase() },
+  });
   context.V2_domain.set({
     ...domain,
     status: "UNREGISTERED",
@@ -209,6 +224,10 @@ indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: 
 
 indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const domain = await loadOrCreateDomain(event, context, event.params.tokenId);
+  emitNameEvent(context, event, {
+    kind: "EXPIRY", protocol: "v2", node: domain.node, name: domain.name,
+    detail: { registry: event.srcAddress.toLowerCase(), tokenId: event.params.tokenId, expiry: event.params.newExpiry },
+  });
   context.V2_domain.set({
     ...domain,
     expiry: event.params.newExpiry,
@@ -226,6 +245,10 @@ indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated", wildcard:
 
   const previous = domain.subregistry;
   context.V2_domain.set({ ...domain, subregistry: next, updatedBlock: event.block.number });
+  emitNameEvent(context, event, {
+    kind: "SUBREGISTRY", protocol: "v2", node: domain.node, name: domain.name, address: next,
+    detail: { registry: event.srcAddress.toLowerCase(), tokenId, previous: previous ?? null },
+  });
 
   if (previous && previous !== next) {
     await setV2Edge(context, event.chainId, domain.id, previous, false, meta);
@@ -241,6 +264,10 @@ indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: tr
   const domain = await loadOrCreateDomain(event, context, tokenId);
   const next = nullableAddress(resolver);
   context.V2_domain.set({ ...domain, resolver: next, updatedBlock: event.block.number });
+  emitNameEvent(context, event, {
+    kind: "RESOLVER", protocol: "v2", node: domain.node, name: domain.name, address: next,
+    detail: { registry: event.srcAddress.toLowerCase(), tokenId, previous: domain.resolver ?? null },
+  });
   if (next) {
     if (!isMirrorResolver(event.chainId, next)) {
       await activateResolver(context, event.chainId, next, event.block.number);

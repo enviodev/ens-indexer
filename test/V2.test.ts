@@ -586,6 +586,43 @@ describe("wildcard handlers stay on their chains", () => {
   });
 });
 
+// ─── Change log for the stream ───────────────────────────────────────────────
+
+describe("name_event", () => {
+  it("logs reservations with name and node (Sepolia 11821357)", async () => {
+    const { reserved } = fixtures;
+    const args = decode(reserved);
+    const indexer = createTestIndexer();
+    await process1(indexer, blockOf(reserved), blockOf(reserved));
+    const row = await indexer.Name_event.getOrThrow(`${CHAIN}-${blockOf(reserved)}-${logIndexOf(reserved)}`);
+    expect(row.kind).toBe("RESERVATION");
+    expect(row.protocol).toBe("v2");
+    expect(row.name).toBe(`${args.label}.eth`);
+    expect(row.node).toBe(namehash(`${args.label}.eth`));
+  });
+
+  it("logs a record change once per name that shares the record (Sepolia 11947405)", async () => {
+    const indexer = createTestIndexer();
+    await process1(indexer, 11947405, 11947405);
+    const events = await indexer.Name_event.getWhere({ blockNumber: { _eq: 11947405 } });
+    const kinds = new Set(events.map((e: any) => e.kind));
+    expect(kinds.has("ALIAS")).toBe(true);
+    expect(kinds.has("RECORD")).toBe(true);
+    for (const e of events.filter((x: any) => x.kind === "RECORD")) {
+      expect(e.node).toBe("0xbcd07235245d3cc5604d3e5451b3b88e61883fc266b3823f92429249285db373");
+    }
+  });
+
+  it("logs a primary-name change from the standalone reverse registrar (Base 32,443,718)", async () => {
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 8453: { startBlock: 32_443_718, endBlock: 32_443_718 } } });
+    const row = await indexer.Name_event.getOrThrow("8453-32443718-120");
+    expect(row.kind).toBe("PRIMARY_NAME");
+    expect(row.address).toBe("0x179a862703a4adfb29896552df9e307980d19285");
+    expect(JSON.parse(row.detail!).coinType).toBe(2147492101);
+  });
+});
+
 // ─── Access control ──────────────────────────────────────────────────────────
 
 describe("EACRolesChanged", () => {

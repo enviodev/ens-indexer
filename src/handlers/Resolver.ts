@@ -30,6 +30,7 @@ import {
 } from "../lib/protocol-acceleration";
 
 import { isActiveResolver, onResolverChains } from "../lib/resolver-activation";
+import { emitNameEvent } from "../lib/name-events";
 
 import dnsPacket, { type Answer } from "dns-packet";
 
@@ -178,6 +179,10 @@ indexer.onEvent(
       ]);
       if (address !== null) {
         upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
+        emitNameEvent(context, event, {
+          kind: "PRIMARY_NAME", protocol: "v1", node, address, name: name === "" ? undefined : name,
+          detail: { coinType: ETH_COIN_TYPE, source: "legacy reverse resolver", resolver: event.srcAddress.toLowerCase() },
+        });
         context.Unrecovered_reverse_name.deleteUnsafe(node);
       } else if (isIndexable(name)) {
         context.Unrecovered_reverse_name.set({

@@ -5,6 +5,7 @@ import { graphql } from "graphql";
 import { applyViews, q } from "./db.mjs";
 import { makeContext, schema } from "./subgraph.mjs";
 import { resolveName, primaryName } from "./resolve.mjs";
+import { serveStream } from "./stream.mjs";
 
 const PORT = Number(process.env.API_PORT ?? 4350);
 const DEFAULT_CHAIN = Number(process.env.API_DEFAULT_CHAIN ?? 1);
@@ -37,6 +38,8 @@ async function route(req, res) {
     const rows = await q(`SELECT id, start_block, source_block, progress_block, progress_block_time, events_processed, ready_at, end_block FROM envio_chains ORDER BY id`);
     return send(res, 200, { chains: rows.map((r) => ({ chainId: r.id, startBlock: r.start_block, headBlock: r.source_block, progressBlock: r.progress_block, progressBlockTime: r.progress_block_time, eventsProcessed: r.events_processed, ready: r.ready_at != null, blocksBehind: Math.max(0, r.source_block - r.progress_block) })) });
   }
+
+  if (req.method === "GET" && url.pathname === "/v1/stream") return serveStream(req, res, url);
 
   const resolve = url.pathname.match(/^\/v1\/resolve\/(.+)$/);
   if (req.method === "GET" && resolve) {
