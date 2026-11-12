@@ -2,14 +2,12 @@ import { indexer } from "envio";
 import { onV2Chains } from "../lib/v2-deployments";
 import { decodeDnsEncodedName, namehashFromLabels, type handlerContext } from "../lib/helpers";
 import { ensureV2Resolver, makeV2RegistryId, nullableAddress } from "../lib/v2-helpers";
-import { activateResolver } from "../lib/resolver-activation";
 import { emitNameEvent } from "../lib/name-events";
 
 // ─── Discovery ───────────────────────────────────────────────────────────────
 // Record events are matched on any address (wildcard), so records written before
 // a registry links the resolver are kept regardless of discovery order. A
 // resolver is trusted only once a proven registry points at it.
-// ResolverCreated also activates the resolver for node-keyed (v1-style) events.
 
 indexer.onEvent(
   { contract: "V2ResolverDiscovery", event: "ResolverCreated", wildcard: true, where: onV2Chains },
@@ -18,7 +16,6 @@ indexer.onEvent(
       discoveredVia: "ResolverCreated",
       createdBlock: event.block.number,
     });
-    await activateResolver(context, event.chainId, event.srcAddress, event.block.number);
   },
 );
 

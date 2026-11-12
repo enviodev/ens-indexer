@@ -17,7 +17,6 @@ These hold record values, which the subgraph shape does not keep:
 - `resolver_records`, `resolver_address_record` and `resolver_text_record` hold current values by resolver and node.
 - `domain_resolver_relation` holds the resolver each registry assigns to each node.
 - `reverse_name_record` holds primary names by address and coin type.
-- `resolver_activation` holds the block each resolver was first assigned. Resolver events count from that block.
 
 ## Registrar activity
 

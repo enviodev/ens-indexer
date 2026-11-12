@@ -1,8 +1,7 @@
 import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
-import { isBatchRegistrar, isMigrationController, isMirrorResolver, onV2Chains } from "../lib/v2-deployments";
-import { activateResolver } from "../lib/resolver-activation";
+import { isBatchRegistrar, isMigrationController, onV2Chains } from "../lib/v2-deployments";
 import { emitNameEvent } from "../lib/name-events";
 import {
   type V2Domain,
@@ -269,9 +268,6 @@ indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: tr
     detail: { registry: event.srcAddress.toLowerCase(), tokenId, previous: domain.resolver ?? null },
   });
   if (next) {
-    if (!isMirrorResolver(event.chainId, next)) {
-      await activateResolver(context, event.chainId, next, event.block.number);
-    }
     const registry = await context.V2_registry.get(domain.registry_id);
     await ensureV2Resolver(context, event.chainId, next, {
       discoveredVia: "ResolverUpdated",

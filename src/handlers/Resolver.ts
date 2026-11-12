@@ -29,14 +29,16 @@ import {
   interpretTextRecordValue,
 } from "../lib/protocol-acceleration";
 
-import { isActiveResolver, onResolverChains } from "../lib/resolver-activation";
+import { onResolverChains } from "../lib/resolver-chains";
 import { emitNameEvent } from "../lib/name-events";
 
 import dnsPacket, { type Answer } from "dns-packet";
 
-// Resolver events are matched on any address and applied only for a resolver a
-// registry has assigned (see resolver-activation.ts). Watching resolvers by
-// address instead loses events when HyperIndex registers an address late.
+// Resolver events are matched by signature on any address and applied whether or
+// not a registry has assigned the resolver, as the ENS subgraph does (its Resolver
+// data source has no address and no start block). Records set before a name points
+// at a resolver are therefore kept, and NewResolver picks them up. Watching
+// resolvers by address instead loses events when HyperIndex registers an address late.
 
 // ─── AddrChanged ─────────────────────────────────────────────────────────────
 // Emitted when the ETH address for a node changes.
@@ -44,7 +46,6 @@ import dnsPacket, { type Answer } from "dns-packet";
 indexer.onEvent(
   { contract: "Resolver", event: "AddrChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, a } = event.params;
 
   // upsert Account for the ETH address
@@ -95,7 +96,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "AddressChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, coinType, newAddress } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -137,7 +137,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "NameChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name } = event.params;
 
   // skip if name contains null bytes
@@ -202,7 +201,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "ABIChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, contentType } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -229,7 +227,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "PubkeyChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, x, y } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -257,7 +254,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "TextChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, key, value } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -305,7 +301,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "ContenthashChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, hash } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -333,7 +328,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "InterfaceChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, interfaceID, implementer } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -361,7 +355,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "AuthorisationChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, owner, target, isAuthorised } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -391,7 +384,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "VersionChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, newVersion } = event.params;
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
@@ -521,7 +513,6 @@ async function addDnsTextKey(
 indexer.onEvent(
   { contract: "Resolver", event: "DNSRecordChanged4", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
@@ -542,7 +533,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "DNSRecordChanged5", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
   if (key === null) return;
@@ -563,7 +553,6 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "Resolver", event: "DNSRecordDeleted", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
-  if (!(await isActiveResolver(context, event.chainId, event.srcAddress, event.block.number))) return;
   const { node, name, resource } = event.params;
   const { key } = parseDnsTxtRecordArgs({ name, resource });
   if (key === null) return;

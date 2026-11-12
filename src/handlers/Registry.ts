@@ -25,7 +25,6 @@ import {
   migrateNode,
   nodeIsMigrated,
 } from "../lib/protocol-acceleration";
-import { activateResolver } from "../lib/resolver-activation";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
@@ -254,9 +253,6 @@ async function handleNewResolver(
 ): Promise<void> {
   const { node, resolver: resolverAddress } = event.params;
   const isZeroResolver = resolverAddress === ZERO_ADDRESS;
-  if (!isZeroResolver) {
-    await activateResolver(context, event.chainId, resolverAddress, event.block.number);
-  }
 
   const resolverId = makeResolverId(event.chainId, resolverAddress, node);
 

@@ -761,15 +761,6 @@ type v2_node_text @index(fields: ["resolver", "node"]) {
   value: String
 }
 
-# First block a resolver was assigned through NewResolver (v1) or ResolverUpdated
-# and ResolverCreated (v2). Resolver events are matched on any address and only
-# applied from that block on, which matches the subgraph's dynamic data sources
-# without depending on when HyperIndex starts watching the address.
-type resolver_activation {
-  id: ID!                    # {chainId}-{address}
-  firstBlock: Int!
-}
-
 # Name-level changes that have no event table of their own, for the change
 # stream (api/src/stream.mjs). The stream also reads the subgraph_* event
 # tables and the v2_registration, v2_renewal, v2_transfer and v2_migration

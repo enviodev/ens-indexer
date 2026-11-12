@@ -21,8 +21,7 @@ Addresses are in `config.yaml`. ENSv2 addresses come from ENS's deployment artif
 How a contract is found:
 
 - **Fixed:** the address is in `config.yaml`.
-- **Assigned:** a registry points at it (resolvers).
-- **Signature:** events are matched on any address on the chains that use them, and trusted only through a proven link. See [ENSv2](ensv2.md).
+- **Signature:** events are matched on any address on the chains that use them. ENSv2 events are trusted only through a proven link; see [ENSv2](ensv2.md).
 
 | Contract | Found by | Events |
 |---|---|---|
@@ -33,7 +32,7 @@ How a contract is found:
 | Basenames registrar and controllers | Fixed | NameRegistered, NameRegisteredWithRecord, NameRenewed, Transfer, ETHPaymentProcessed |
 | Linea registrar and controller | Fixed | NameRegistered, NameRenewed, Transfer, OwnerNameRegistered, PohNameRegistered |
 | 3DNS token | Fixed | NewOwner, Transfer, RegistrationCreated, RegistrationExtended, TransferSingle, TransferBatch |
-| Resolvers | Signature, applied from the block a registry first assigns the resolver | AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged, ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged, DNSRecordChanged, DNSRecordDeleted |
+| Resolvers | Signature, from any address, whether or not a registry has assigned it (as the ENS subgraph does) | AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged, ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged, DNSRecordChanged, DNSRecordDeleted |
 | Reverse registrar (legacy) | Fixed | ReverseClaimed |
 | Standalone reverse registrar | Fixed | NameForAddrChanged |
 | Universal renewal | Fixed | RenewalReferred |
@@ -44,6 +43,10 @@ How a contract is found:
 | Node-keyed resolvers linked from ENSv2 | Signature, from the ENSv2 start block | AddrChanged, AddressChanged, TextChanged, ContenthashChanged, NameChanged |
 
 ERC-1155 transfers on ENSv2 registries share their signature with every ERC-1155 token. They are read only from registries that have created a registry, been linked, or registered a label.
+
+## Rules that differ from the ENS subgraph
+
+- **Primary names on Ethereum.** `reverse_name_record` is set from a `NameChanged` on an `<address>.addr.reverse` node only when it comes from the resolver the registry assigns to that node. The subgraph has no primary-name table. Without this rule any contract could emit `NameChanged` for another address's reverse node and set its primary name. The `NameChanged` event is still recorded, and the resolver's own row is still updated.
 
 ## Not covered
 

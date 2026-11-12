@@ -299,37 +299,55 @@ describe("Resolver", () => {
 
   // ─── Resolver events do not depend on when the address is watched ─────
 
-  describe("PublicResolver 0x4976fb03 after its first NewResolver (block 9,413,818)", () => {
+  describe("PublicResolver 0x4976fb03 (lost range 9,413,818 to 9,466,703 in a 3.16 full sync)", () => {
     const resolver = "0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41";
 
-    it("activates the resolver at its first NewResolver", async () => {
-      const indexer = createTestIndexer();
-      await indexer.process({ chains: { 1: { startBlock: 9_413_818, endBlock: 9_413_818 } } });
-      const activation = await indexer.Resolver_activation.getOrThrow(`1-${resolver}`);
-      expect(activation.firstBlock).toBe(9_413_818);
-    }, 120_000);
-
-    it("indexes its records at block 9,418,322 once activated", async () => {
+    it("indexes its records at block 9,418,322 with no prior registry state", async () => {
       // In a full sync HyperIndex 3.16 registered this address from block
-      // 9,466,703 and kept that start, losing 1,027 events. Events are now
-      // matched by signature and applied once a registry has assigned the resolver.
+      // 9,466,703 and kept that start, losing 1,027 events. Resolver events are
+      // matched by signature, so they do not depend on when the address is watched.
       const indexer = createTestIndexer();
-      indexer.Resolver_activation.set({ id: `1-${resolver}`, chainId: 1, firstBlock: 9_413_818 } as any);
       await indexer.process({ chains: { 1: { startBlock: 9_418_322, endBlock: 9_418_322 } } });
       const addrChanges = (await indexer.Subgraph_addr_changed.getAll()).filter((e: any) =>
         e.resolver_id.startsWith(`1-${resolver}-`),
       );
       expect(addrChanges).toHaveLength(1);
     }, 120_000);
+  });
 
-    it("ignores resolver events before any registry assigned the resolver", async () => {
+  // ─── Records set before a registry assigns the resolver (subgraph rule) ─
+  // The ENS subgraph's Resolver data source has no address and no start block:
+  // it applies resolver events from every contract, assigned or not. A .eth name
+  // (node 0xec1037...) had its addr and avatar set on resolver 0xcb811181 at
+  // blocks 20,742,315 and 20,742,316, then pointed at that resolver at 20,742,318.
+  // The public subgraph returns that addr as the name's resolvedAddress.
+
+  describe("records set before the resolver is assigned", () => {
+    const resolver = "0xcb811181de259d802decc0df4addf6628fb0e229";
+    const node = "0xec103702f1a036ce809c3cff59ba3233ffecc0445ad8278d202c208ee9d74ba1";
+    const addr = "0x64ca550f78d6cc711b247319cc71a04a166707ab";
+    const resolverId = makeResolverId(1, resolver, node);
+
+    it("keeps records a resolver emits before any registry assigns it", async () => {
       const indexer = createTestIndexer();
-      await indexer.process({ chains: { 1: { startBlock: 9_418_322, endBlock: 9_418_322 } } });
-      const addrChanges = (await indexer.Subgraph_addr_changed.getAll()).filter((e: any) =>
-        e.resolver_id.startsWith("1-0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41-"),
-      );
-      expect(addrChanges).toHaveLength(0);
+      await indexer.process({ chains: { 1: { startBlock: 20_742_315, endBlock: 20_742_316 } } });
+      const row = await indexer.Subgraph_resolver.getOrThrow(resolverId);
+      expect(row.addr_id).toBe(addr);
+      const records = await indexer.Resolver_address_record.getAll();
+      expect(records.some((r: any) => r.address === resolver && r.node === node && r.value === addr)).toBe(true);
+      const texts = await indexer.Resolver_text_record.getAll();
+      expect(texts.some((r: any) => r.address === resolver && r.node === node && r.key === "avatar")).toBe(true);
     }, 120_000);
+
+    it("sets resolvedAddress from the stored addr when the name points at the resolver", async () => {
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 3_327_417, endBlock: 3_327_417 } } });
+      await indexer.process({ chains: { 1: { startBlock: 14_419_246, endBlock: 14_419_246 } } }); // name created
+      await indexer.process({ chains: { 1: { startBlock: 20_742_315, endBlock: 20_742_318 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.resolver_id).toBe(resolverId);
+      expect(domain.resolvedAddress_id).toBe(addr);
+    }, 180_000);
   });
 
   // ─── Full resolver flow in a single block ─────────────────────────────
