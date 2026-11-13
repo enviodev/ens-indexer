@@ -197,4 +197,18 @@ test("replay waits for the client to drain", { skip }, async () => {
   await done;
 });
 
+test("a full export refuses a target that already holds an export", { skip }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ens-export-full-"));
+  const env = { ...process.env, ENVIO_PG_PORT: PORT, ENVIO_PG_DATABASE: DB, ENVIO_PG_PASSWORD: PASSWORD };
+  const run = (...extra) => spawnSync(process.execPath, ["export/export.mjs", "--chain", "6", "--target", dir, "--tables", "name_event", ...extra], { env, encoding: "utf8" });
+  try {
+    assert.equal(run().status, 0);
+    const again = run("--full");
+    assert.notEqual(again.status, 0, "second --full run must fail");
+    assert.match(again.stderr, /--full/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test.after(() => pool.end());

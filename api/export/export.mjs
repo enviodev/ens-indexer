@@ -4,7 +4,8 @@
 //   node export/export.mjs --chain 1 --target s3://bucket/ens [--tables a,b] [--full] [--snapshots]
 //   node export/export.mjs --chain 1 --target ./archive
 //
-// The first run (or --full) exports everything up to the committed block. Later
+// The first run exports everything up to the committed block (--full insists on
+// an empty target, so the result has no overlapping ranges). Later
 // runs export only what is new since the block recorded in the manifest:
 //   - tables with blockNumber: rows in the new block range
 //   - tables with updatedBlock: rows changed in the new block range (take the
@@ -62,12 +63,15 @@ if (pinBefore < 0) throw new Error(`chain ${chainId} has no committed block`);
 // Manifest: last exported block per table.
 const manifestPath = `${target}/_manifest/chain=${chainId}.json`;
 let manifest = { chainId, tables: {}, runs: [] };
-if (!args.full) {
-  try {
-    if (isS3) manifest = JSON.parse((await rows(`SELECT content FROM read_text(${quote(manifestPath)})`))[0].content);
-    else if (existsSync(manifestPath)) manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-  } catch { /* no manifest yet: full run */ }
-}
+let existing;
+try {
+  if (isS3) existing = JSON.parse((await rows(`SELECT content FROM read_text(${quote(manifestPath)})`))[0].content);
+  else if (existsSync(manifestPath)) existing = JSON.parse(readFileSync(manifestPath, "utf8"));
+} catch { /* no manifest yet: full run */ }
+// A full export beside an earlier one would leave overlapping range files
+// (range=0-100 and range=0-200), which a recursive read counts twice.
+if (args.full && existing) throw new Error(`--full needs a target without an export, and ${target} has one: use a new target or empty this one`);
+if (existing) manifest = existing;
 
 const tables = (await rows(`SELECT table_name FROM pg.information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
   AND table_name NOT LIKE 'envio\\_%' ESCAPE '\\' AND table_name NOT LIKE '%$%' ORDER BY table_name`)).map((r) => r.table_name)

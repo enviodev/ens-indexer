@@ -20,7 +20,7 @@ For Cloudflare R2, set `S3_ENDPOINT=<account-id>.r2.cloudflarestorage.com` and `
 - **Tables that hold only current state** are written as snapshots: `<table>/chain=<id>/snapshot=<block>/part-0.parquet`.
 - **The manifest** at `_manifest/chain=<id>.json` records the last block exported per table, and each run's committed block before and after.
 
-The first run exports everything up to the committed block. Later runs export only new block ranges. `--full` starts again, and `--snapshots` writes new snapshots of state tables in an incremental run.
+The first run exports everything up to the committed block. Later runs export only new block ranges. `--full` starts again in an empty target (it stops if the target already has a manifest, since the new ranges would overlap the old ones), and `--snapshots` writes new snapshots of state tables in an incremental run.
 
 For a table with `updatedBlock`, a range holds the rows that changed in it. Take the latest row per `id` when reading several ranges.
 
