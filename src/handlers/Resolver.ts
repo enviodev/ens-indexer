@@ -29,13 +29,24 @@ import {
   interpretTextRecordValue,
 } from "../lib/protocol-acceleration";
 
+import { onResolverChains } from "../lib/resolver-chains";
+import { V2_DEPLOYMENTS } from "../lib/v2-deployments";
+import { makeV2RegistryId } from "../lib/v2-helpers";
+import { emitNameEvent } from "../lib/name-events";
+
 import dnsPacket, { type Answer } from "dns-packet";
+
+// Resolver events are matched by signature on any address and applied whether or
+// not a registry has assigned the resolver, as the ENS subgraph does (its Resolver
+// data source has no address and no start block). Records set before a name points
+// at a resolver are therefore kept, and NewResolver picks them up. Watching
+// resolvers by address instead loses events when HyperIndex registers an address late.
 
 // ─── AddrChanged ─────────────────────────────────────────────────────────────
 // Emitted when the ETH address for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddrChanged" },
+  { contract: "Resolver", event: "AddrChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, a } = event.params;
 
@@ -85,7 +96,7 @@ indexer.onEvent(
 // Emitted when a multicoin address changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AddressChanged" },
+  { contract: "Resolver", event: "AddressChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, coinType, newAddress } = event.params;
 
@@ -122,11 +133,49 @@ indexer.onEvent(
   },
 );
 
+// ─── Legacy primary names ────────────────────────────────────────────────────
+// The name record of an `<address>.addr.reverse` node is the address's coin type
+// 60 reverse record (H-04). Mainnet only.
+
+async function applyLegacyReverseName(
+  context: handlerContext,
+  event: { chainId: number; srcAddress: string; block: { number: number; timestamp: number }; logIndex: number; transaction: { hash: string; from?: string | undefined } },
+  node: string,
+  resolverId: string,
+  name: string,
+): Promise<void> {
+  if (event.chainId !== 1) return;
+  const reverseDomain = await context.Subgraph_domain.get(node);
+  // Only the resolver the registry assigns to the reverse node can set it.
+  // Without this check any watched resolver could claim another address's name.
+  if (reverseDomain?.parent_id !== ADDR_REVERSE_NODE || reverseDomain.resolver_id !== resolverId) return;
+  const claim = await context.Reverse_claim.get(node);
+  const address = addressForReverseLabel(reverseDomain.labelhash, [
+    claim?.addr,
+    reverseDomain.owner_id,
+    event.transaction.from,
+  ]);
+  if (address !== null) {
+    upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
+    emitNameEvent(context, event, {
+      kind: "PRIMARY_NAME", protocol: "v1", node, address, name: name === "" ? undefined : name,
+      detail: { coinType: ETH_COIN_TYPE, source: "legacy reverse resolver", resolver: event.srcAddress.toLowerCase() },
+    });
+    context.Unrecovered_reverse_name.deleteUnsafe(node);
+  } else if (isIndexable(name)) {
+    context.Unrecovered_reverse_name.set({
+      id: node,
+      name,
+      blockNumber: event.block.number,
+    });
+  }
+}
+
 // ─── NameChanged ─────────────────────────────────────────────────────────────
 // Emitted when the name for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "NameChanged" },
+  { contract: "Resolver", event: "NameChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, name } = event.params;
 
@@ -154,29 +203,7 @@ indexer.onEvent(
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   await handlePANameUpdate(context, event.chainId, event.srcAddress, node, name);
 
-  // Legacy primary names: a NameChanged on an `<address>.addr.reverse` node is
-  // the address's coin type 60 reverse record (H-04). Mainnet only.
-  if (event.chainId === 1) {
-    const reverseDomain = await context.Subgraph_domain.get(node);
-    if (reverseDomain?.parent_id === ADDR_REVERSE_NODE) {
-      const claim = await context.Reverse_claim.get(node);
-      const address = addressForReverseLabel(reverseDomain.labelhash, [
-        claim?.addr,
-        reverseDomain.owner_id,
-        event.transaction.from,
-      ]);
-      if (address !== null) {
-        upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
-        context.Unrecovered_reverse_name.deleteUnsafe(node);
-      } else if (isIndexable(name)) {
-        context.Unrecovered_reverse_name.set({
-          id: node,
-          name,
-          blockNumber: event.block.number,
-        });
-      }
-    }
-  }
+  await applyLegacyReverseName(context, event, node, resolverId, name);
   },
 );
 
@@ -184,7 +211,7 @@ indexer.onEvent(
 // Emitted when the ABI for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ABIChanged" },
+  { contract: "Resolver", event: "ABIChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, contentType } = event.params;
 
@@ -210,7 +237,7 @@ indexer.onEvent(
 // Emitted when the public key for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "PubkeyChanged" },
+  { contract: "Resolver", event: "PubkeyChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, x, y } = event.params;
 
@@ -237,7 +264,7 @@ indexer.onEvent(
 // Emitted when a text record for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "TextChanged" },
+  { contract: "Resolver", event: "TextChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, key, value } = event.params;
 
@@ -284,7 +311,7 @@ indexer.onEvent(
 // Emitted when the content hash for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "ContenthashChanged" },
+  { contract: "Resolver", event: "ContenthashChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, hash } = event.params;
 
@@ -311,7 +338,7 @@ indexer.onEvent(
 // Emitted when the EIP-165 interface support changes for a node.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "InterfaceChanged" },
+  { contract: "Resolver", event: "InterfaceChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, interfaceID, implementer } = event.params;
 
@@ -338,7 +365,7 @@ indexer.onEvent(
 // Emitted when an authorisation for a node changes.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "AuthorisationChanged" },
+  { contract: "Resolver", event: "AuthorisationChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, owner, target, isAuthorised } = event.params;
 
@@ -367,7 +394,7 @@ indexer.onEvent(
 // Emitted when the resolver version changes, clearing all stored data.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "VersionChanged" },
+  { contract: "Resolver", event: "VersionChanged", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, newVersion } = event.params;
 
@@ -399,6 +426,32 @@ indexer.onEvent(
     resolver_id: resolverId,
     version: newVersion,
   });
+
+  // The record tables the API reads are cleared too (the subgraph has none: its
+  // Resolver row above is all it clears). The contract drops every record of the
+  // node: addresses, texts and the name, which on a reverse node is a primary name.
+  const address = event.srcAddress;
+  for (const row of await context.Resolver_address_record.getWhere({ address: { _eq: address }, node: { _eq: node } })) {
+    context.Resolver_address_record.deleteUnsafe(row.id);
+  }
+  for (const row of await context.Resolver_text_record.getWhere({ address: { _eq: address }, node: { _eq: node } })) {
+    context.Resolver_text_record.deleteUnsafe(row.id);
+  }
+  await handlePANameUpdate(context, event.chainId, address, node, "");
+  await applyLegacyReverseName(context, event, node, resolverId, "");
+
+  // The ENSv2 node-keyed copies of this node's records (src/handlers/V2NodeResolver.ts)
+  // are cleared too, or the API would still read them.
+  if (V2_DEPLOYMENTS[event.chainId]) {
+    const resolver = event.srcAddress.toLowerCase();
+    context.V2_node_record.deleteUnsafe(`${makeV2RegistryId(event.chainId, resolver)}-${node}`);
+    for (const row of await context.V2_node_address.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })) {
+      context.V2_node_address.deleteUnsafe(row.id);
+    }
+    for (const row of await context.V2_node_text.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })) {
+      context.V2_node_text.deleteUnsafe(row.id);
+    }
+  }
   },
 );
 
@@ -496,7 +549,7 @@ async function addDnsTextKey(
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged4" },
+  { contract: "Resolver", event: "DNSRecordChanged4", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
@@ -516,7 +569,7 @@ indexer.onEvent(
 // PA-only: indexes DNS TXT records as PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordChanged5" },
+  { contract: "Resolver", event: "DNSRecordChanged5", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, name, resource, record } = event.params;
   const { key, value } = parseDnsTxtRecordArgs({ name, resource, record });
@@ -536,7 +589,7 @@ indexer.onEvent(
 // PA-only: deletes DNS TXT records from PA text records.
 
 indexer.onEvent(
-  { contract: "Resolver", event: "DNSRecordDeleted" },
+  { contract: "Resolver", event: "DNSRecordDeleted", wildcard: true, where: onResolverChains },
   async ({ event, context }) => {
   const { node, name, resource } = event.params;
   const { key } = parseDnsTxtRecordArgs({ name, resource });

@@ -25,6 +25,7 @@ import {
   setDomain,
   NAMESPACE_3DNS,
   makeEventId,
+  setRegistration,
 } from "../lib/helpers";
 import {
   handleRegistrarRegistration,
@@ -318,7 +319,7 @@ indexer.onEvent(
   const registrationId = node;
   const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.Subgraph_registration.set({
+    setRegistration(context, {
       ...registration,
       expiryDate: newExpiry,
     });

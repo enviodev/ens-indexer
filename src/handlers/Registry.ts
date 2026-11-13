@@ -6,6 +6,7 @@ import {
   ROOT_NODE,
   ZERO_ADDRESS,
   ETH_NODE,
+  KNOWN_LABELS,
   encodeLabelHash,
   indexableOrUndefined,
   namespaceForNewDomain,
@@ -25,6 +26,8 @@ import {
   migrateNode,
   nodeIsMigrated,
 } from "../lib/protocol-acceleration";
+import { isSink } from "../lib/legacy-governance";
+import { isGovernedByV2 } from "../lib/legacy-projection";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
@@ -32,27 +35,38 @@ import {
 
 const rootNodeInitializedChains = new Set<number>();
 
-// ─── Dynamic Contract Registration ──────────────────────────────────────────
-// Register Resolver contract addresses dynamically from NewResolver events so
-// that the Resolver handler can process events from those addresses.
+// ─── Registry owner, ENSv2-era rules ─────────────────────────────────────────
 
-indexer.contractRegister(
-  { contract: "RegistryOld", event: "NewResolver" },
-  async ({ event, context }) => {
-    if (event.params.resolver !== ZERO_ADDRESS) {
-      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
+/**
+ * The domain row after a registry owner change (ens-subgraph 16846b1
+ * src/ensRegistry.ts applyRegistryOwner). A sink keeps a .eth name's owner and
+ * deletes a subname with the ENSv1 convention.
+ */
+function applyRegistryOwner<D extends { owner_id: string; wrappedOwner_id?: string | undefined; expiryDate?: bigint | undefined; id: string }>(
+  context: handlerContext,
+  domain: D,
+  parentNode: string | undefined,
+  owner: string,
+  sink: boolean,
+): D {
+  if (!sink) {
+    // A wrapped name's registry owner is the NameWrapper. The registry can move it
+    // elsewhere without a NameWrapper event (a parent's setSubnodeOwner on a subname
+    // whose PARENT_CANNOT_CONTROL fuse is not burned); the wrapped state then goes
+    // (src/ensRegistry.ts detachWrappedStateIfLeftWrapper).
+    if (domain.wrappedOwner_id && owner !== domain.owner_id) {
+      context.Subgraph_wrapped_domain.deleteUnsafe(domain.id);
+      return { ...domain, owner_id: owner, wrappedOwner_id: undefined };
     }
-  },
-);
-
-indexer.contractRegister(
-  { contract: "Registry", event: "NewResolver" },
-  async ({ event, context }) => {
-    if (event.params.resolver !== ZERO_ADDRESS) {
-      context.chain.Resolver.add(event.params.resolver as `0x${string}`);
-    }
-  },
-);
+    return { ...domain, owner_id: owner };
+  }
+  if (parentNode === ETH_NODE) return domain;
+  if (domain.wrappedOwner_id) {
+    context.Subgraph_wrapped_domain.deleteUnsafe(domain.id);
+    return { ...domain, owner_id: ZERO_ADDRESS, wrappedOwner_id: undefined, expiryDate: undefined };
+  }
+  return { ...domain, owner_id: ZERO_ADDRESS };
+}
 
 // ─── Shared NewOwner Handler ────────────────────────────────────────────────
 
@@ -82,9 +96,28 @@ async function handleNewOwner(
   // Upsert account for the new owner
   upsertAccount(context, owner);
 
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_new_owner.set({
+      ...sharedEventValues(event.chainId, event),
+      parentDomain_id: parentNode,
+      domain_id: node,
+      owner_id: owner,
+    });
+    return;
+  }
+
   // Load existing domain
   const domain = await context.Subgraph_domain.get(node);
   const existedBefore = domain !== undefined;
+
+  // A sink (the Graveyard, a migration controller) never becomes the owner: a .eth
+  // name handed to one keeps its owner, a subname handed to one is deleted (owner
+  // 0x0, wrapped state removed). ens-subgraph 16846b1 src/ensRegistry.ts
+  // applyRegistryOwner. The NewOwner event row keeps the raw owner.
+  const sink = isSink(event.chainId, owner);
+  const newOwner = sink ? ZERO_ADDRESS : owner;
 
   if (domain) {
     // For the old registry (isMigrated=false): if the domain has already been
@@ -94,19 +127,17 @@ async function handleNewOwner(
     }
 
     // Update owner and migration status
-    setDomain(context, {
-      ...domain,
-      owner_id: owner,
-      isMigrated,
-    });
+    setDomain(context, applyRegistryOwner(context, { ...domain, isMigrated }, parentNode, owner, sink));
   } else {
     // Domain does not yet exist -- create it
 
     // Look up the parent domain to construct the name
     const parent = await context.Subgraph_domain.get(parentNode);
 
-    // Construct the name from the parent's name + the encoded label
-    const label = encodeLabelHash(labelHash);
+    // Construct the name from the parent's name + the label (known constant labels
+    // such as "eth", "reverse" and "addr" are healed; others stay encoded)
+    const knownLabel = KNOWN_LABELS[labelHash.toLowerCase()];
+    const label = knownLabel ?? encodeLabelHash(labelHash);
     const name =
       indexableOrUndefined(
         parent?.name ? `${label}.${parent.name}` : label,
@@ -115,7 +146,7 @@ async function handleNewOwner(
     setDomain(context, {
       id: node,
       name,
-      labelName: undefined,
+      labelName: knownLabel,
       labelhash: labelHash,
       parent_id: parentNode,
       subdomainCount: 0,
@@ -124,7 +155,7 @@ async function handleNewOwner(
       ttl: undefined,
       isMigrated,
       createdAt: BigInt(event.block.timestamp),
-      owner_id: owner,
+      owner_id: newOwner,
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
@@ -145,7 +176,7 @@ async function handleNewOwner(
   // changes the count when it flips between empty and non-empty.
   if (domain && existedBefore) {
     await syncParentSubdomainCountOnEmptinessChange(context, domain);
-  } else if (owner === ZERO_ADDRESS) {
+  } else if (newOwner === ZERO_ADDRESS) {
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
@@ -199,13 +230,22 @@ async function handleTransfer(
   // Upsert account for the new owner
   upsertAccount(context, owner);
 
-  // Ensure domain exists and update owner
-  const domain = await context.Subgraph_domain.get(node);
-  if (domain) {
-    setDomain(context, {
-      ...domain,
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      domain_id: node,
       owner_id: owner,
     });
+    return;
+  }
+
+  // Ensure domain exists and update owner
+  const domain = await context.Subgraph_domain.get(node);
+  const sink = isSink(event.chainId, owner);
+  if (domain) {
+    setDomain(context, applyRegistryOwner(context, domain, domain.parent_id, owner, sink));
   } else {
     // Domain not yet seen -- create a minimal record
     setDomain(context, {
@@ -220,7 +260,7 @@ async function handleTransfer(
       ttl: undefined,
       isMigrated: false,
       createdAt: BigInt(event.block.timestamp),
-      owner_id: owner,
+      owner_id: sink ? ZERO_ADDRESS : owner,
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
@@ -277,6 +317,19 @@ async function handleNewResolver(
   const isZeroResolver = resolverAddress === ZERO_ADDRESS;
 
   const resolverId = makeResolverId(event.chainId, resolverAddress, node);
+
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  // The resolver relation used for resolution is still kept.
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_new_resolver.set({
+      ...sharedEventValues(event.chainId, event),
+      domain_id: node,
+      resolver_id: isZeroResolver ? ZERO_ADDRESS : resolverId,
+    });
+    upsertDomainResolverRelation(context, event.chainId, event.srcAddress, node, resolverAddress);
+    return;
+  }
 
   // Load the domain (it should exist from a prior NewOwner event)
   const domain = await context.Subgraph_domain.get(node);
@@ -373,9 +426,9 @@ async function handleNewTTL(
 ): Promise<void> {
   const { node, ttl } = event.params;
 
-  // Update the domain's TTL
+  // Update the domain's TTL (not for a live ENSv2 name, src/ensRegistry.ts handleNewTTL)
   const domain = await context.Subgraph_domain.get(node);
-  if (domain) {
+  if (domain && !(await isGovernedByV2(context, event.chainId, node))) {
     setDomain(context, {
       ...domain,
       ttl,

@@ -94,4 +94,16 @@ describe("ThreeDNS (Optimism + Base)", () => {
       }
     }, 120_000);
   });
+
+  // A label that looks like hex was hashed as bytes, so the labels did not hash back
+  // to the node and the name was not set (20 Optimism 3DNS names, such as 0x0.box).
+  describe("RegistrationCreated for a label that looks like hex (Optimism 115,283,270)", () => {
+    it("sets the name", async () => {
+      const node = "0x58e630cf6fc5536bffe719ea800cad3035566c128666a37792f77e90f9b91c3d";
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 10: { startBlock: 115_283_270, endBlock: 115_283_270 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.name).toBe("0x0.box");
+    }, 120_000);
+  });
 });

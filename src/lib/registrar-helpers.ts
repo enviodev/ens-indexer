@@ -88,6 +88,17 @@ export function upsertSubregistry(
 
 const SECONDS_PER_DAY = 86_400;
 
+// expiry_day_stat.day is a Postgres int. During the ENSv2 cutover the .eth
+// registrar re-registers v1 names with an expiry near 2^64 (mainnet block
+// 26,297,075 on), which as a day number overflows int. Such expiries all go
+// into one far-future bucket.
+export const MAX_EXPIRY_DAY = 2_147_483_647;
+
+export function expiryDay(expiresAt: bigint): number {
+  const day = expiresAt / BigInt(SECONDS_PER_DAY);
+  return day > BigInt(MAX_EXPIRY_DAY) ? MAX_EXPIRY_DAY : Number(day);
+}
+
 // ─── Registration Lifecycle Management ──────────────────────────────────────
 
 /**
@@ -100,9 +111,8 @@ async function moveExpiryBucket(
   previous: bigint | undefined,
   next: bigint,
 ): Promise<void> {
-  const nextDay = Math.floor(Number(next) / SECONDS_PER_DAY);
-  const previousDay =
-    previous === undefined ? undefined : Math.floor(Number(previous) / SECONDS_PER_DAY);
+  const nextDay = expiryDay(next);
+  const previousDay = previous === undefined ? undefined : expiryDay(previous);
   if (previousDay === nextDay) return;
 
   if (previousDay !== undefined) {

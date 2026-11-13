@@ -254,7 +254,7 @@ contracts:
           transaction_fields:
             - hash
 
-  # ─── Resolver (dynamically registered via Registry.NewResolver) ─────────────
+  # ─── Resolver (matched by signature on any address; see src/handlers/Resolver.ts)
   - name: Resolver
     events:
       - event: "AddrChanged(bytes32 indexed node, address a)"
@@ -298,6 +298,7 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       # ─── DNS Record Events (for PA plugin) ────────────────────────────────────
       - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, bytes record)"
         name: DNSRecordChanged4
@@ -354,10 +355,169 @@ contracts:
             - hash
 
 # ─── Chain Configuration ───────────────────────────────────────────────────────
+  # ─── ENSv2 ───────────────────────────────────────────────────────────────────
+  # Addresses and ABIs: ensdomains/contracts-v2, branch deploy/mainnet-v2-20261002,
+  # commit 0f10caf5, contracts/deployments/{mainnet,sepolia}. See src/lib/v2-deployments.ts.
+  #
+  # The two discovery contracts have no address on any chain: they are wildcard
+  # listeners for the signals every PermissionedRegistry and PermissionedResolver
+  # emits when it is created. Discovery at creation (not at first link) means no
+  # event is lost when a contract is used before its parent points at it. A
+  # discovered contract stays unproven until a proven parent links to it.
+  - name: V2RegistryDiscovery
+    events:
+      - event: "RegistryCreated()"
+
+  - name: V2ResolverDiscovery
+    events:
+      - event: "ResolverCreated()"
+
+  - name: V2Registry
+    events:
+      - event: "LabelRegistered(uint256 indexed tokenId, bytes32 indexed labelHash, string label, address owner, uint64 expiry, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "LabelReserved(uint256 indexed tokenId, bytes32 indexed labelHash, string label, uint64 expiry, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "LabelUnregistered(uint256 indexed tokenId, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ExpiryUpdated(uint256 indexed tokenId, uint64 indexed newExpiry, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "SubregistryUpdated(uint256 indexed tokenId, address indexed subregistry, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ResolverUpdated(uint256 indexed tokenId, address indexed resolver, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ParentUpdated(address indexed parent, string label, address indexed sender)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TokenRegenerated(uint256 indexed oldTokenId, uint256 indexed newTokenId)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TokenResource(uint256 indexed tokenId, uint256 indexed resource)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "EACRolesChanged(uint256 indexed resource, address indexed account, uint256 oldRoleBitmap, uint256 newRoleBitmap)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # Node-keyed (v1-style) record events, matched on any address from the ENSv2
+  # start block. A v2 registry can point at a resolver of this kind; matching by
+  # signature keeps its records even if HyperIndex registers the address late.
+  # Read only for resolvers a proven v2 domain points at.
+  - name: V2NodeResolver
+    events:
+      - event: "AddrChanged(bytes32 indexed node, address a)"
+      - event: "AddressChanged(bytes32 indexed node, uint256 coinType, bytes newAddress)"
+      - event: "TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value)"
+      - event: "ContenthashChanged(bytes32 indexed node, bytes hash)"
+      - event: "NameChanged(bytes32 indexed node, string name)"
+
+  # ETHRegistrar and ETHRenewerV1. Both emit NameRenewed with this signature.
+  - name: V2Registrar
+    events:
+      - event: "NameRegistered(uint256 indexed tokenId, string label, address owner, address subregistry, address resolver, uint64 duration, address paymentToken, bytes32 indexed referrer, uint256 base, uint256 premium)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameRenewed(uint256 indexed tokenId, string label, uint64 duration, uint64 newExpiry, address paymentToken, bytes32 indexed referrer, uint256 amount)"
+        field_selection:
+          transaction_fields:
+            - hash
+
+  # Record events from PermissionedResolver. Resolvers are added here and to the
+  # node-keyed `Resolver` contract, so a custom resolver is covered by whichever
+  # event family it emits.
+  - name: V2Resolver
+    events:
+      - event: "Linked(uint256 indexed recordId, bytes32 indexed node, bytes name)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "Cleared(uint256 indexed recordId)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "AddressUpdated(uint256 indexed recordId, uint256 coinType, bytes addressBytes)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "TextUpdated(uint256 indexed recordId, string indexed keyHash, string key, string value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ContenthashUpdated(uint256 indexed recordId, bytes hash)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "NameUpdated(uint256 indexed recordId, string primaryName)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "DataUpdated(uint256 indexed recordId, string indexed keyHash, string key, bytes value)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "ABIUpdated(uint256 indexed recordId, uint256 indexed contentType)"
+        field_selection:
+          transaction_fields:
+            - hash
+      - event: "InterfaceUpdated(uint256 indexed recordId, bytes4 indexed interfaceId, address implementer)"
+        field_selection:
+          transaction_fields:
+            - hash
+      # Emitted by deployments before 2026-09 (contracts/deployments/sepolia-*). Later ones use Linked.
+      - event: "AliasChanged(bytes indexed indexedFromName, bytes indexed indexedToName, bytes fromName, bytes toName)"
+        field_selection:
+          transaction_fields:
+            - hash
+
 chains:
   - id: 1 # Ethereum Mainnet
     start_block: 3327417
     contracts:
+      - name: V2RegistryDiscovery
+        start_block: 26105000
+      - name: V2ResolverDiscovery
+        start_block: 26105000
+      - name: V2Registry
+        start_block: 26105000
+        address:
+          - "0x2553c09be6447beffdb86fa622ad41fb8f77a91e" # RootRegistry
+          - "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2" # ETHRegistry
+      - name: V2Registrar
+        start_block: 26105000
+        address:
+          - "0xd6d8369e55c94ae8afa714e6cf7ab5be54d5cc81" # ETHRegistrar
+          - "0xdd86aea86697e9c6d4e50fa210242dd5ef5b02e8" # ETHRegistrar, superseded 2026-10-18
+          - "0x56c447f308f463a01121c41e72b0e7e7557fcb68" # ETHRenewerV1
+          - "0xe038b778b1fbf47a84018820626afc908c9c62b1" # ETHRenewerV1, superseded 2026-10-18
+      - name: V2Resolver
+        start_block: 26105000
+      - name: V2NodeResolver
+        start_block: 26105000
       - name: ReverseRegistrar
         address:
           - "0xa58e81fe9b61b5c3fe2afd33cf304c454abfc7cb"
@@ -398,7 +558,7 @@ chains:
           - "0xf9edb1a21867ac11b023ce34abad916d29abf107" # OptimismReverseResolver
           - "0x4b9572c03aaa8b0efa4b4b0f0cc0f0992bedb898" # ArbitrumReverseResolver
           - "0xc4842814ca523e481ca5aa85f719fed1e9cac614" # ScrollReverseResolver
-        # Also dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address; the addresses are informational.
       - name: StandaloneReverseRegistrar
         address:
           - "0x283f227c4bd38ece252c4ae7ece650b0e913f1f9"
@@ -426,7 +586,7 @@ chains:
       - name: Resolver
         address:
           - "0xf97aac6c8dbaebcb54ff166d79706e3af7a813c8" # ThreeDNS resolver (static)
-        # Also dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address; the addresses are informational.
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
@@ -446,7 +606,7 @@ chains:
         address:
           - "0xdb75db974b1f2bd3b5916d503036208064d18295"
       - name: Resolver
-        # Dynamically registered via Registry.NewResolver contractRegister
+        # Handlers match by signature on any address.
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
@@ -474,5 +634,21 @@ chains:
       - name: StandaloneReverseRegistrar
         address:
           - "0x0000000000d8e504002cc26e3ec46d81971c1664"
+  - id: 11155111 # Sepolia. ENSv2 only: the v1 contracts are not indexed here.
+    start_block: 11820000
+    contracts:
+      - name: V2RegistryDiscovery
+      - name: V2ResolverDiscovery
+      - name: V2Registry
+        address:
+          - "0xb458d6a3a77919449d03e7a6903c26827c1ec43f" # RootRegistry
+          - "0xd4ebcbbdf463c9c45784603db0ddd499bc44a8b4" # ETHRegistry
+      - name: V2Registrar
+        address:
+          - "0xf633e7fc17e2bbe0d0965d18ec1821dcb754a3d3" # ETHRegistrar
+          - "0xf2ece44980778966b8a0fccb3a9e339440f6e045" # ETHRenewerV1
+      - name: V2Resolver
+      - name: V2NodeResolver
+      - name: Resolver
 
 address_format: lowercase

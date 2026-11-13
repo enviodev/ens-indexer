@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
-import { makeResolverId, ROOT_NODE } from "../src/lib/helpers";
+import { concat, keccak256, toBytes } from "viem";
+import { ADDR_REVERSE_NODE, makeResolverId, ROOT_NODE } from "../src/lib/helpers";
+import { makeReverseNameRecordId } from "../src/lib/protocol-acceleration";
 
 // ─── Resolver Tests ─────────────────────────────────────────────────────────
 // Tests for dynamically-registered Resolver event handlers using real on-chain data.
@@ -231,6 +233,54 @@ describe("Resolver", () => {
         }
       }
     }, 120_000);
+
+    it("clears the node's address and text records (Ethereum 26,325,120)", async () => {
+      // Resolver 0xf291... sets an ETH address for the node at 26,324,933; its
+      // VersionChanged at 26,325,120 (clearRecords) is the last event for the node.
+      const resolver = "0xf29100983e058b709f3d539b0c765937b804ac15";
+      const node = "0x7df2a8f41d739a1b0deb98f5c9aeee94d34109818c39e7b70d014b960c2f725b";
+      const indexer = createTestIndexer();
+      const recordsOf = async () => ({
+        addresses: (await indexer.Resolver_address_record.getWhere({ node: { _eq: node } })).filter((r: any) => r.address === resolver),
+        texts: (await indexer.Resolver_text_record.getWhere({ node: { _eq: node } })).filter((r: any) => r.address === resolver),
+        v2: await indexer.V2_node_address.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } }),
+      });
+      await indexer.process({ chains: { 1: { startBlock: 26_324_933, endBlock: 26_324_933 } } });
+      const before = await recordsOf();
+      expect(before.addresses.length).toBeGreaterThan(0);
+      expect(before.v2.length).toBeGreaterThan(0);
+      await indexer.process({ chains: { 1: { startBlock: 26_325_120, endBlock: 26_325_120 } } });
+      const after = await recordsOf();
+      expect(after.addresses).toHaveLength(0);
+      expect(after.texts).toHaveLength(0);
+      expect(after.v2).toHaveLength(0);
+    }, 180_000);
+
+    it("clears a legacy reverse node's primary name", async () => {
+      // A mainnet <address>.addr.reverse node whose registry-assigned resolver changes version.
+      const address = "0x00000000000000000000000000000000000a11ce";
+      const resolver = "0x5900000000000000000000000000000000000e05";
+      const labelhash = keccak256(toBytes(address.slice(2)));
+      const node = keccak256(concat([ADDR_REVERSE_NODE as `0x${string}`, labelhash]));
+      const indexer = createTestIndexer();
+      indexer.Subgraph_domain.set({
+        id: node, chainId: 1, name: undefined, labelName: address.slice(2), labelhash, parent_id: ADDR_REVERSE_NODE,
+        subdomainCount: 0, resolvedAddress_id: undefined, resolver_id: makeResolverId(1, resolver, node), ttl: undefined,
+        isMigrated: true, createdAt: 0n, owner_id: address, registrant_id: undefined, wrappedOwner_id: undefined,
+        expiryDate: undefined, registrationExpiryDate: undefined, namespace: undefined, effectiveOwner_id: address,
+      } as any);
+      indexer.Reverse_name_record.set({ id: makeReverseNameRecordId(address, 60), chainId: 1, address, coinType: 60n, value: "alice.eth" } as any);
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              { contract: "Resolver", event: "VersionChanged", srcAddress: resolver, block: { number: 26_400_000, timestamp: 1_790_000_000 }, params: { node, newVersion: 1n } },
+            ] as any[],
+          },
+        },
+      });
+      expect(await indexer.Reverse_name_record.getWhere({ address: { _eq: address } })).toHaveLength(0);
+    }, 120_000);
   });
 
   // ─── Resolver entity structure ────────────────────────────────────────
@@ -295,6 +345,59 @@ describe("Resolver", () => {
         expect(addr).toMatch(/^0x[a-f0-9]{40}$/);
       }
     }, 120_000);
+  });
+
+  // ─── Resolver events do not depend on when the address is watched ─────
+
+  describe("PublicResolver 0x4976fb03 (lost range 9,413,818 to 9,466,703 in a 3.16 full sync)", () => {
+    const resolver = "0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41";
+
+    it("indexes its records at block 9,418,322 with no prior registry state", async () => {
+      // In a full sync HyperIndex 3.16 registered this address from block
+      // 9,466,703 and kept that start, losing 1,027 events. Resolver events are
+      // matched by signature, so they do not depend on when the address is watched.
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 9_418_322, endBlock: 9_418_322 } } });
+      const addrChanges = (await indexer.Subgraph_addr_changed.getAll()).filter((e: any) =>
+        e.resolver_id.startsWith(`1-${resolver}-`),
+      );
+      expect(addrChanges).toHaveLength(1);
+    }, 120_000);
+  });
+
+  // ─── Records set before a registry assigns the resolver (subgraph rule) ─
+  // The ENS subgraph's Resolver data source has no address and no start block:
+  // it applies resolver events from every contract, assigned or not. A .eth name
+  // (node 0xec1037...) had its addr and avatar set on resolver 0xcb811181 at
+  // blocks 20,742,315 and 20,742,316, then pointed at that resolver at 20,742,318.
+  // The public subgraph returns that addr as the name's resolvedAddress.
+
+  describe("records set before the resolver is assigned", () => {
+    const resolver = "0xcb811181de259d802decc0df4addf6628fb0e229";
+    const node = "0xec103702f1a036ce809c3cff59ba3233ffecc0445ad8278d202c208ee9d74ba1";
+    const addr = "0x64ca550f78d6cc711b247319cc71a04a166707ab";
+    const resolverId = makeResolverId(1, resolver, node);
+
+    it("keeps records a resolver emits before any registry assigns it", async () => {
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 20_742_315, endBlock: 20_742_316 } } });
+      const row = await indexer.Subgraph_resolver.getOrThrow(resolverId);
+      expect(row.addr_id).toBe(addr);
+      const records = await indexer.Resolver_address_record.getAll();
+      expect(records.some((r: any) => r.address === resolver && r.node === node && r.value === addr)).toBe(true);
+      const texts = await indexer.Resolver_text_record.getAll();
+      expect(texts.some((r: any) => r.address === resolver && r.node === node && r.key === "avatar")).toBe(true);
+    }, 120_000);
+
+    it("sets resolvedAddress from the stored addr when the name points at the resolver", async () => {
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 3_327_417, endBlock: 3_327_417 } } });
+      await indexer.process({ chains: { 1: { startBlock: 14_419_246, endBlock: 14_419_246 } } }); // name created
+      await indexer.process({ chains: { 1: { startBlock: 20_742_315, endBlock: 20_742_318 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.resolver_id).toBe(resolverId);
+      expect(domain.resolvedAddress_id).toBe(addr);
+    }, 180_000);
   });
 
   // ─── Full resolver flow in a single block ─────────────────────────────

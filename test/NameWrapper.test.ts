@@ -237,4 +237,60 @@ describe("NameWrapper", () => {
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
     }, 120_000);
   });
+
+  // ─── Labels that look like hex ────────────────────────────────────────
+  // namehashFromLabels hashed a label such as "0xc816" as the bytes c8 16, so the
+  // decoded name did not hash back to the node and was dropped (3,966 NameWrapped
+  // events on mainnet). 0xc816.eth: created at 17,024,817, wrapped at 17,024,837.
+
+  describe("NameWrapped for a label that looks like hex (0xc816.eth)", () => {
+    it("stores the wrapped name", async () => {
+      const node = "0x90ac842b964c8d4b7b52bc9a259974a9d459b39b0a061334ee9c9820971b314c";
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 17_024_817, endBlock: 17_024_837 } } });
+      const wrapped = await indexer.Subgraph_wrapped_domain.getOrThrow(node);
+      expect(wrapped.name).toBe("0xc816.eth");
+    }, 120_000);
+  });
+
+  // ─── A name that leaves the NameWrapper through the registry ──────────
+  // Subname 0xb10131…: created at 17,104,381, wrapped at 17,104,407, then its parent
+  // set its registry owner to 0x0 at 17,104,765 with no NameUnwrapped event. The
+  // wrapped state goes with it (ens-subgraph src/ensRegistry.ts
+  // detachWrappedStateIfLeftWrapper).
+  describe("registry owner change of a wrapped name", () => {
+    it("drops the wrapped state", async () => {
+      const node = "0xb10131a0bafc8ecb8ad29d7f19d8b2a5cc7e9071358d361fa29bfc3a6dc79477";
+      const indexer = createTestIndexer();
+      for (const b of [17_104_381, 17_104_392, 17_104_407]) {
+        await indexer.process({ chains: { 1: { startBlock: b, endBlock: b } } });
+      }
+      expect((await indexer.Subgraph_domain.getOrThrow(node)).wrappedOwner_id).toBeDefined();
+      await indexer.process({ chains: { 1: { startBlock: 17_104_765, endBlock: 17_104_765 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.wrappedOwner_id).toBeUndefined();
+      expect(await indexer.Subgraph_wrapped_domain.get(node)).toBeUndefined();
+    }, 180_000);
+  });
+
+  // ─── A detached token's transfer does not revive the wrapped state ────
+  // 0x62ec8057…: wrapped at 17,912,355; its registry owner moved away from the
+  // NameWrapper at 19,056,505 (no NameUnwrapped); the now-detached ERC-1155 token was
+  // transferred at 19,194,627 (ens-subgraph src/nameWrapper.ts).
+  describe("transfer of a detached wrapped token", () => {
+    it("keeps the name unwrapped", async () => {
+      const node = "0x62ec80577ad6c3358efd26d66326adedf5082e0b8df9a09bdcd695cab28f254f";
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 17_912_355, endBlock: 17_912_355 } } });
+      expect((await indexer.Subgraph_domain.getOrThrow(node)).wrappedOwner_id).toBeDefined();
+      await indexer.process({ chains: { 1: { startBlock: 19_056_505, endBlock: 19_056_505 } } });
+      expect((await indexer.Subgraph_domain.getOrThrow(node)).wrappedOwner_id).toBeUndefined();
+      await indexer.process({ chains: { 1: { startBlock: 19_194_627, endBlock: 19_194_627 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.wrappedOwner_id).toBeUndefined();
+      expect(await indexer.Subgraph_wrapped_domain.get(node)).toBeUndefined();
+      const transfers = (await indexer.Subgraph_wrapped_transfer.getAll()).filter((t: any) => t.domain_id === node && t.blockNumber === 19_194_627);
+      expect(transfers.length).toBe(1);
+    }, 180_000);
+  });
 });

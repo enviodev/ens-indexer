@@ -320,3 +320,44 @@ describe("Registrar", () => {
     }, 120_000);
   });
 });
+
+// ─── Graveyard retirement ────────────────────────────────────────────────────
+// The ENSv2 Graveyard retires an expired .eth name by re-registering it to itself
+// with expiry 2^64 - 1 minus the grace period (sdhygj.eth: registered at
+// 23,023,431, retired at 26,297,075). The ENS subgraph leaves the name in its
+// lapsed state (src/ethRegistrar.ts, src/ensRegistry.ts applyRegistryOwner).
+describe("Graveyard retirement", () => {
+  it("keeps the lapsed registrant, owner and expiry", async () => {
+    const node = "0x4f65c20724771ce8ee1a42f0d025594617ab392bfc93179e6de8af73418fdb74";
+    const graveyard = "0xda021a2c1c2f99574d861ef8c6fa745851beb7f6";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 23_023_431, endBlock: 23_023_431 } } });
+    const domainBefore = await indexer.Subgraph_domain.getOrThrow(node);
+    const registrationBefore = await indexer.Subgraph_registration.getOrThrow(node);
+    await indexer.process({ chains: { 1: { startBlock: 26_297_075, endBlock: 26_297_075 } } });
+    const domain = await indexer.Subgraph_domain.getOrThrow(node);
+    const registration = await indexer.Subgraph_registration.getOrThrow(node);
+    expect(registration.registrant_id).toBe(registrationBefore.registrant_id);
+    expect(registration.expiryDate).toBe(registrationBefore.expiryDate);
+    expect(domain.registrant_id).toBe(domainBefore.registrant_id);
+    expect(domain.expiryDate).toBe(domainBefore.expiryDate);
+    expect(domain.owner_id).toBe(domainBefore.owner_id);
+    expect([domain.owner_id, domain.registrant_id, registration.registrant_id]).not.toContain(graveyard);
+    // The event row keeps what happened.
+    const registered = (await indexer.Subgraph_name_registered.getAll()).filter((e: any) => e.registration_id === node);
+    expect(registered.map((e: any) => e.registrant_id)).toContain(graveyard);
+  }, 180_000);
+
+  it("deletes a retired subname (owner 0x0) instead of giving it to the Graveyard", async () => {
+    // sdhygj.eth's subname (created at 23,023,433) is moved to the Graveyard in the
+    // same retirement transaction (log 707).
+    const sub = "0xd923578d44b8639bdae40b437a973ddb9ee1f60562faf40842b88b95dbeb6e54";
+    const indexer = createTestIndexer();
+    for (const b of [23_023_431, 23_023_433, 26_297_075]) {
+      await indexer.process({ chains: { 1: { startBlock: b, endBlock: b } } });
+    }
+    const domain = await indexer.Subgraph_domain.getOrThrow(sub);
+    expect(domain.owner_id).toBe("0x0000000000000000000000000000000000000000");
+    expect(domain.wrappedOwner_id).toBeUndefined();
+  }, 180_000);
+});

@@ -38,3 +38,6 @@ generated
 .envio/
 
 SCHEMA_COMPARISON.md
+
+.worktrees/
+api/node_modules

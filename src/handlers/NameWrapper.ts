@@ -1,5 +1,7 @@
 import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
+import { isSink } from "../lib/legacy-governance";
+import { isGovernedByV2 } from "../lib/legacy-projection";
 
 import {
   makeEventId,
@@ -13,6 +15,8 @@ import {
   namehashFromLabels,
   decodeDnsEncodedName,
   setDomain,
+  setWrappedDomain,
+  ZERO_ADDRESS,
 } from "../lib/helpers";
 
 import {
@@ -86,6 +90,7 @@ async function handleTransfer(
   eventId: string,
   tokenId: bigint,
   to: string,
+  from: string,
 ): Promise<void> {
   const node = tokenIdToNode(tokenId);
 
@@ -101,15 +106,42 @@ async function handleTransfer(
     return;
   }
 
+  // A wrapped token handed to a sink (the Graveyard, a migration controller), or of a
+  // live ENSv2 name, keeps its holder; only the event row is written (ens-subgraph
+  // 16846b1 src/nameWrapper.ts).
+  if (isSink(event.chainId, to) || (await isGovernedByV2(context, event.chainId, node))) {
+    context.Subgraph_wrapped_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      id: eventId,
+      domain_id: node,
+      owner_id: to,
+    });
+    return;
+  }
+
   // Upsert the WrappedDomain: if exists update owner, otherwise create with placeholders
   const existingWrapped = await context.Subgraph_wrapped_domain.get(node);
+
+  // A transfer (not a mint) of a token whose name carries no wrapped state moves a
+  // detached ERC-1155 token: the name left the NameWrapper through the registry or
+  // was re-registered after expiry. Only the event row is written; the wrapped state
+  // is not revived (ens-subgraph 16846b1 src/nameWrapper.ts).
+  if (from !== ZERO_ADDRESS && !existingWrapped && !domain.wrappedOwner_id) {
+    context.Subgraph_wrapped_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      id: eventId,
+      domain_id: node,
+      owner_id: to,
+    });
+    return;
+  }
   if (existingWrapped) {
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...existingWrapped,
       owner_id: to,
     });
   } else {
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       id: node,
       domain_id: node,
       owner_id: to,
@@ -148,6 +180,7 @@ indexer.onEvent(
     makeEventId(event.chainId, event.block.number, event.logIndex, 0),
     tokenId,
     to,
+    from,
   );
 
   // TokenScope: track ERC1155 transfer
@@ -178,6 +211,7 @@ indexer.onEvent(
       makeEventId(event.chainId, event.block.number, event.logIndex, i),
       tokenId,
       to,
+      from,
     );
 
     // TokenScope: track ERC1155 transfer for each token
@@ -242,18 +276,24 @@ indexer.onEvent(
     };
   }
 
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/nameWrapper.ts handleNameWrapped).
+  const governed = await isGovernedByV2(context, event.chainId, node);
+  const fusesNum = Number(fuses);
+
   // Materialize wrappedOwner relation
   updatedDomain = {
     ...updatedDomain,
     wrappedOwner_id: owner,
   };
-  setDomain(context, updatedDomain);
+  if (!governed) setDomain(context, updatedDomain);
 
   // Update the WrappedDomain that was created in handleTransfer
-  const fusesNum = Number(fuses);
-  const existingWrapped = await context.Subgraph_wrapped_domain.get(node);
-  if (existingWrapped) {
-    context.Subgraph_wrapped_domain.set({
+  const existingWrapped = governed ? undefined : await context.Subgraph_wrapped_domain.get(node);
+  if (governed) {
+    // nothing: the projection dropped the wrapped state
+  } else if (existingWrapped) {
+    setWrappedDomain(context, {
       ...existingWrapped,
       name: decodedName,
       expiryDate: expiry,
@@ -262,7 +302,7 @@ indexer.onEvent(
     });
   } else {
     // Fallback: create if handleTransfer didn't run first (shouldn't happen normally)
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       id: node,
       domain_id: node,
       owner_id: owner,
@@ -274,7 +314,7 @@ indexer.onEvent(
   }
 
   // Materialize domain expiryDate if PCC fuse is set
-  await materializeDomainExpiryDate(context, node);
+  if (!governed) await materializeDomainExpiryDate(context, node);
 
   // Log NameWrapped
   context.Subgraph_name_wrapped.set({
@@ -304,6 +344,16 @@ indexer.onEvent(
     context.log.error(
       `NameWrapper:NameUnwrapped called before domain '${node}' exists.`,
     );
+    return;
+  }
+
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written.
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_name_unwrapped.set({
+      ...sharedEventValues(event.chainId, event),
+      domain_id: node,
+      owner_id: owner,
+    });
     return;
   }
 
@@ -344,7 +394,7 @@ indexer.onEvent(
   const wrappedDomain = await context.Subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update fuses on the WrappedDomain
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...wrappedDomain,
       fuses: fusesNum,
     });
@@ -373,7 +423,7 @@ indexer.onEvent(
   const wrappedDomain = await context.Subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update expiryDate on the WrappedDomain
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...wrappedDomain,
       expiryDate: expiry,
     });
