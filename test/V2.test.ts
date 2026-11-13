@@ -261,6 +261,63 @@ describe("registry graph edge cases", () => {
     expect(tables.V2_registry!.get(makeV2RegistryId(1, loop)).proven).toBe(true);
   });
 
+  it("does not name a registry through its own link", async () => {
+    const { context, tables } = fakeContext();
+    const seed = "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2";
+    const loop = "0xb36e0ede0ed38653c5ab8222b409a6b2ba78b409";
+    context.V2_registry.set(registryRow(seed, { kind: "eth", proven: true, node: ETH_NODE, name: "eth" }));
+    context.V2_registry.set(registryRow(loop));
+    const top = domainRow(seed, 1n << 40n, "top", { node: namehash("top.eth"), name: "top.eth", subregistry: loop });
+    const self = domainRow(loop, 2n << 40n, "self", { subregistry: loop });
+    context.V2_domain.set(top);
+    context.V2_domain.set(self);
+    const edge = (parentId: string, linkedBlock: number, active = true) => context.V2_registry_edge.set({
+      id: `${parentId}-${loop}`, chainId: 1, parentDomain_id: parentId, childRegistry_id: makeV2RegistryId(1, loop),
+      active, linkedBlock, linkedTimestamp: 0n, unlinkedBlock: undefined, sender: undefined,
+    } as V2Edge);
+    edge(top.id, 5);
+    edge(self.id, 6); // the self-link is the newest link
+    const loopRow = () => tables.V2_registry!.get(makeV2RegistryId(1, loop));
+    await propagateV2Registry(context, 1, loop);
+    await propagateV2Registry(context, 1, loop);
+    expect(loopRow().name).toBe("top.eth");
+    expect(tables.V2_domain!.get(self.id).name).toBe("self.top.eth");
+    // The outside link goes: no path reaches a seed.
+    edge(top.id, 5, false);
+    await propagateV2Registry(context, 1, loop);
+    expect(loopRow().proven).toBe(false);
+    expect(loopRow().name).toBeUndefined();
+    expect(tables.V2_domain!.get(self.id).name).toBeUndefined();
+  });
+
+  it("drops two registries that link to each other when their outside link goes", async () => {
+    const { context, tables } = fakeContext();
+    const seed = "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2";
+    const [r1, r2] = ["0x00000000000000000000000000000000000000c1", "0x00000000000000000000000000000000000000c2"];
+    context.V2_registry.set(registryRow(seed, { kind: "eth", proven: true, node: ETH_NODE, name: "eth" }));
+    context.V2_registry.set(registryRow(r1));
+    context.V2_registry.set(registryRow(r2));
+    const top = domainRow(seed, 1n << 40n, "top", { node: namehash("top.eth"), name: "top.eth", subregistry: r1 });
+    const a = domainRow(r1, 2n << 40n, "a", { subregistry: r2 });
+    const b = domainRow(r2, 3n << 40n, "b", { subregistry: r1 });
+    for (const d of [top, a, b]) context.V2_domain.set(d);
+    const edge = (parentId: string, child: string, linkedBlock: number, active = true) => context.V2_registry_edge.set({
+      id: `${parentId}-${child}`, chainId: 1, parentDomain_id: parentId, childRegistry_id: makeV2RegistryId(1, child),
+      active, linkedBlock, linkedTimestamp: 0n, unlinkedBlock: undefined, sender: undefined,
+    } as V2Edge);
+    edge(top.id, r1, 5);
+    edge(a.id, r2, 6);
+    edge(b.id, r1, 7);
+    await propagateV2Registry(context, 1, r1);
+    await propagateV2Registry(context, 1, r1);
+    expect(tables.V2_registry!.get(makeV2RegistryId(1, r1)).name).toBe("top.eth");
+    expect(tables.V2_registry!.get(makeV2RegistryId(1, r2)).name).toBe("a.top.eth");
+    edge(top.id, r1, 5, false);
+    await propagateV2Registry(context, 1, r1);
+    for (const r of [r1, r2]) expect(tables.V2_registry!.get(makeV2RegistryId(1, r)).proven).toBe(false);
+    for (const d of [a, b]) expect(tables.V2_domain!.get(d.id).name).toBeUndefined();
+  });
+
   it("renames a registry whose canonical parent is renamed later in the same pass", async () => {
     // A links B (via a.b) and C (via a.c); C links B (via c.x), the newest link, so
     // B is named under C. Renaming A visits B before C.

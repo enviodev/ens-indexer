@@ -213,6 +213,30 @@ export async function propagateV2Registry(
   }
 }
 
+/**
+ * Whether a parent registry's own path reaches a seed without passing through
+ * `childId`. A link from inside a registry's subtree (a self-link, or a cycle of
+ * registries) cannot prove it: the stored proof of that parent depends on the child.
+ */
+async function reachesSeedWithout(
+  context: handlerContext,
+  chainId: number,
+  parent: V2Registry,
+  childId: string,
+): Promise<boolean> {
+  const visited = new Set<string>();
+  let current: V2Registry | undefined = parent;
+  for (let i = 0; current && i <= MAX_REGISTRY_DEPTH; i++) {
+    if (current.id === childId || visited.has(current.id)) return false;
+    if (seedKind(chainId, current.address)) return true;
+    if (!current.proven || !current.parentDomain_id) return false;
+    visited.add(current.id);
+    const parentDomain = await context.V2_domain.get(current.parentDomain_id);
+    current = parentDomain ? await context.V2_registry.get(parentDomain.registry_id) : undefined;
+  }
+  return false;
+}
+
 async function recomputeRegistry(
   context: handlerContext,
   chainId: number,
@@ -236,6 +260,7 @@ async function recomputeRegistry(
   } else {
     const edges = await context.V2_registry_edge.getWhere({ childRegistry_id: { _eq: id } });
     const candidates = [];
+    const rooted = [];
     for (const edge of edges) {
       if (!edge.active) continue;
       const parentDomain = await context.V2_domain.get(edge.parentDomain_id);
@@ -243,8 +268,9 @@ async function recomputeRegistry(
       const parentRegistry = await context.V2_registry.get(parentDomain.registry_id);
       if (!parentRegistry) continue;
       candidates.push({ edge, parentRegistry, parentDomain });
+      if (await reachesSeedWithout(context, chainId, parentRegistry, id)) rooted.push({ edge, parentRegistry, parentDomain });
     }
-    const chosen = pickCanonicalEdge(registry, candidates);
+    const chosen = pickCanonicalEdge(registry, rooted);
     const claimMatchesLink =
       registry.claimedParent === undefined
         ? undefined
