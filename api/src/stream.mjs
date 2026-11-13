@@ -171,6 +171,13 @@ export async function serveStream(req, res, url) {
   let lastPing = Date.now();
   const pingMs = Number(process.env.STREAM_PING_MS ?? 15000);
   let failures = 0;
+  // Resolves when the client has taken the buffered data, or has gone.
+  const drained = () => new Promise((resolve) => {
+    const done = () => { res.off("drain", done); res.off("close", done); req.off("close", done); resolve(); };
+    res.on("drain", done);
+    res.on("close", done);
+    req.on("close", done);
+  });
 
   while (open) {
     try {
@@ -186,7 +193,10 @@ export async function serveStream(req, res, url) {
     for (const r of rows) {
       cursor = cursorOf(r);
       if (!seen.has(r.block_number)) seen.set(r.block_number, state.checkpoints.get(r.block_number));
-      res.write(`id: ${encodeCursor(cursor)}\nevent: change\ndata: ${JSON.stringify(shape(r), (_k, v) => (typeof v === "bigint" ? v.toString() : v))}\n\n`);
+      const flushed = res.write(`id: ${encodeCursor(cursor)}\nevent: change\ndata: ${JSON.stringify(shape(r), (_k, v) => (typeof v === "bigint" ? v.toString() : v))}\n\n`);
+      // A slow client: wait for its buffer to empty before sending or reading more.
+      if (!flushed) await drained();
+      if (!open) break;
     }
     for (const b of [...seen.keys()]) if (b < state.progress - REORG_WINDOW) seen.delete(b);
     if (rows.length === MAX_BATCH) continue;

@@ -176,4 +176,25 @@ test("a client that disconnects while the stream starts ends it", { skip }, asyn
   assert.equal(ended, true);
 });
 
+test("replay waits for the client to drain", { skip }, async () => {
+  const chain = 6;
+  await q(`INSERT INTO envio_chains VALUES ($1, 1200, NULL)`, [chain]);
+  await q(`INSERT INTO name_event (id, "chainId", "blockNumber", "logIndex", timestamp, "transactionHash", kind, protocol)
+    SELECT $1 || '-' || b || '-0', $2::int, b, 0, 1, '0xt', 'RECORD', 'v2' FROM generate_series(1, 1200) b`, [String(chain), chain]);
+  const c = fakeConnection(chain, "&from=1");
+  c.res.accept = false; // every write fills the buffer
+  const done = stream.serveStream(c.req, c.res, c.url);
+  await sleep(300);
+  assert.equal(changes(c.res).length, 1);
+  c.res.emit("drain");
+  await sleep(100);
+  assert.equal(changes(c.res).length, 2);
+  c.res.accept = true;
+  c.res.emit("drain");
+  await sleep(500);
+  assert.equal(changes(c.res).length, 1200);
+  c.close();
+  await done;
+});
+
 test.after(() => pool.end());
