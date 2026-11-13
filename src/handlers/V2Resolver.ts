@@ -107,6 +107,8 @@ indexer.onEvent({ contract: "V2Resolver", event: "Cleared", wildcard: true, wher
   for (const row of await context.V2_record_interface.getWhere({ record_id: { _eq: id } })) {
     context.V2_record_interface.deleteUnsafe(row.id);
   }
+  // Every value of the record is gone: one change per linked name.
+  await emitRecordChange(context, event, id, { field: "cleared" });
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {

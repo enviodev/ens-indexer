@@ -796,6 +796,29 @@ describe("name_event", () => {
     expect(events.map((e: any) => e.node)).toEqual([...nodes].sort());
   });
 
+  it("logs a record change when a record is cleared", async () => {
+    const resolver = "0x5900000000000000000000000000000000000e03";
+    const node = namehash("cleared.eth");
+    const at = (n: number, logIndex: number) => ({ block: { number: n, timestamp: 1_790_000_000 + n }, logIndex });
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            { contract: "V2Resolver", event: "Linked", srcAddress: resolver, ...at(12_000_300, 1), params: { recordId: 1n, node, name: "0x07636c65617265640365746800" } },
+            { contract: "V2Resolver", event: "TextUpdated", srcAddress: resolver, ...at(12_000_300, 2), params: { recordId: 1n, keyHash: "url", key: "url", value: "https://x" } },
+            { contract: "V2Resolver", event: "Cleared", srcAddress: resolver, ...at(12_000_301, 3), params: { recordId: 1n } },
+          ] as any[],
+        },
+      },
+    });
+    expect(await indexer.V2_record_text.getWhere({ record_id: { _eq: `${CHAIN}-${resolver}-1` } })).toHaveLength(0);
+    const cleared = (await indexer.Name_event.getWhere({ blockNumber: { _eq: 12_000_301 } })).filter((e: any) => e.kind === "RECORD");
+    expect(cleared).toHaveLength(1);
+    expect(cleared[0]!.node).toBe(node);
+    expect(JSON.parse(cleared[0]!.detail!).field).toBe("cleared");
+  });
+
   it("logs a primary-name change from the standalone reverse registrar (Base 32,443,718)", async () => {
     const indexer = createTestIndexer();
     await indexer.process({ chains: { 8453: { startBlock: 32_443_718, endBlock: 32_443_718 } } });
