@@ -109,7 +109,7 @@ test("stream delivers every change in a block range once, in order", { skip, tim
     const counts = new Map();
     for (const r of expected) if (r.node) counts.set(r.node, (counts.get(r.node) ?? 0) + 1);
     const [node] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-    const [{ name }] = (await pool.query(`select name from v2_domain where node = $1 and "chainId" = $2 and name is not null limit 1`, [node, CHAIN])).rows;
+    const name = (await pool.query(`select name from v2_domain where node = $1 and "chainId" = $2 and name is not null limit 1`, [node, CHAIN])).rows[0]?.name;
     if (name) {
       const byName = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&name=${encodeURIComponent(name)}`, { stopBlock: TO });
       assert.deepEqual(byName.map((c) => c.id), expected.filter((r) => r.node === node).map((r) => r.id));

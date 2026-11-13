@@ -268,6 +268,8 @@ for (const l of nodeLogs.sort((a, b) => a.block_number - b.block_number || a.log
     const [coin, bytes] = decodeAbiParameters(parseAbiParameters("uint256, bytes"), l.data);
     nodeState.set(`${base}-${coin}`, bytes === "0x" ? null : bytes.toLowerCase());
   } else {
+    // The indexed key is topic2; a log without it has another ABI and the indexer cannot decode it.
+    if (!l.topic2) continue;
     try {
       const [k, v] = decodeAbiParameters(parseAbiParameters("string, string"), l.data);
       if (!k.includes("\u0000")) nodeState.set(`${base}-${k}`, v === "" ? null : v);

@@ -13,8 +13,14 @@ const count = Number(args.count ?? 300);
 
 const client = new pg.Client({ host: "localhost", port: Number(args["pg-port"] ?? 5433), user: "postgres", password: args["pg-password"] ?? "testing", database: "envio-dev" });
 await client.connect();
-const { rows } = await client.query(`SELECT name, owner FROM v2_domain WHERE "chainId" = $1 AND name IS NOT NULL AND status = 'REGISTERED' ORDER BY random() LIMIT $2`, [chainId, count]);
-const [{ n }] = (await client.query(`SELECT count(*)::int AS n FROM v2_domain WHERE "chainId" = $1`, [chainId])).rows;
+// --source v2 (default): registered ENSv2 names; --source v1: named v1 domains with an owner,
+// sampled with TABLESAMPLE so the draw does not scan the whole table.
+const source = args.source ?? "v2";
+const { rows } = source === "v1"
+  ? await client.query(`SELECT name, owner_id AS owner FROM subgraph_domain TABLESAMPLE SYSTEM (1) WHERE "chainId" = $1 AND name IS NOT NULL AND name NOT LIKE '%[%' AND owner_id IS NOT NULL AND owner_id <> '0x0000000000000000000000000000000000000000' ORDER BY random() LIMIT $2`, [chainId, count])
+  : await client.query(`SELECT name, owner FROM v2_domain WHERE "chainId" = $1 AND name IS NOT NULL AND status = 'REGISTERED' ORDER BY random() LIMIT $2`, [chainId, count]);
+if (rows.length === 0) throw new Error(`no ${source} names to sample on chain ${chainId}`);
+const [{ n }] = (await client.query(`SELECT count(*)::int AS n FROM ${source === "v1" ? "subgraph_domain" : "v2_domain"} WHERE "chainId" = $1`, [chainId])).rows;
 await client.end();
 
 const percentile = (sorted, p) => sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))];
@@ -27,7 +33,7 @@ const CASES = {
   graphql_names_by_owner: (r) => gql(`query($o:String!){domains(first:20,where:{owner:$o},orderBy:expiryDate,orderDirection:desc){id name expiryDate}}`, { o: r.owner }),
 };
 
-const out = { chainId, rowsInV2Domain: n, sampled: rows.length, method: "sequential requests on localhost, one connection, names sampled at random from v2_domain", results: {} };
+const out = { chainId, source, rowsInSourceTable: n, sampled: rows.length, method: `sequential requests on localhost, one connection, names sampled at random from ${source === "v1" ? "subgraph_domain" : "v2_domain"}`, results: {} };
 for (const [name, fn] of Object.entries(CASES)) {
   const times = [];
   let errors = 0;
