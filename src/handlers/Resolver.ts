@@ -30,6 +30,8 @@ import {
 } from "../lib/protocol-acceleration";
 
 import { onResolverChains } from "../lib/resolver-chains";
+import { V2_DEPLOYMENTS } from "../lib/v2-deployments";
+import { makeV2RegistryId } from "../lib/v2-helpers";
 import { emitNameEvent } from "../lib/name-events";
 
 import dnsPacket, { type Answer } from "dns-packet";
@@ -414,6 +416,19 @@ indexer.onEvent(
     resolver_id: resolverId,
     version: newVersion,
   });
+
+  // The ENSv2 node-keyed copies of this node's records (src/handlers/V2NodeResolver.ts)
+  // are cleared too, or the API would still read them.
+  if (V2_DEPLOYMENTS[event.chainId]) {
+    const resolver = event.srcAddress.toLowerCase();
+    context.V2_node_record.deleteUnsafe(`${makeV2RegistryId(event.chainId, resolver)}-${node}`);
+    for (const row of await context.V2_node_address.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })) {
+      context.V2_node_address.deleteUnsafe(row.id);
+    }
+    for (const row of await context.V2_node_text.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })) {
+      context.V2_node_text.deleteUnsafe(row.id);
+    }
+  }
   },
 );
 

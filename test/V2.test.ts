@@ -516,6 +516,34 @@ describe("transfers on a registry nothing links to", () => {
   });
 });
 
+describe("node-keyed records and VersionChanged", () => {
+  it("clears a resolver's node-keyed records for the node when its version changes", async () => {
+    const resolver = "0x5900000000000000000000000000000000000e04";
+    const node = namehash("versioned.eth");
+    const other = namehash("other.eth");
+    const at = (n: number, logIndex: number) => ({ srcAddress: resolver, block: { number: n, timestamp: 1_790_000_000 + n }, logIndex });
+    const indexer = createTestIndexer();
+    await indexer.process({
+      chains: {
+        [CHAIN]: {
+          simulate: [
+            { contract: "V2NodeResolver", event: "ContenthashChanged", ...at(12_000_400, 1), params: { node, hash: "0xe301" } },
+            { contract: "V2NodeResolver", event: "AddrChanged", ...at(12_000_400, 2), params: { node, a: "0x00000000000000000000000000000000000b0b02" } },
+            { contract: "V2NodeResolver", event: "TextChanged", ...at(12_000_400, 3), params: { node, indexedKey: "url", key: "url", value: "https://x" } },
+            { contract: "V2NodeResolver", event: "TextChanged", ...at(12_000_400, 4), params: { node: other, indexedKey: "url", key: "url", value: "https://y" } },
+            { contract: "Resolver", event: "VersionChanged", ...at(12_000_401, 1), params: { node, newVersion: 1n } },
+          ] as any[],
+        },
+      },
+    });
+    expect(await indexer.V2_node_record.get(`${CHAIN}-${resolver}-${node}`)).toBeUndefined();
+    expect(await indexer.V2_node_address.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })).toHaveLength(0);
+    expect(await indexer.V2_node_text.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } })).toHaveLength(0);
+    // Another node on the same resolver keeps its records.
+    expect(await indexer.V2_node_text.getWhere({ resolver: { _eq: resolver }, node: { _eq: other } })).toHaveLength(1);
+  });
+});
+
 describe("records written before the resolver is registered", () => {
   it("keeps records from blocks before discovery (Sepolia 11947405)", async () => {
     // Real case: resolver 0x7c48... wrote records at 11947405. With address-based
