@@ -83,9 +83,15 @@ pg.types.setTypeParser(pg.types.builtins.NUMERIC, (v) => v);
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => v);
 const db = new pg.Client({ host: "localhost", port: Number(args["pg-port"] ?? 5441), user: "postgres", password: "testing", database: "envio-dev" });
 await db.connect();
+// One snapshot for the boundary and every comparison: indexing may continue during the replay.
+await db.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
 const [{ progress_block: toBlockInclusive }] = (await db.query("SELECT progress_block FROM envio_chains WHERE id = $1", [chainId])).rows;
 const toBlock = toBlockInclusive + 1;
 const out = { chainId, toBlock: toBlockInclusive, checks: {}, samples: {} };
+// Rows the ENSv2 projection owns (src/lib/legacy-projection.ts): their owner, resolver
+// and expiry come from v2, not from the last ENSv1 event. replay.mjs checks them.
+const governed = new Set((await db.query(`SELECT node FROM legacy_projection WHERE "chainId" = $1 AND active`, [chainId])).rows.map((r) => r.node));
+out.governedByV2 = governed.size;
 const record = (name, checked, matched, mismatches) => {
   out.checks[name] = { checked, matched, rate: checked ? +(matched / checked).toFixed(6) : null };
   out.samples[name] = mismatches.slice(0, 25);
@@ -119,8 +125,10 @@ if (C.registry) {
   const resolverMismatch = [];
   let ownerChecked = 0, ownerMatched = 0, resolverChecked = 0, resolverMatched = 0;
   const cursor = await db.query(`SELECT id, owner_id, resolver_id FROM subgraph_domain WHERE "chainId" = $1`, [chainId]);
+  const indexedNodes = new Set();
   for (const row of cursor.rows) {
-    if (row.id === hex32(0n)) continue;
+    indexedNodes.add(row.id);
+    if (row.id === hex32(0n) || governed.has(row.id)) continue;
     if (owner.has(row.id)) {
       ownerChecked++;
       if (row.owner_id === owner.get(row.id)) ownerMatched++; else ownerMismatch.push({ node: row.id, indexed: row.owner_id, replay: owner.get(row.id) });
@@ -132,6 +140,9 @@ if (C.registry) {
   }
   out.nodesReplayed = owner.size;
   out.nodesIndexed = cursor.rows.length;
+  // Replayed nodes with no indexed row at all.
+  const missingNodes = [...owner.keys()].filter((n) => n !== hex32(0n) && !indexedNodes.has(n));
+  record("registryNodePresent", owner.size, owner.size - missingNodes.length, missingNodes.map((node) => ({ node, indexed: "absent", replay: owner.get(node) })));
   record("registryOwner", ownerChecked, ownerMatched, ownerMismatch);
   record("registryResolver", resolverChecked, resolverMatched, resolverMismatch);
 
@@ -182,8 +193,11 @@ if (C.registrar) {
   const rows = (await db.query(`SELECT domain_id, "expiryDate" FROM subgraph_registration WHERE "chainId" = $1`, [chainId])).rows;
   const mismatch = [];
   let checked = 0, matched = 0;
+  const indexedRegs = new Set(rows.map((r) => r.domain_id));
+  const missingRegs = [...expiry.keys()].filter((n) => !indexedRegs.has(n));
+  record("registrationPresent", expiry.size, expiry.size - missingRegs.length, missingRegs.map((node) => ({ node, indexed: "absent", replay: String(expiry.get(node)) })));
   for (const row of rows) {
-    if (!expiry.has(row.domain_id)) continue;
+    if (!expiry.has(row.domain_id) || governed.has(row.domain_id)) continue;
     checked++;
     if (String(row.expiryDate) === String(expiry.get(row.domain_id))) matched++; else mismatch.push({ node: row.domain_id, indexed: row.expiryDate, replay: String(expiry.get(row.domain_id)) });
   }
@@ -214,6 +228,7 @@ if (C.registrar) {
   record("reverseName", names.size, matched, mismatch);
 }
 
+await db.query("COMMIT");
 await db.end();
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
 console.log(JSON.stringify({ ...out, samples: Object.fromEntries(Object.entries(out.samples).map(([k, v]) => [k, v.slice(0, 3)])) }, null, 1));
