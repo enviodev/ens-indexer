@@ -153,14 +153,18 @@ export async function serveStream(req, res, url) {
   const addresses = list("address")?.map((a) => a.toLowerCase());
   const kinds = list("kinds")?.map((k) => k.toUpperCase());
   const resume = req.headers["last-event-id"] ?? url.searchParams.get("cursor");
+  // Listen for the client going away before the first await: a close during that
+  // read would otherwise be missed, and the loop would poll for nobody.
+  let open = !req.destroyed && !res.destroyed;
+  const stop = () => { open = false; };
+  req.on("close", stop);
+  res.on("close", stop);
   let cursor;
   if (resume) cursor = decodeCursor(resume);
   else if (url.searchParams.has("from")) cursor = cursorBeforeBlock(Number(url.searchParams.get("from")));
   else cursor = cursorBeforeBlock(((await chainState(chainId, 0)).progress ?? 0) + 1);
 
   res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive", "access-control-allow-origin": "*" });
-  let open = true;
-  req.on("close", () => { open = false; });
   const seen = new Map(); // block -> hash at send time, for the reorg window
   const REORG_WINDOW = Number(process.env.STREAM_REORG_WINDOW ?? 256);
   const pollMs = Number(process.env.STREAM_POLL_MS ?? 1000);

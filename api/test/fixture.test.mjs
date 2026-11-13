@@ -168,4 +168,12 @@ test("a reorg in a block with no sent change is still detected", { skip }, async
   assert.deepEqual(changes(c.res).map((x) => x.block), [100, 108]);
 });
 
+test("a client that disconnects while the stream starts ends it", { skip }, async () => {
+  const c = fakeConnection(5, "");
+  const done = stream.serveStream(c.req, c.res, c.url);
+  c.close(); // before the first database read returns
+  const ended = await Promise.race([done.then(() => true), sleep(2000).then(() => false)]);
+  assert.equal(ended, true);
+});
+
 test.after(() => pool.end());
