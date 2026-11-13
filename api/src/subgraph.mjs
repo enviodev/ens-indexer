@@ -90,7 +90,7 @@ function compileWhere(entity, where, values) {
     const ref = ENTITIES[entity].fields[field].ref;
     if (ref && ENTITIES[ref].chainPrefixed && typeof value === "string") value = `__CHAIN__-${value}`;
     if (suffix === "_in" || suffix === "_not_in") {
-      values.push(raw.map(String));
+      values.push(raw.map((v) => (ref && ENTITIES[ref].chainPrefixed ? `__CHAIN__-${v}` : String(v))));
       parts.push(`${suffix === "_not_in" ? "NOT " : ""}${c} = ANY($${values.length})`);
     } else if (/contains|starts|ends|nocase/.test(suffix)) {
       const nocase = suffix.includes("nocase");
@@ -107,7 +107,8 @@ function compileWhere(entity, where, values) {
 }
 
 function withChain(sql, values, chainId) {
-  return { sql, values: values.map((v) => (typeof v === "string" ? v.replace("__CHAIN__", String(chainId)) : v)) };
+  const bind = (v) => (typeof v === "string" ? v.replace("__CHAIN__", String(chainId)) : Array.isArray(v) ? v.map(bind) : v);
+  return { sql, values: values.map(bind) };
 }
 
 class Loaders {
@@ -305,3 +306,4 @@ function queryFields() {
 
 export const schema = new GraphQLSchema({ query: new GraphQLObjectType({ name: "Query", fields: queryFields }) });
 export const makeContext = (chainId) => ({ chainId, loaders: new Loaders(chainId) });
+export { listSql };
