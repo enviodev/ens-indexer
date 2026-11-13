@@ -8,7 +8,7 @@ const skip = !PG_PORT && "TEST_PG_PORT not set";
 process.env.ENVIO_PG_PORT = PG_PORT ?? "5433";
 process.env.ENVIO_PG_PASSWORD = process.env.TEST_PG_PASSWORD ?? "testing";
 const { namehash, resolveName } = await import("../src/resolve.mjs");
-const { pool } = await import("../src/db.mjs");
+const { pool, q } = await import("../src/db.mjs");
 
 test("labels that look like hex are hashed as text", () => {
   // keccak256(toBytes("0xbabaa")) would hash the bytes 0x0babaa.
@@ -31,6 +31,16 @@ test("a v2 name on a node-keyed resolver gets every record, not only those set s
   assert.equal(r.recordSource, "node-record");
   assert.equal(r.addresses["60"], "0x02fa71cbb4b1b990a475deb370d0aa42aa43503b");
   assert.ok(Object.keys(r.texts).length >= 10, `texts: ${Object.keys(r.texts).length}`);
+});
+
+test("the unified view answers a lookup by name without JIT or a scan of v2_domain", { skip }, async () => {
+  // With JIT on, the view's high estimated cost made every query compile for about 1 s.
+  const [{ jit }] = await q("SHOW jit");
+  assert.equal(jit, "off");
+  const plan = (await q(`EXPLAIN (ANALYZE, FORMAT TEXT) SELECT * FROM ens_unified_domain WHERE "chainId" = 1 AND name = $1 ORDER BY id LIMIT 1`, ["nick.eth"]))
+    .map((r) => r["QUERY PLAN"]).join("\n");
+  assert.doesNotMatch(plan, /JIT:/);
+  assert.doesNotMatch(plan, /Seq Scan on "v2_domain/);
 });
 
 test.after(() => pool.end());

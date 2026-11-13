@@ -14,9 +14,11 @@ CREATE OR REPLACE VIEW ens_unified_domain AS
 SELECT
   a.node AS id, a."chainId", a.name, a.label AS "labelName", a.labelhash,
   a.parent_node AS parent_id,
+  -- = ANY(ARRAY(...)) makes the planner use the registry_id index; a join here was
+  -- planned as a scan of every v2_domain row (about 0.5 s per name on mainnet).
   (SELECT count(*)::int FROM v2_domain c
-     JOIN v2_registry cr ON cr.id = c.registry_id AND cr."chainId" = c."chainId"
-    WHERE cr.node = a.node AND cr."chainId" = a."chainId" AND c.status <> 'UNREGISTERED') AS "subdomainCount",
+    WHERE c.registry_id = ANY (ARRAY(SELECT cr.id FROM v2_registry cr WHERE cr.node = a.node AND cr."chainId" = a."chainId"))
+      AND c."chainId" = a."chainId" AND c.status <> 'UNREGISTERED') AS "subdomainCount",
   NULL::text AS "resolvedAddress_id",
   CASE WHEN a.resolver IS NULL THEN NULL
        ELSE a."chainId" || '-' || a.resolver || '-' || a.node END AS resolver_id,
