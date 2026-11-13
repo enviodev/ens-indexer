@@ -257,6 +257,14 @@ for (const [k, v] of recState) {
 }
 const links = { checked: 0, matched: 0 };
 for (const [k, v] of linkState) { links.checked++; if (dbLink.get(k) === v) links.matched++; else if (recMismatch.length < 40) recMismatch.push({ id: k, indexed: dbLink.get(k), replay: v }); }
+// Rows the index holds that no replayed log wrote: counted apart from value mismatches.
+const indexedOnly = (maps, state) => {
+  let n = 0;
+  for (const m of maps) for (const k of m.keys()) if (!state.has(k)) { n++; if (recMismatch.length < 80) recMismatch.push({ id: k, indexed: m.get(k), replay: "absent" }); }
+  return n;
+};
+rec.indexedOnly = indexedOnly([dbAddr, dbText], recState);
+links.indexedOnly = indexedOnly([dbLink], linkState);
 // Node-keyed records from any address, compared with v2_node_address / v2_node_text.
 const nodeLogs = await hypersync({ from_block: fromBlock, to_block: toBlock, logs: [{ topics: [[T.AddrChanged, T.AddressChanged, T.TextChanged]] }], field_selection: FIELDS });
 const nodeState = new Map();
@@ -285,6 +293,7 @@ for (const [k, v] of nodeState) {
   const got = dbNodeAddr.has(k) ? dbNodeAddr.get(k) : dbNodeText.has(k) ? dbNodeText.get(k) : null;
   if (String(got ?? null) === String(v ?? null)) nodeRecords.matched++; else if (recMismatch.length < 60) recMismatch.push({ id: k, indexed: got, replay: v });
 }
+nodeRecords.indexedOnly = indexedOnly([dbNodeAddr, dbNodeText], nodeState);
 // ─── Legacy projection (ens-subgraph v2.2.0 rules, src/ensv2Domain.ts) ──────
 // Expected subgraph_domain / subgraph_registration rows for ENSv2 names, derived from
 // the replayed v2 state above, not from the indexer's code:
