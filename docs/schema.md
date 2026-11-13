@@ -10,6 +10,16 @@
 - `subgraph_resolver.id` is `{chainId}-{resolver}-{node}`.
 - `subgraph_registration.id` is the node.
 
+## ENSv2 in the v1 tables
+
+The v1 tables follow the ENS subgraph's rules for the ENSv2 era (ens-subgraph 16846b1, `src/legacyGovernance.ts`, `src/ensv2Domain.ts`):
+
+- **A live ENSv2 name owns its v1 row.** For a registered v2 name on a proven path (any registry but the root registry), `subgraph_domain` holds the v2 holder as `owner` and `registrant`, the v2 expiry (plus the 28-day v2 grace period for `.eth` names), the v2 resolver, and no wrapped state. A v2 name that never existed in v1 gets a row. The `.eth` name's `subgraph_registration` follows too. v1 registry, `.eth` registrar and NameWrapper events for the name only add event rows. Unregistering the name on v2 clears the row (owner `0x0`).
+- **Sinks never hold a name.** The Graveyard, the GraveyardRepairer and the migration controllers never appear as `owner`, `registrant` or wrapped owner. A `.eth` name handed to one keeps its owner. A subname handed to one is deleted (owner `0x0`).
+- **Graveyard retirements are not registrations.** When the Graveyard re-registers an expired `.eth` name to itself, the name keeps its lapsed registrant and expiry. The registrar tables do not count it.
+- **Expiry is clamped.** `expiryDate` in `subgraph_domain`, `subgraph_registration` and `subgraph_wrapped_domain` is at most 253402300799 (9999-12-31). Event rows and the v2 tables keep the raw value, which can be 2^64 - 1.
+- **Known labels.** `eth`, `reverse` and `addr` are named. Other labels that no event carries stay encoded as `[labelhash]`; the subgraph names many of them from graph-node's label table.
+
 ## Resolver records
 
 These hold record values, which the subgraph shape does not keep:

@@ -48,6 +48,8 @@ ERC-1155 transfers on ENSv2 registries share their signature with every ERC-1155
 
 - **Primary names on Ethereum.** `reverse_name_record` is set from a `NameChanged` on an `<address>.addr.reverse` node only when it comes from the resolver the registry assigns to that node. The subgraph has no primary-name table. Without this rule any contract could emit `NameChanged` for another address's reverse node and set its primary name. The `NameChanged` event is still recorded, and the resolver's own row is still updated.
 
+- **Label names.** The subgraph names labels from graph-node's label table (`ens.nameByHash`). We name a label only when an event carries it, plus `eth`, `reverse` and `addr`. Names with other unknown labels read `[labelhash].parent`.
+
 ## Not covered
 
 - Offchain (CCIP-Read) resolvers: the resolver is recorded, but records served offchain are not.
