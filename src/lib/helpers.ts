@@ -1,4 +1,4 @@
-import { keccak256, encodePacked, toBytes, zeroAddress } from "viem";
+import { keccak256, encodePacked, stringToBytes, zeroAddress } from "viem";
 import type { EvmOnEventContext, Entity } from "envio";
 
 export type handlerContext = EvmOnEventContext;
@@ -113,7 +113,8 @@ export function makeSubdomainNode(
 export function namehashFromLabels(labels: readonly string[]): string {
   let node: string = ROOT_NODE;
   for (let i = labels.length - 1; i >= 0; i--) {
-    node = makeSubdomainNode(keccak256(toBytes(labels[i]!)), node);
+    // stringToBytes, not toBytes: toBytes reads a label such as "0xc816" as hex.
+    node = makeSubdomainNode(keccak256(stringToBytes(labels[i]!)), node);
   }
   return node;
 }

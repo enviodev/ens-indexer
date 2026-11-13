@@ -237,4 +237,19 @@ describe("NameWrapper", () => {
       expect(entityTypes.size).toBeGreaterThanOrEqual(4);
     }, 120_000);
   });
+
+  // ─── Labels that look like hex ────────────────────────────────────────
+  // namehashFromLabels hashed a label such as "0xc816" as the bytes c8 16, so the
+  // decoded name did not hash back to the node and was dropped (3,966 NameWrapped
+  // events on mainnet). 0xc816.eth: created at 17,024,817, wrapped at 17,024,837.
+
+  describe("NameWrapped for a label that looks like hex (0xc816.eth)", () => {
+    it("stores the wrapped name", async () => {
+      const node = "0x90ac842b964c8d4b7b52bc9a259974a9d459b39b0a061334ee9c9820971b314c";
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 17_024_817, endBlock: 17_024_837 } } });
+      const wrapped = await indexer.Subgraph_wrapped_domain.getOrThrow(node);
+      expect(wrapped.name).toBe("0xc816.eth");
+    }, 120_000);
+  });
 });
