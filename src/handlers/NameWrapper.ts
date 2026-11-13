@@ -16,6 +16,7 @@ import {
   decodeDnsEncodedName,
   setDomain,
   setWrappedDomain,
+  ZERO_ADDRESS,
 } from "../lib/helpers";
 
 import {
@@ -89,6 +90,7 @@ async function handleTransfer(
   eventId: string,
   tokenId: bigint,
   to: string,
+  from: string,
 ): Promise<void> {
   const node = tokenIdToNode(tokenId);
 
@@ -119,6 +121,20 @@ async function handleTransfer(
 
   // Upsert the WrappedDomain: if exists update owner, otherwise create with placeholders
   const existingWrapped = await context.Subgraph_wrapped_domain.get(node);
+
+  // A transfer (not a mint) of a token whose name carries no wrapped state moves a
+  // detached ERC-1155 token: the name left the NameWrapper through the registry or
+  // was re-registered after expiry. Only the event row is written; the wrapped state
+  // is not revived (ens-subgraph 16846b1 src/nameWrapper.ts).
+  if (from !== ZERO_ADDRESS && !existingWrapped && !domain.wrappedOwner_id) {
+    context.Subgraph_wrapped_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      id: eventId,
+      domain_id: node,
+      owner_id: to,
+    });
+    return;
+  }
   if (existingWrapped) {
     setWrappedDomain(context, {
       ...existingWrapped,
@@ -164,6 +180,7 @@ indexer.onEvent(
     makeEventId(event.chainId, event.block.number, event.logIndex, 0),
     tokenId,
     to,
+    from,
   );
 
   // TokenScope: track ERC1155 transfer
@@ -194,6 +211,7 @@ indexer.onEvent(
       makeEventId(event.chainId, event.block.number, event.logIndex, i),
       tokenId,
       to,
+      from,
     );
 
     // TokenScope: track ERC1155 transfer for each token
