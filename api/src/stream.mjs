@@ -88,30 +88,34 @@ export const MAX_BATCH = 500;
 const MAX_LOG_INDEX = 2147483647;
 
 /**
- * Changes strictly after `cursor` (block, log, id) up to `toBlock`, in order.
- * Filters: nodes, addresses, kinds (arrays or undefined).
+ * Changes strictly after `cursor` (block, log, id, source) up to `toBlock`, in order.
+ * One log can write rows with the same id to two tables (a legacy reverse
+ * NameChanged writes subgraph_name_changed and name_event), so the source table
+ * is part of the order. Filters: nodes, addresses, kinds (arrays or undefined).
  */
 export async function readChanges(chainId, cursor, toBlock, { nodes, addresses, kinds } = {}, limit = MAX_BATCH) {
   const parts = await feed();
-  const values = [chainId, cursor.block, cursor.log, cursor.id, toBlock];
+  const values = [chainId, cursor.block, cursor.log, cursor.id, toBlock, cursor.source ?? ""];
   const where = [`chain_id = $1`, `block_number >= $2`, `block_number <= $5`,
-    `(block_number > $2 OR (block_number = $2 AND (log_index > $3 OR (log_index = $3 AND id > $4))))`];
+    `(block_number > $2 OR (block_number = $2 AND (log_index > $3 OR (log_index = $3 AND (id COLLATE "C" > $4 OR (id = $4 AND (detail->>'source') COLLATE "C" > $6))))))`];
   if (nodes?.length) { values.push(nodes); where.push(`node = ANY($${values.length})`); }
   if (addresses?.length) { values.push(addresses); where.push(`lower(address) = ANY($${values.length})`); }
   if (kinds?.length) { values.push(kinds); where.push(`kind = ANY($${values.length})`); }
   const inner = parts.map((p) => `SELECT * FROM (${p.sql}) s(chain_id, block_number, log_index, id, kind, protocol, node, address, transaction_hash, timestamp, detail)
     WHERE chain_id = $1 AND block_number >= $2 AND block_number <= $5`).join("\nUNION ALL\n");
-  const sql = `SELECT * FROM (${inner}) f WHERE ${where.join(" AND ")} ORDER BY block_number, log_index, id COLLATE "C" LIMIT ${limit}`;
+  const sql = `SELECT * FROM (${inner}) f WHERE ${where.join(" AND ")} ORDER BY block_number, log_index, id COLLATE "C", (detail->>'source') COLLATE "C" LIMIT ${limit}`;
   return (await pool.query(sql, values)).rows;
 }
 
-export const encodeCursor = (c) => Buffer.from(`${c.block}:${c.log}:${c.id}`).toString("base64url");
+export const cursorOf = (r) => ({ block: r.block_number, log: r.log_index, id: r.id, source: r.detail?.source ?? "" });
+export const encodeCursor = (c) => Buffer.from(`${c.block}:${c.log}:${c.id}:${c.source ?? ""}`).toString("base64url");
 export function decodeCursor(s) {
-  const [block, log, ...id] = Buffer.from(s, "base64url").toString().split(":");
-  return { block: Number(block), log: Number(log), id: id.join(":") };
+  // Cursors from before the source was added have three parts. Ids contain no ":".
+  const [block, log, id, source = ""] = Buffer.from(s, "base64url").toString().split(":");
+  return { block: Number(block), log: Number(log), id, source };
 }
 // Start from the beginning of a block: before every change in it.
-export const cursorBeforeBlock = (block) => ({ block, log: -1, id: "" });
+export const cursorBeforeBlock = (block) => ({ block, log: -1, id: "", source: "" });
 
 /**
  * Reorg check. `seen` maps block number -> block hash as recorded when changes
@@ -176,7 +180,7 @@ export async function serveStream(req, res, url) {
     }
     const rows = cursor.block <= state.progress ? await readChanges(chainId, cursor, state.progress, { nodes, addresses, kinds }) : [];
     for (const r of rows) {
-      cursor = { block: r.block_number, log: r.log_index, id: r.id };
+      cursor = cursorOf(r);
       if (!seen.has(r.block_number)) seen.set(r.block_number, state.checkpoints.get(r.block_number));
       res.write(`id: ${encodeCursor(cursor)}\nevent: change\ndata: ${JSON.stringify(shape(r), (_k, v) => (typeof v === "bigint" ? v.toString() : v))}\n\n`);
     }
@@ -185,7 +189,7 @@ export async function serveStream(req, res, url) {
     // Nothing more below the committed head: move the cursor up to it, so a
     // resume does not rescan empty blocks.
     if (state.progress >= cursor.block && rows.length === 0 && cursor.block < state.progress) {
-      cursor = { block: state.progress, log: MAX_LOG_INDEX, id: "~" };
+      cursor = { block: state.progress, log: MAX_LOG_INDEX, id: "~", source: "" };
     }
     if (Date.now() - lastPing > pingMs) { res.write(`: ping ${state.progress}\n\n`); lastPing = Date.now(); }
     failures = 0;

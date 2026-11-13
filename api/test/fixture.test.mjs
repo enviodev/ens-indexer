@@ -119,6 +119,20 @@ test("registration ids are unique and non-null within a chain", { skip }, async 
   assert.equal(ids.get(viemNamehash("bar.xyz")), viemNamehash("bar.xyz"));
 });
 
+test("two changes from one log are both delivered across a batch boundary", { skip }, async () => {
+  // A legacy reverse NameChanged writes subgraph_name_changed and name_event with the same id.
+  const id = "1-500-7";
+  await q(`INSERT INTO subgraph_name_changed (id, "chainId", "blockNumber", "transactionID", timestamp, resolver_id, name) VALUES ($1, 1, 500, '0xt', 1, '1-0xr-0xn', 'a.eth')`, [id]);
+  await q(`INSERT INTO name_event (id, "chainId", "blockNumber", "logIndex", timestamp, "transactionHash", kind, protocol, node, address) VALUES ($1, 1, 500, 7, 1, '0xt', 'PRIMARY_NAME', 'v1', '0xn', '0xa')`, [id]);
+  const first = await stream.readChanges(1, stream.cursorBeforeBlock(500), 500, {}, 1);
+  assert.equal(first.length, 1);
+  const cursor = stream.decodeCursor(stream.encodeCursor(stream.cursorOf(first[0])));
+  const second = await stream.readChanges(1, cursor, 500, {}, 1);
+  assert.equal(second.length, 1);
+  assert.notEqual(second[0].detail.source, first[0].detail.source);
+  assert.equal((await stream.readChanges(1, stream.cursorOf(second[0]), 500, {}, 1)).length, 0);
+});
+
 // A request and response that serveStream can drive without a socket.
 function fakeConnection(chain, query) {
   const req = Object.assign(new EventEmitter(), { headers: {}, destroyed: false });

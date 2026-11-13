@@ -13,7 +13,7 @@ const skip = !PG_PORT && "TEST_PG_PORT not set";
 
 process.env.ENVIO_PG_PORT = PG_PORT ?? "5433";
 process.env.ENVIO_PG_PASSWORD = process.env.TEST_PG_PASSWORD ?? "testing";
-const { readChanges, cursorBeforeBlock, decodeCursor, findReorg } = await import("../src/stream.mjs");
+const { readChanges, cursorBeforeBlock, cursorOf, decodeCursor, findReorg } = await import("../src/stream.mjs");
 const { pool } = await import("../src/db.mjs");
 
 async function readAll(cursor, toBlock, filters) {
@@ -22,8 +22,7 @@ async function readAll(cursor, toBlock, filters) {
     const rows = await readChanges(CHAIN, cursor, toBlock, filters);
     out.push(...rows);
     if (rows.length < 500) return out;
-    const r = rows.at(-1);
-    cursor = { block: r.block_number, log: r.log_index, id: r.id };
+    cursor = cursorOf(rows.at(-1));
   }
 }
 
