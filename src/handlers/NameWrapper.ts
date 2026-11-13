@@ -1,5 +1,6 @@
 import { indexer } from "envio";
 import type { handlerContext } from "../lib/helpers";
+import { isSink } from "../lib/legacy-governance";
 
 import {
   makeEventId,
@@ -99,6 +100,19 @@ async function handleTransfer(
     context.log.error(
       `NameWrapper:handleTransfer called before domain '${node}' exists.`,
     );
+    return;
+  }
+
+  // A wrapped token handed to a sink (the Graveyard, a migration controller) keeps
+  // its holder; only the event row is written (ens-subgraph 16846b1
+  // src/nameWrapper.ts).
+  if (isSink(event.chainId, to)) {
+    context.Subgraph_wrapped_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      id: eventId,
+      domain_id: node,
+      owner_id: to,
+    });
     return;
   }
 

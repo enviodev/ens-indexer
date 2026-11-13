@@ -62,13 +62,14 @@ describe("expiry buckets for the ENSv2 cutover", () => {
     expect(expiryDay(1_800_000_000n)).toBe(20833);
   });
 
-  it("indexes the cutover re-registration at mainnet block 26,297,075", async () => {
-    // The .eth registrar re-registers a v1 name with expiry 18446744073701775615.
+  it("does not count a Graveyard retirement at mainnet block 26,297,075 as a registration", async () => {
+    // The .eth registrar re-registers an expired v1 name to the Graveyard with expiry
+    // 18446744073701775615. That retires the name; it is not a registration.
     const indexer = createTestIndexer();
     await indexer.process({ chains: { 1: { startBlock: 26_297_075, endBlock: 26_297_075 } } });
     // The in-memory test store does not enforce Postgres types, so check the range here.
     const all = await indexer.Expiry_day_stat.getAll();
     for (const b of all) expect(b.day).toBeLessThanOrEqual(2_147_483_647);
-    expect(all.some((b: any) => b.day === 2_147_483_647)).toBe(true);
+    expect(all.some((b: any) => b.day === 2_147_483_647)).toBe(false);
   }, 120_000);
 });

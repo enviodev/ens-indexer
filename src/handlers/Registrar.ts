@@ -31,6 +31,7 @@ import {
   buildDomainAssetId,
   AssetNamespaces,
 } from "../lib/tokenscope-helpers";
+import { isRetirementRegistrant, isSink } from "../lib/legacy-governance";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -51,6 +52,24 @@ indexer.onEvent(
 
   // Compute the node for this .eth subdomain
   const node = makeSubdomainNode(labelHash, managedNode);
+
+  // Retirement: the ENSv2 Graveyard re-registers an expired name to itself
+  // (Graveyard.clear()). The name is lapsed and available, not registered, so the
+  // registration and domain keep their lapsed state and only the event row is
+  // written (ens-subgraph 16846b1 src/ethRegistrar.ts handleNameRegistered). It is
+  // not counted as a registration in the registrar tables either.
+  if (isRetirementRegistrant(event.chainId, owner)) {
+    const registrationId = makeRegistrationId(labelHash, node);
+    if (await context.Subgraph_registration.get(registrationId)) {
+      context.Subgraph_name_registered.set({
+        ...sharedEventValues(event.chainId, event),
+        registration_id: registrationId,
+        registrant_id: owner,
+        expiryDate: expires,
+      });
+    }
+    return;
+  }
 
   // Get or create the domain
   let domain = await context.Subgraph_domain.get(node);
@@ -192,19 +211,22 @@ indexer.onEvent(
   const registration = await context.Subgraph_registration.get(registrationId);
   if (!registration) return;
 
-  // Update Registration registrant
-  setRegistration(context, {
-    ...registration,
-    registrant_id: to,
-  });
-
-  // Update Domain registrant
-  const domain = await context.Subgraph_domain.get(node);
-  if (domain) {
-    setDomain(context, {
-      ...domain,
+  // A burn, or a token handed to a sink (the Graveyard, a migration controller),
+  // keeps its holder; only the event row is written (ens-subgraph 16846b1
+  // src/ethRegistrar.ts handleNameTransferred). The Graveyard burns the expired
+  // token before re-registering it to itself.
+  if (to !== zeroAddress && !isSink(event.chainId, to)) {
+    setRegistration(context, {
+      ...registration,
       registrant_id: to,
     });
+    const domain = await context.Subgraph_domain.get(node);
+    if (domain) {
+      setDomain(context, {
+        ...domain,
+        registrant_id: to,
+      });
+    }
   }
 
   // Log NameTransferred

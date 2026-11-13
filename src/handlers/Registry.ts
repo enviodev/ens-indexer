@@ -26,12 +26,36 @@ import {
   migrateNode,
   nodeIsMigrated,
 } from "../lib/protocol-acceleration";
+import { isSink } from "../lib/legacy-governance";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
 // the very first NewOwner event from the old registry.
 
 const rootNodeInitializedChains = new Set<number>();
+
+// ─── Registry owner, ENSv2-era rules ─────────────────────────────────────────
+
+/**
+ * The domain row after a registry owner change (ens-subgraph 16846b1
+ * src/ensRegistry.ts applyRegistryOwner). A sink keeps a .eth name's owner and
+ * deletes a subname with the ENSv1 convention.
+ */
+function applyRegistryOwner<D extends { owner_id: string; wrappedOwner_id?: string | undefined; expiryDate?: bigint | undefined; id: string }>(
+  context: handlerContext,
+  domain: D,
+  parentNode: string | undefined,
+  owner: string,
+  sink: boolean,
+): D {
+  if (!sink) return { ...domain, owner_id: owner };
+  if (parentNode === ETH_NODE) return domain;
+  if (domain.wrappedOwner_id) {
+    context.Subgraph_wrapped_domain.deleteUnsafe(domain.id);
+    return { ...domain, owner_id: ZERO_ADDRESS, wrappedOwner_id: undefined, expiryDate: undefined };
+  }
+  return { ...domain, owner_id: ZERO_ADDRESS };
+}
 
 // ─── Shared NewOwner Handler ────────────────────────────────────────────────
 
@@ -65,6 +89,13 @@ async function handleNewOwner(
   const domain = await context.Subgraph_domain.get(node);
   const existedBefore = domain !== undefined;
 
+  // A sink (the Graveyard, a migration controller) never becomes the owner: a .eth
+  // name handed to one keeps its owner, a subname handed to one is deleted (owner
+  // 0x0, wrapped state removed). ens-subgraph 16846b1 src/ensRegistry.ts
+  // applyRegistryOwner. The NewOwner event row keeps the raw owner.
+  const sink = isSink(event.chainId, owner);
+  const newOwner = sink ? ZERO_ADDRESS : owner;
+
   if (domain) {
     // For the old registry (isMigrated=false): if the domain has already been
     // migrated to the new registry, skip this event entirely.
@@ -73,11 +104,7 @@ async function handleNewOwner(
     }
 
     // Update owner and migration status
-    setDomain(context, {
-      ...domain,
-      owner_id: owner,
-      isMigrated,
-    });
+    setDomain(context, applyRegistryOwner(context, { ...domain, isMigrated }, parentNode, owner, sink));
   } else {
     // Domain does not yet exist -- create it
 
@@ -105,7 +132,7 @@ async function handleNewOwner(
       ttl: undefined,
       isMigrated,
       createdAt: BigInt(event.block.timestamp),
-      owner_id: owner,
+      owner_id: newOwner,
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
@@ -126,7 +153,7 @@ async function handleNewOwner(
   // changes the count when it flips between empty and non-empty.
   if (domain && existedBefore) {
     await syncParentSubdomainCountOnEmptinessChange(context, domain);
-  } else if (owner === ZERO_ADDRESS) {
+  } else if (newOwner === ZERO_ADDRESS) {
     await recursivelyRemoveEmptyDomainFromParentSubdomainCount(context, node);
   }
 
@@ -182,11 +209,9 @@ async function handleTransfer(
 
   // Ensure domain exists and update owner
   const domain = await context.Subgraph_domain.get(node);
+  const sink = isSink(event.chainId, owner);
   if (domain) {
-    setDomain(context, {
-      ...domain,
-      owner_id: owner,
-    });
+    setDomain(context, applyRegistryOwner(context, domain, domain.parent_id, owner, sink));
   } else {
     // Domain not yet seen -- create a minimal record
     setDomain(context, {
@@ -201,7 +226,7 @@ async function handleTransfer(
       ttl: undefined,
       isMigrated: false,
       createdAt: BigInt(event.block.timestamp),
-      owner_id: owner,
+      owner_id: sink ? ZERO_ADDRESS : owner,
       registrant_id: undefined,
       wrappedOwner_id: undefined,
       expiryDate: undefined,
