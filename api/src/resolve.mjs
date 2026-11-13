@@ -1,7 +1,7 @@
 // Name resolution from indexed state. Mirrors LibResolution.findResolver: walk
 // from the root registry, remember the deepest resolver, stop where a registry
 // has no subregistry. Expired entries read as empty, as in the contracts.
-import { keccak256, toBytes, concat } from "viem";
+import { labelhash as viemLabelhash, namehash as viemNamehash } from "viem";
 import { q } from "./db.mjs";
 
 export const DEPLOYMENTS = {
@@ -11,14 +11,13 @@ export const DEPLOYMENTS = {
 
 const ROOT = `0x${"00".repeat(32)}`;
 const EMPTY_RECORDS = { addresses: {}, texts: {}, contenthash: null, recordSource: "none" };
-const labelhash = (l) => keccak256(toBytes(l));
+// viem hashes a label as UTF-8 text (and reads "[hash]" as an encoded labelhash).
+// keccak256(toBytes(label)) would hash a label such as "0xbabaa" as hex bytes.
+const labelhash = (l) => viemLabelhash(l);
 const storageId = (hash) => `0x${(BigInt(hash) & ~0xffffffffn).toString(16).padStart(64, "0")}`;
 
 export function namehash(name) {
-  let node = ROOT;
-  if (name === "") return node;
-  for (const label of name.split(".").reverse()) node = keccak256(concat([node, labelhash(label)]));
-  return node;
+  return viemNamehash(name);
 }
 
 export async function walkV2(chainId, name, now = BigInt(Math.floor(Date.now() / 1000))) {
@@ -137,8 +136,11 @@ export async function resolveName(chainId, name, { coinTypes, texts } = {}) {
     if (decision.records === "v2") {
       records =
         (await recordsFromV2Resolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-        (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
-        (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts));
+        // Node-keyed resolvers: the v1 record tables hold every node-keyed record from any
+        // address over full history; v2_node_* only since the ENSv2 start block, so it is
+        // read last (a partial v2_node set would otherwise hide older records).
+        (await recordsFromNodeResolver(chainId, v2.resolver, node, coinTypes, texts)) ??
+        (await recordsFromV2NodeResolver(chainId, v2.resolver, node, coinTypes, texts));
     } else if (decision.records === "v1") {
       const v1 = await v1Resolver(chainId, normalized);
       records = v1 ? await recordsFromNodeResolver(chainId, v1.resolver, node, coinTypes, texts) : undefined;
