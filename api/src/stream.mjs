@@ -191,6 +191,9 @@ export async function serveStream(req, res, url) {
     if (state.progress >= cursor.block && rows.length === 0 && cursor.block < state.progress) {
       cursor = { block: state.progress, log: MAX_LOG_INDEX, id: "~", source: "" };
     }
+    // Remember every block passed, not only those with a sent change: a reorg can
+    // put a matching change in a block that had none.
+    for (const [b, hash] of state.checkpoints) if (b <= cursor.block && !seen.has(b)) seen.set(b, hash);
     if (Date.now() - lastPing > pingMs) { res.write(`: ping ${state.progress}\n\n`); lastPing = Date.now(); }
     failures = 0;
     await new Promise((r) => setTimeout(r, pollMs));

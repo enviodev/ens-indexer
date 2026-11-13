@@ -148,4 +148,24 @@ function fakeConnection(chain, query) {
 const changes = (res) => res.writes.filter((w) => w.includes("event: change")).map((w) => JSON.parse(w.slice(w.indexOf("data: ") + 6)));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+test("a reorg in a block with no sent change is still detected", { skip }, async () => {
+  const chain = 5;
+  await q(`INSERT INTO envio_chains VALUES ($1, 110, NULL)`, [chain]);
+  for (let b = 100; b <= 110; b++) await q(`INSERT INTO envio_checkpoints VALUES ($1, $2, $3)`, [chain, b, `0xa${b}`]);
+  const ev = (block) => q(`INSERT INTO name_event (id, "chainId", "blockNumber", "logIndex", timestamp, "transactionHash", kind, protocol, address) VALUES ($1, $2, $3, 0, 1, '0xt', 'RECORD', 'v2', '0xabc')`, [`${chain}-${block}-0`, chain, block]);
+  await ev(100);
+  const c = fakeConnection(chain, "&from=100&address=0xabc");
+  const done = stream.serveStream(c.req, c.res, c.url);
+  await sleep(200);
+  assert.deepEqual(changes(c.res).map((x) => x.block), [100]);
+  // Block 108 is replaced, and the new block has a matching change.
+  await q(`UPDATE envio_checkpoints SET block_hash = '0xb108' WHERE chain_id = $1 AND block_number = 108`, [chain]);
+  await ev(108);
+  await sleep(200);
+  c.close();
+  await done;
+  assert.ok(c.res.writes.some((w) => w.includes("event: reorg") && w.includes('"fromBlock":108')), "reorg at 108");
+  assert.deepEqual(changes(c.res).map((x) => x.block), [100, 108]);
+});
+
 test.after(() => pool.end());
