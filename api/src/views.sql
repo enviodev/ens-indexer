@@ -7,37 +7,22 @@ FROM v2_domain d
 JOIN v2_registry r ON r.id = d.registry_id AND r."chainId" = d."chainId"
 WHERE r.proven AND d.node IS NOT NULL AND d.status = 'REGISTERED';
 
--- One row per name. A registered v2 name replaces its v1 row: after migration
--- the v1 row is owned by the graveyard. A reservation does not replace anything,
--- since until a name migrates v1 is still the authority.
+-- One row per name. Since the indexer projects every live ENSv2 name into
+-- subgraph_domain (src/lib/legacy-projection.ts, as the ENS subgraph does), the v1
+-- table already holds the v2 holder, expiry and resolver for those names; protocol
+-- says which side owns the row. Reading one table keeps the planner's estimates
+-- small: a UNION with a correlated v2 subdomain count was estimated above
+-- jit_above_cost, and JIT then compiled every query for about 1 s.
 CREATE OR REPLACE VIEW ens_unified_domain AS
-SELECT
-  a.node AS id, a."chainId", a.name, a.label AS "labelName", a.labelhash,
-  a.parent_node AS parent_id,
-  -- = ANY(ARRAY(...)) makes the planner use the registry_id index; a join here was
-  -- planned as a scan of every v2_domain row (about 0.5 s per name on mainnet).
-  (SELECT count(*)::int FROM v2_domain c
-    WHERE c.registry_id = ANY (ARRAY(SELECT cr.id FROM v2_registry cr WHERE cr.node = a.node AND cr."chainId" = a."chainId"))
-      AND c."chainId" = a."chainId" AND c.status <> 'UNREGISTERED') AS "subdomainCount",
-  NULL::text AS "resolvedAddress_id",
-  CASE WHEN a.resolver IS NULL THEN NULL
-       ELSE a."chainId" || '-' || a.resolver || '-' || a.node END AS resolver_id,
-  NULL::numeric AS ttl,
-  true AS "isMigrated",
-  a."createdTimestamp" AS "createdAt",
-  COALESCE(a.owner, '0x0000000000000000000000000000000000000000') AS owner_id,
-  a.owner AS registrant_id,
-  NULL::text AS "wrappedOwner_id",
-  a.expiry AS "expiryDate",
-  'v2'::text AS protocol
-FROM ens_v2_active a
-UNION ALL
 SELECT
   s.id, s."chainId", s.name, s."labelName", s.labelhash, s.parent_id, s."subdomainCount",
   s."resolvedAddress_id", s.resolver_id, s.ttl, s."isMigrated", s."createdAt", s.owner_id,
-  s.registrant_id, s."wrappedOwner_id", s."expiryDate", 'v1'::text AS protocol
-FROM subgraph_domain s
-WHERE NOT EXISTS (SELECT 1 FROM ens_v2_active a WHERE a.node = s.id AND a."chainId" = s."chainId");
+  s.registrant_id, s."wrappedOwner_id", s."expiryDate",
+  CASE WHEN EXISTS (
+    SELECT 1 FROM legacy_projection p
+    WHERE p.id = s."chainId" || '-' || s.id AND p."chainId" = s."chainId" AND p.active
+  ) THEN 'v2' ELSE 'v1' END AS protocol
+FROM subgraph_domain s;
 
 -- The subgraph keys Registration by labelhash. Stored rows are keyed by node.
 CREATE OR REPLACE VIEW ens_unified_registration AS

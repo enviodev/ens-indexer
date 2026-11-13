@@ -29,6 +29,16 @@ cd api
 ENVIO_PG_PORT=5433 API_PORT=4350 node src/server.mjs
 ```
 
+### Postgres JIT
+
+Turn off JIT on the database that serves queries, so every client gets the same plan cost, not only this API (which sets `jit=off` on its own connections):
+
+```sql
+ALTER DATABASE "envio-dev" SET jit = off;
+```
+
+Lookups by name or id stay well under the default `jit_above_cost` (100,000). A listing such as "names owned by X, newest expiry first" for an owner with hundreds of thousands of names (the NameWrapper holds about 690k on mainnet) is estimated above it. With JIT on, that query spends about 1 s compiling before it runs (2.4 s in total on a full mainnet database, measured with EXPLAIN ANALYZE on a default connection).
+
 ## Checking the data
 
 - `api/parity/replay.mjs` (ENSv2) and `api/parity/replay-v1.mjs` (v1) rebuild state from raw HyperSync events and compare it with every row.
