@@ -1,5 +1,5 @@
 import { keccak256, concat } from "viem";
-import { syncLegacyProjection } from "./legacy-projection";
+import { retireMovedProjection, syncLegacyProjection } from "./legacy-projection";
 import type { Entity } from "envio";
 import {
   ETH_NODE,
@@ -273,7 +273,10 @@ export async function propagateV2Registry(
     if (name !== domain.name || node !== domain.node) {
       const row = { ...domain, name, node };
       context.V2_domain.set(row);
-      if (at) await syncLegacyProjection(context, chainId, row, at);
+      if (at) {
+        await retireMovedProjection(context, chainId, domain.node, node, at);
+        await syncLegacyProjection(context, chainId, row, at);
+      }
     }
     if (updated.proven && domain.resolver) {
       await ensureV2Resolver(context, chainId, domain.resolver, {

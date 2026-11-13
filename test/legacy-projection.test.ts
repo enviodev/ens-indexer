@@ -97,3 +97,24 @@ describe("unregistering a v2 name retires its legacy row", () => {
     expect((await indexer.Legacy_projection.getOrThrow(`1-${node}`)).active).toBe(false);
   }, 300_000);
 });
+
+describe("unlinking a registry retires the names projected through it (Sepolia)", () => {
+  // upbit.eth is registered at 11,860,371 and links registry 0xf6eb6874 at
+  // 11,876,722; main.upbit.eth is registered
+  // there at 11,876,727; the link is removed at 11,884,602, so the name no longer has a
+  // path (src/ensv2Domain.ts retireProjectedDomain on unlink).
+  it("retires the row at the old node", async () => {
+    const node = "0xe7963b82bbfbfa98ea1ecf7ba3cc7799ad4cc837cf9bcc0431585e6ff09393aa";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 11155111: { startBlock: 11_860_371, endBlock: 11_860_371 } } });
+    await indexer.process({ chains: { 11155111: { startBlock: 11_876_722, endBlock: 11_876_727 } } });
+    const live = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(live.name).toBe("main.upbit.eth");
+    expect(live.owner_id).not.toBe("0x0000000000000000000000000000000000000000");
+    await indexer.process({ chains: { 11155111: { startBlock: 11_884_602, endBlock: 11_884_602 } } });
+    const retired = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(retired.owner_id).toBe("0x0000000000000000000000000000000000000000");
+    expect(retired.registrant_id).toBeUndefined();
+    expect((await indexer.Legacy_projection.getOrThrow(`11155111-${node}`)).active).toBe(false);
+  }, 300_000);
+});

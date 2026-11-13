@@ -63,6 +63,26 @@ export async function syncLegacyProjection(
   }
 }
 
+/**
+ * A v2 name moved to another node or lost its path (its namespace was unlinked or
+ * relinked elsewhere): the row at the old node stops being live (src/ensv2Domain.ts
+ * retireProjectedDomain, called when a namespace is unlinked).
+ */
+export async function retireMovedProjection(
+  context: handlerContext,
+  chainId: number,
+  oldNode: string | undefined,
+  newNode: string | undefined,
+  event: { block: { number: number; timestamp: number } },
+): Promise<void> {
+  if (!oldNode || oldNode === newNode) return;
+  const id = markerId(chainId, oldNode);
+  const marker = await context.Legacy_projection.get(id);
+  if (!marker?.active) return;
+  await retire(context, oldNode, false, event);
+  context.Legacy_projection.set({ ...marker, active: false, updatedBlock: event.block.number });
+}
+
 async function project(
   context: handlerContext,
   chainId: number,
