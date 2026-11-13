@@ -20,7 +20,10 @@ A full sync of every chain makes a large database, over 100 GB by our estimate. 
 pnpm test                    # indexer tests; they read real blocks through HyperSync
 cd api && pnpm install
 TEST_PG_PORT=5433 pnpm test  # API tests against a synced local database (skipped without TEST_PG_PORT)
+TEST_FIXTURE_PG_PORT=5499 pnpm test  # API tests on hand-written rows; any empty Postgres will do
 ```
+
+The fixture tests create (and drop and recreate) a database named `ens_api_fixture` on that server. A throwaway one: `docker run --rm -d -e POSTGRES_PASSWORD=testing -p 5499:5432 postgres:17-alpine`.
 
 ## API
 

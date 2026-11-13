@@ -80,11 +80,27 @@ function shape(addresses, texts, contenthash, coinTypes, textKeys, source, recor
   return { addresses: addrOut, texts: textOut, contenthash: contenthash ?? null, recordSource: source, recordId };
 }
 
+// Mainnet keeps one domain_resolver_relation row per registry. Once a node is
+// migrated to the new registry, its old-registry row is stale: the indexer stops
+// applying old-registry events to it (src/handlers/Registry.ts).
+const REGISTRY_MIGRATION = {
+  1: { old: "0x314159265dd8dbb310642f98f50c066173c1259b", new: "0x00000000000c2e074ec69a0dfb2997ba6c7d2e1e" },
+};
+
 async function v1Resolver(chainId, name) {
+  const migration = REGISTRY_MIGRATION[chainId];
   let cursor = name;
   for (;;) {
     const node = namehash(cursor);
-    const [rel] = await q(`SELECT address, resolver FROM domain_resolver_relation WHERE "domainId" = $1 AND "chainId" = $2 LIMIT 1`, [node, chainId]);
+    let registry = null;
+    if (migration) {
+      const [migrated] = await q(`SELECT 1 FROM migrated_node_by_node WHERE id = $1 AND "chainId" = $2`, [node, chainId]);
+      registry = migrated ? migration.new : migration.old;
+    }
+    const [rel] = await q(
+      `SELECT address, resolver FROM domain_resolver_relation WHERE "domainId" = $1 AND "chainId" = $2 AND ($3::text IS NULL OR lower(address) = $3) LIMIT 1`,
+      [node, chainId, registry],
+    );
     if (rel?.resolver && rel.resolver !== `0x${"00".repeat(20)}`) return { resolver: rel.resolver, exact: cursor === name };
     if (!cursor.includes(".")) return undefined;
     cursor = cursor.slice(cursor.indexOf(".") + 1);
