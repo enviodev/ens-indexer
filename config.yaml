@@ -298,6 +298,7 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+            - from
       # ─── DNS Record Events (for PA plugin) ────────────────────────────────────
       - event: "DNSRecordChanged(bytes32 indexed node, bytes name, uint16 resource, bytes record)"
         name: DNSRecordChanged4

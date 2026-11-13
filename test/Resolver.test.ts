@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
-import { makeResolverId, ROOT_NODE } from "../src/lib/helpers";
+import { concat, keccak256, toBytes } from "viem";
+import { ADDR_REVERSE_NODE, makeResolverId, ROOT_NODE } from "../src/lib/helpers";
+import { makeReverseNameRecordId } from "../src/lib/protocol-acceleration";
 
 // ─── Resolver Tests ─────────────────────────────────────────────────────────
 // Tests for dynamically-registered Resolver event handlers using real on-chain data.
@@ -230,6 +232,54 @@ describe("Resolver", () => {
           }
         }
       }
+    }, 120_000);
+
+    it("clears the node's address and text records (Ethereum 26,325,120)", async () => {
+      // Resolver 0xf291... sets an ETH address for the node at 26,324,933; its
+      // VersionChanged at 26,325,120 (clearRecords) is the last event for the node.
+      const resolver = "0xf29100983e058b709f3d539b0c765937b804ac15";
+      const node = "0x7df2a8f41d739a1b0deb98f5c9aeee94d34109818c39e7b70d014b960c2f725b";
+      const indexer = createTestIndexer();
+      const recordsOf = async () => ({
+        addresses: (await indexer.Resolver_address_record.getWhere({ node: { _eq: node } })).filter((r: any) => r.address === resolver),
+        texts: (await indexer.Resolver_text_record.getWhere({ node: { _eq: node } })).filter((r: any) => r.address === resolver),
+        v2: await indexer.V2_node_address.getWhere({ resolver: { _eq: resolver }, node: { _eq: node } }),
+      });
+      await indexer.process({ chains: { 1: { startBlock: 26_324_933, endBlock: 26_324_933 } } });
+      const before = await recordsOf();
+      expect(before.addresses.length).toBeGreaterThan(0);
+      expect(before.v2.length).toBeGreaterThan(0);
+      await indexer.process({ chains: { 1: { startBlock: 26_325_120, endBlock: 26_325_120 } } });
+      const after = await recordsOf();
+      expect(after.addresses).toHaveLength(0);
+      expect(after.texts).toHaveLength(0);
+      expect(after.v2).toHaveLength(0);
+    }, 180_000);
+
+    it("clears a legacy reverse node's primary name", async () => {
+      // A mainnet <address>.addr.reverse node whose registry-assigned resolver changes version.
+      const address = "0x00000000000000000000000000000000000a11ce";
+      const resolver = "0x5900000000000000000000000000000000000e05";
+      const labelhash = keccak256(toBytes(address.slice(2)));
+      const node = keccak256(concat([ADDR_REVERSE_NODE as `0x${string}`, labelhash]));
+      const indexer = createTestIndexer();
+      indexer.Subgraph_domain.set({
+        id: node, chainId: 1, name: undefined, labelName: address.slice(2), labelhash, parent_id: ADDR_REVERSE_NODE,
+        subdomainCount: 0, resolvedAddress_id: undefined, resolver_id: makeResolverId(1, resolver, node), ttl: undefined,
+        isMigrated: true, createdAt: 0n, owner_id: address, registrant_id: undefined, wrappedOwner_id: undefined,
+        expiryDate: undefined, registrationExpiryDate: undefined, namespace: undefined, effectiveOwner_id: address,
+      } as any);
+      indexer.Reverse_name_record.set({ id: makeReverseNameRecordId(address, 60), chainId: 1, address, coinType: 60n, value: "alice.eth" } as any);
+      await indexer.process({
+        chains: {
+          1: {
+            simulate: [
+              { contract: "Resolver", event: "VersionChanged", srcAddress: resolver, block: { number: 26_400_000, timestamp: 1_790_000_000 }, params: { node, newVersion: 1n } },
+            ] as any[],
+          },
+        },
+      });
+      expect(await indexer.Reverse_name_record.getWhere({ address: { _eq: address } })).toHaveLength(0);
     }, 120_000);
   });
 

@@ -133,6 +133,44 @@ indexer.onEvent(
   },
 );
 
+// ─── Legacy primary names ────────────────────────────────────────────────────
+// The name record of an `<address>.addr.reverse` node is the address's coin type
+// 60 reverse record (H-04). Mainnet only.
+
+async function applyLegacyReverseName(
+  context: handlerContext,
+  event: { chainId: number; srcAddress: string; block: { number: number; timestamp: number }; logIndex: number; transaction: { hash: string; from?: string | undefined } },
+  node: string,
+  resolverId: string,
+  name: string,
+): Promise<void> {
+  if (event.chainId !== 1) return;
+  const reverseDomain = await context.Subgraph_domain.get(node);
+  // Only the resolver the registry assigns to the reverse node can set it.
+  // Without this check any watched resolver could claim another address's name.
+  if (reverseDomain?.parent_id !== ADDR_REVERSE_NODE || reverseDomain.resolver_id !== resolverId) return;
+  const claim = await context.Reverse_claim.get(node);
+  const address = addressForReverseLabel(reverseDomain.labelhash, [
+    claim?.addr,
+    reverseDomain.owner_id,
+    event.transaction.from,
+  ]);
+  if (address !== null) {
+    upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
+    emitNameEvent(context, event, {
+      kind: "PRIMARY_NAME", protocol: "v1", node, address, name: name === "" ? undefined : name,
+      detail: { coinType: ETH_COIN_TYPE, source: "legacy reverse resolver", resolver: event.srcAddress.toLowerCase() },
+    });
+    context.Unrecovered_reverse_name.deleteUnsafe(node);
+  } else if (isIndexable(name)) {
+    context.Unrecovered_reverse_name.set({
+      id: node,
+      name,
+      blockNumber: event.block.number,
+    });
+  }
+}
+
 // ─── NameChanged ─────────────────────────────────────────────────────────────
 // Emitted when the name for a node changes.
 
@@ -165,35 +203,7 @@ indexer.onEvent(
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   await handlePANameUpdate(context, event.chainId, event.srcAddress, node, name);
 
-  // Legacy primary names: a NameChanged on an `<address>.addr.reverse` node is
-  // the address's coin type 60 reverse record (H-04). Mainnet only.
-  if (event.chainId === 1) {
-    const reverseDomain = await context.Subgraph_domain.get(node);
-    // Only the resolver the registry assigns to the reverse node can set it.
-    // Without this check any watched resolver could claim another address's name.
-    if (reverseDomain?.parent_id === ADDR_REVERSE_NODE && reverseDomain.resolver_id === resolverId) {
-      const claim = await context.Reverse_claim.get(node);
-      const address = addressForReverseLabel(reverseDomain.labelhash, [
-        claim?.addr,
-        reverseDomain.owner_id,
-        event.transaction.from,
-      ]);
-      if (address !== null) {
-        upsertReverseNameRecord(context, address, ETH_COIN_TYPE, name);
-        emitNameEvent(context, event, {
-          kind: "PRIMARY_NAME", protocol: "v1", node, address, name: name === "" ? undefined : name,
-          detail: { coinType: ETH_COIN_TYPE, source: "legacy reverse resolver", resolver: event.srcAddress.toLowerCase() },
-        });
-        context.Unrecovered_reverse_name.deleteUnsafe(node);
-      } else if (isIndexable(name)) {
-        context.Unrecovered_reverse_name.set({
-          id: node,
-          name,
-          blockNumber: event.block.number,
-        });
-      }
-    }
-  }
+  await applyLegacyReverseName(context, event, node, resolverId, name);
   },
 );
 
@@ -416,6 +426,19 @@ indexer.onEvent(
     resolver_id: resolverId,
     version: newVersion,
   });
+
+  // The record tables the API reads are cleared too (the subgraph has none: its
+  // Resolver row above is all it clears). The contract drops every record of the
+  // node: addresses, texts and the name, which on a reverse node is a primary name.
+  const address = event.srcAddress;
+  for (const row of await context.Resolver_address_record.getWhere({ address: { _eq: address }, node: { _eq: node } })) {
+    context.Resolver_address_record.deleteUnsafe(row.id);
+  }
+  for (const row of await context.Resolver_text_record.getWhere({ address: { _eq: address }, node: { _eq: node } })) {
+    context.Resolver_text_record.deleteUnsafe(row.id);
+  }
+  await handlePANameUpdate(context, event.chainId, address, node, "");
+  await applyLegacyReverseName(context, event, node, resolverId, "");
 
   // The ENSv2 node-keyed copies of this node's records (src/handlers/V2NodeResolver.ts)
   // are cleared too, or the API would still read them.
