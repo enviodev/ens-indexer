@@ -55,3 +55,45 @@ describe("legacy expiry clamp for a never-expiring ENSv2 name", () => {
     expect(legacy.expiryDate).toBe(253402300799n);
   }, 180_000);
 });
+
+describe("a v2-only name gets a legacy row", () => {
+  // blumen-test.stauro.eth never existed in ENSv1: no v1 event ever names its node.
+  // The projection creates its subgraph_domain row under stauro.eth (26,282,937).
+  it("creates the row with name, label, parent and holder", async () => {
+    const node = "0x016fcd5f379df3577c1934aecdcd423e05d0cce30bd33f8a602e29126139665f";
+    const indexer = createTestIndexer();
+    await process1(indexer, 26_282_937);
+    const v2 = (await indexer.V2_domain.getWhere({ node: { _eq: node } }))[0]!;
+    const legacy = await indexer.Subgraph_domain.getOrThrow(node);
+    const parentNode = (await indexer.V2_registry.getOrThrow(v2.registry_id)).node!;
+    expect(legacy.labelName).toBe("blumen-test");
+    expect(legacy.labelhash).toBe(v2.labelhash);
+    expect(legacy.parent_id).toBe(parentNode);
+    expect(legacy.owner_id).toBe(v2.owner);
+    expect(legacy.registrant_id).toBe(v2.owner);
+    expect(legacy.isMigrated).toBe(true);
+    expect(await indexer.Subgraph_new_owner.getAll().then((rows: any[]) => rows.some((r) => r.domain_id === node))).toBe(false);
+  }, 180_000);
+});
+
+describe("unregistering a v2 name retires its legacy row", () => {
+  // guezito.eth links subregistry 0xffc84b3a at 26,285,227; taproot.guezito.eth is
+  // registered there by 26,285,324 and unregistered at 26,285,329.
+  it("applies the ENSv1 deletion convention and leaves the parent's count", async () => {
+    const node = "0x130cdc8f227f19e601b1ff9ecb40fef7471012998efe9d3e06843db7a976816d";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 26_285_227, endBlock: 26_285_324 } } });
+    const live = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(live.owner_id).not.toBe("0x0000000000000000000000000000000000000000");
+    const parentBefore = await indexer.Subgraph_domain.getOrThrow(live.parent_id!);
+    await indexer.process({ chains: { 1: { startBlock: 26_285_325, endBlock: 26_285_329 } } });
+    const retired = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(retired.owner_id).toBe("0x0000000000000000000000000000000000000000");
+    expect(retired.registrant_id).toBeUndefined();
+    expect(retired.resolver_id).toBeUndefined();
+    expect(retired.expiryDate).toBeLessThan(live.expiryDate!);
+    const parentAfter = await indexer.Subgraph_domain.getOrThrow(live.parent_id!);
+    expect(parentAfter.subdomainCount).toBe(parentBefore.subdomainCount - 1);
+    expect((await indexer.Legacy_projection.getOrThrow(`1-${node}`)).active).toBe(false);
+  }, 300_000);
+});

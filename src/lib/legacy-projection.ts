@@ -82,10 +82,13 @@ async function project(
   const legacy = await context.Subgraph_domain.get(node);
   // A registration retires the ENSv1 NameWrapper state (projectPathToDomain).
   if (!alreadyProjected && legacy?.wrappedOwner_id) context.Subgraph_wrapped_domain.deleteUnsafe(node);
-  if (!legacy) {
-    const parent = await context.Subgraph_domain.get(parentNode);
-    if (parent) setDomain(context, { ...parent, subdomainCount: parent.subdomainCount + 1 });
-  }
+  // A new row, or an existing row in the ENSv1 deleted state (owner 0x0, no resolver,
+  // no children), counts as a new child of its parent (projectPathToDomain
+  // countsAsNewChild). The parent is linked only if its row exists
+  // (linkProjectedDomainToParent).
+  const countsAsNewChild = !legacy || (!alreadyProjected && legacy.owner_id === ZERO_ADDRESS && !legacy.resolver_id && legacy.subdomainCount === 0);
+  const parent = await context.Subgraph_domain.get(parentNode);
+  if (parent && countsAsNewChild) setDomain(context, { ...parent, subdomainCount: parent.subdomainCount + 1 });
   setDomain(context, {
     ...(legacy ?? {
       id: node,
@@ -97,7 +100,7 @@ async function project(
     name: domain.name ?? legacy?.name,
     labelName: label ?? legacy?.labelName,
     labelhash: domain.labelhash,
-    parent_id: parentNode,
+    parent_id: parent ? parentNode : legacy?.parent_id,
     owner_id: owner,
     registrant_id: owner,
     wrappedOwner_id: undefined,
@@ -133,6 +136,11 @@ async function retire(
 ): Promise<void> {
   const legacy = await context.Subgraph_domain.get(node);
   if (!legacy) return;
+  // The retired row leaves its parent's subdomainCount (adjustParentSubdomainCount).
+  if (legacy.parent_id) {
+    const parent = await context.Subgraph_domain.get(legacy.parent_id);
+    if (parent && parent.subdomainCount > 0) setDomain(context, { ...parent, subdomainCount: parent.subdomainCount - 1 });
+  }
   const now = BigInt(event.block.timestamp);
   setDomain(context, {
     ...legacy,
