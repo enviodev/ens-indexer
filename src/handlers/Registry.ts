@@ -6,6 +6,7 @@ import {
   ROOT_NODE,
   ZERO_ADDRESS,
   ETH_NODE,
+  KNOWN_LABELS,
   encodeLabelHash,
   indexableOrUndefined,
   namespaceForNewDomain,
@@ -83,8 +84,10 @@ async function handleNewOwner(
     // Look up the parent domain to construct the name
     const parent = await context.Subgraph_domain.get(parentNode);
 
-    // Construct the name from the parent's name + the encoded label
-    const label = encodeLabelHash(labelHash);
+    // Construct the name from the parent's name + the label (known constant labels
+    // such as "eth", "reverse" and "addr" are healed; others stay encoded)
+    const knownLabel = KNOWN_LABELS[labelHash.toLowerCase()];
+    const label = knownLabel ?? encodeLabelHash(labelHash);
     const name =
       indexableOrUndefined(
         parent?.name ? `${label}.${parent.name}` : label,
@@ -93,7 +96,7 @@ async function handleNewOwner(
     setDomain(context, {
       id: node,
       name,
-      labelName: undefined,
+      labelName: knownLabel,
       labelhash: labelHash,
       parent_id: parentNode,
       subdomainCount: 0,

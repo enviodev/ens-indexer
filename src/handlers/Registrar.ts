@@ -14,6 +14,7 @@ import {
   ZERO_ADDRESS,
   setDomain,
   namespaceForNewDomain,
+  setRegistration,
 } from "../lib/helpers";
 import { zeroAddress } from "viem";
 
@@ -133,7 +134,7 @@ indexer.onEvent(
   // Update Registration expiryDate
   const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.Subgraph_registration.set({
+    setRegistration(context, {
       ...registration,
       expiryDate: expires,
     });
@@ -192,7 +193,7 @@ indexer.onEvent(
   if (!registration) return;
 
   // Update Registration registrant
-  context.Subgraph_registration.set({
+  setRegistration(context, {
     ...registration,
     registrant_id: to,
   });

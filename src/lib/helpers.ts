@@ -22,11 +22,45 @@ export type DomainInput = Omit<
 export function setDomain(context: handlerContext, domain: DomainInput): void {
   context.Subgraph_domain.set({
     ...domain,
-    registrationExpiryDate: domain.registrationExpiryDate,
+    expiryDate: clampLegacyExpiry(domain.expiryDate),
+    registrationExpiryDate: clampLegacyExpiry(domain.registrationExpiryDate),
     namespace: domain.namespace,
     effectiveOwner_id: domain.wrappedOwner_id ?? domain.owner_id,
   });
 }
+
+// Legacy expiry fields (subgraph_domain, subgraph_registration, subgraph_wrapped_domain)
+// are clamped to 9999-12-31T23:59:59Z, as the ENS subgraph does (ens-subgraph 16846b1,
+// src/utils.ts MAX_LEGACY_EXPIRY). ENSv2 uses 2^64 - 1 for "never expires" (the
+// Graveyard re-registers names with it), which consumers that turn expiryDate into a
+// date cannot represent. Event rows and the v2 tables keep the raw value.
+export const MAX_LEGACY_EXPIRY = 253402300799n;
+
+export function clampLegacyExpiry<T extends bigint | undefined>(expiry: T): T {
+  return (expiry !== undefined && expiry > MAX_LEGACY_EXPIRY ? MAX_LEGACY_EXPIRY : expiry) as T;
+}
+
+type RegistrationRow = Parameters<handlerContext["Subgraph_registration"]["set"]>[0];
+type WrappedDomainRow = Parameters<handlerContext["Subgraph_wrapped_domain"]["set"]>[0];
+
+/** Single write path for subgraph_registration (clamps expiryDate). */
+export function setRegistration(context: handlerContext, row: RegistrationRow): void {
+  context.Subgraph_registration.set({ ...row, expiryDate: clampLegacyExpiry(row.expiryDate) });
+}
+
+/** Single write path for subgraph_wrapped_domain (clamps expiryDate). */
+export function setWrappedDomain(context: handlerContext, row: WrappedDomainRow): void {
+  context.Subgraph_wrapped_domain.set({ ...row, expiryDate: clampLegacyExpiry(row.expiryDate) });
+}
+
+// Labels no event carries but every ENS consumer knows. The ENS subgraph learns
+// labels from graph-node's label table (ens.nameByHash); we heal only these constants
+// (keccak256 of the label text).
+export const KNOWN_LABELS: Record<string, string> = {
+  "0x4f5b812789fc606be1b3b16908db13fc7a9adf7ca72641f84d75b47069d3d7f0": "eth",
+  "0xdec08c9dbbdd0890e300eb5062089b2d4b1c40e3673bbccb5423f7b37dcf9a9c": "reverse",
+  "0xe5e14487b78f85faa6e1808e89246cf57dd34831548ff2e6097380d98db2504a": "addr",
+};
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -224,12 +258,12 @@ export async function upsertRegistration(
 ): Promise<void> {
   const existing = await context.Subgraph_registration.get(values.id);
   if (existing) {
-    context.Subgraph_registration.set({
+    setRegistration(context, {
       ...existing,
       ...values,
     });
   } else {
-    context.Subgraph_registration.set({
+    setRegistration(context, {
       id: values.id,
       domain_id: values.domain_id,
       registrationDate: values.registrationDate,
@@ -398,7 +432,7 @@ export async function setNamePreimage(
   const registrationId = makeRegistrationId(labelHash, node);
   const registration = await context.Subgraph_registration.get(registrationId);
   if (registration) {
-    context.Subgraph_registration.set({
+    setRegistration(context, {
       ...registration,
       labelName: sanitizedLabel,
       cost,

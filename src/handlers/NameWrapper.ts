@@ -13,6 +13,7 @@ import {
   namehashFromLabels,
   decodeDnsEncodedName,
   setDomain,
+  setWrappedDomain,
 } from "../lib/helpers";
 
 import {
@@ -104,12 +105,12 @@ async function handleTransfer(
   // Upsert the WrappedDomain: if exists update owner, otherwise create with placeholders
   const existingWrapped = await context.Subgraph_wrapped_domain.get(node);
   if (existingWrapped) {
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...existingWrapped,
       owner_id: to,
     });
   } else {
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       id: node,
       domain_id: node,
       owner_id: to,
@@ -253,7 +254,7 @@ indexer.onEvent(
   const fusesNum = Number(fuses);
   const existingWrapped = await context.Subgraph_wrapped_domain.get(node);
   if (existingWrapped) {
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...existingWrapped,
       name: decodedName,
       expiryDate: expiry,
@@ -262,7 +263,7 @@ indexer.onEvent(
     });
   } else {
     // Fallback: create if handleTransfer didn't run first (shouldn't happen normally)
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       id: node,
       domain_id: node,
       owner_id: owner,
@@ -344,7 +345,7 @@ indexer.onEvent(
   const wrappedDomain = await context.Subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update fuses on the WrappedDomain
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...wrappedDomain,
       fuses: fusesNum,
     });
@@ -373,7 +374,7 @@ indexer.onEvent(
   const wrappedDomain = await context.Subgraph_wrapped_domain.get(node);
   if (wrappedDomain) {
     // Update expiryDate on the WrappedDomain
-    context.Subgraph_wrapped_domain.set({
+    setWrappedDomain(context, {
       ...wrappedDomain,
       expiryDate: expiry,
     });

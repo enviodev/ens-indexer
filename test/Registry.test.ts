@@ -189,4 +189,23 @@ describe("Registry", () => {
       }
     }, 120_000);
   });
+
+  // ─── Constant labels ──────────────────────────────────────────────────
+  // No event carries the labels "eth", "reverse" and "addr"; the ENS subgraph names
+  // these rows from graph-node's label table. Created at 3,330,220 (eth),
+  // 3,330,226 (reverse) and 3,330,259 (addr.reverse).
+  describe("constant labels", () => {
+    it("names eth, reverse and addr.reverse", async () => {
+      const indexer = createTestIndexer();
+      for (const b of [3_327_417, 3_330_220, 3_330_226, 3_330_259]) {
+        await indexer.process({ chains: { 1: { startBlock: b, endBlock: b } } });
+      }
+      const eth = await indexer.Subgraph_domain.getOrThrow("0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae");
+      expect([eth.name, eth.labelName]).toEqual(["eth", "eth"]);
+      const reverse = await indexer.Subgraph_domain.getOrThrow("0xa097f6721ce401e757d1223a763fef49b8b5f90bb18567ddb86fd205dff71d34");
+      expect(reverse.name).toBe("reverse");
+      const addrReverse = await indexer.Subgraph_domain.getOrThrow("0x91d1777781884d03a6757a803996e38de2a42967fb37eeaca72729271025a9e2");
+      expect([addrReverse.name, addrReverse.labelName]).toEqual(["addr.reverse", "addr"]);
+    }, 180_000);
+  });
 });

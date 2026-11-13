@@ -320,3 +320,20 @@ describe("Registrar", () => {
     }, 120_000);
   });
 });
+
+// ─── Legacy expiry clamp ─────────────────────────────────────────────────────
+// The Graveyard re-registers expired names with expiry 2^64 - 1 minus the grace
+// period (sdhygj.eth, block 26,297,075). Legacy expiry fields are clamped to
+// 253402300799 (9999-12-31), as the ENS subgraph does (src/utils.ts).
+describe("legacy expiry clamp", () => {
+  it("clamps a registration and domain expiry above 9999-12-31", async () => {
+    const node = "0x4f65c20724771ce8ee1a42f0d025594617ab392bfc93179e6de8af73418fdb74";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 26_297_075, endBlock: 26_297_075 } } });
+    const domain = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(domain.expiryDate).toBe(253402300799n);
+    const registration = await indexer.Subgraph_registration.getOrThrow(node);
+    expect(registration.expiryDate).toBe(253402300799n);
+  }, 180_000);
+});
+
