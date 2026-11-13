@@ -32,6 +32,7 @@ import {
   AssetNamespaces,
 } from "../lib/tokenscope-helpers";
 import { isRetirementRegistrant, isSink } from "../lib/legacy-governance";
+import { isGovernedByV2 } from "../lib/legacy-projection";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -57,8 +58,9 @@ indexer.onEvent(
   // (Graveyard.clear()). The name is lapsed and available, not registered, so the
   // registration and domain keep their lapsed state and only the event row is
   // written (ens-subgraph 16846b1 src/ethRegistrar.ts handleNameRegistered). It is
-  // not counted as a registration in the registrar tables either.
-  if (isRetirementRegistrant(event.chainId, owner)) {
+  // not counted as a registration in the registrar tables either. A live ENSv2 name
+  // is the ENSv2 projection's and is handled the same way.
+  if (isRetirementRegistrant(event.chainId, owner) || (await isGovernedByV2(context, event.chainId, node))) {
     const registrationId = makeRegistrationId(labelHash, node);
     if (await context.Subgraph_registration.get(registrationId)) {
       context.Subgraph_name_registered.set({
@@ -150,8 +152,12 @@ indexer.onEvent(
   const node = makeSubdomainNode(labelHash, managedNode);
   const registrationId = makeRegistrationId(labelHash, node);
 
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (src/ethRegistrar.ts handleNameRenewed).
+  const governed = await isGovernedByV2(context, event.chainId, node);
+
   // Update Registration expiryDate
-  const registration = await context.Subgraph_registration.get(registrationId);
+  const registration = governed ? undefined : await context.Subgraph_registration.get(registrationId);
   if (registration) {
     setRegistration(context, {
       ...registration,
@@ -160,7 +166,7 @@ indexer.onEvent(
   }
 
   // Update Domain expiryDate (includes grace period)
-  const domain = await context.Subgraph_domain.get(node);
+  const domain = governed ? undefined : await context.Subgraph_domain.get(node);
   if (domain) {
     setDomain(context, {
       ...domain,
@@ -215,7 +221,7 @@ indexer.onEvent(
   // keeps its holder; only the event row is written (ens-subgraph 16846b1
   // src/ethRegistrar.ts handleNameTransferred). The Graveyard burns the expired
   // token before re-registering it to itself.
-  if (to !== zeroAddress && !isSink(event.chainId, to)) {
+  if (to !== zeroAddress && !isSink(event.chainId, to) && !(await isGovernedByV2(context, event.chainId, node))) {
     setRegistration(context, {
       ...registration,
       registrant_id: to,

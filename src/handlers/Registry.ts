@@ -27,6 +27,7 @@ import {
   nodeIsMigrated,
 } from "../lib/protocol-acceleration";
 import { isSink } from "../lib/legacy-governance";
+import { isGovernedByV2 } from "../lib/legacy-projection";
 
 // ─── Root Node Initialization ────────────────────────────────────────────────
 // We track whether the root node has been created so we can initialize it on
@@ -84,6 +85,18 @@ async function handleNewOwner(
 
   // Upsert account for the new owner
   upsertAccount(context, owner);
+
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_new_owner.set({
+      ...sharedEventValues(event.chainId, event),
+      parentDomain_id: parentNode,
+      domain_id: node,
+      owner_id: owner,
+    });
+    return;
+  }
 
   // Load existing domain
   const domain = await context.Subgraph_domain.get(node);
@@ -207,6 +220,17 @@ async function handleTransfer(
   // Upsert account for the new owner
   upsertAccount(context, owner);
 
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_transfer.set({
+      ...sharedEventValues(event.chainId, event),
+      domain_id: node,
+      owner_id: owner,
+    });
+    return;
+  }
+
   // Ensure domain exists and update owner
   const domain = await context.Subgraph_domain.get(node);
   const sink = isSink(event.chainId, owner);
@@ -283,6 +307,19 @@ async function handleNewResolver(
   const isZeroResolver = resolverAddress === ZERO_ADDRESS;
 
   const resolverId = makeResolverId(event.chainId, resolverAddress, node);
+
+  // A live ENSv2 name is the ENSv2 projection's: only the event row is written
+  // (ens-subgraph 16846b1 src/legacyGovernance.ts, src/ensRegistry.ts).
+  // The resolver relation used for resolution is still kept.
+  if (await isGovernedByV2(context, event.chainId, node)) {
+    context.Subgraph_new_resolver.set({
+      ...sharedEventValues(event.chainId, event),
+      domain_id: node,
+      resolver_id: isZeroResolver ? ZERO_ADDRESS : resolverId,
+    });
+    upsertDomainResolverRelation(context, event.chainId, event.srcAddress, node, resolverAddress);
+    return;
+  }
 
   // Load the domain (it should exist from a prior NewOwner event)
   const domain = await context.Subgraph_domain.get(node);
@@ -379,9 +416,9 @@ async function handleNewTTL(
 ): Promise<void> {
   const { node, ttl } = event.params;
 
-  // Update the domain's TTL
+  // Update the domain's TTL (not for a live ENSv2 name, src/ensRegistry.ts handleNewTTL)
   const domain = await context.Subgraph_domain.get(node);
-  if (domain) {
+  if (domain && !(await isGovernedByV2(context, event.chainId, node))) {
     setDomain(context, {
       ...domain,
       ttl,

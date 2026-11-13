@@ -3,6 +3,17 @@ import type { handlerContext } from "../lib/helpers";
 import { ZERO_ADDRESS, hasNullByte, stripNullBytes } from "../lib/helpers";
 import { isBatchRegistrar, isMigrationController, onV2Chains, seedKind } from "../lib/v2-deployments";
 import { emitNameEvent } from "../lib/name-events";
+import { syncLegacyProjection } from "../lib/legacy-projection";
+
+// Every v2_domain write goes through here so the legacy projection follows it.
+async function setV2Domain(
+  context: handlerContext,
+  event: { chainId: number; block: { number: number; timestamp: number } },
+  row: V2Domain,
+): Promise<void> {
+  context.V2_domain.set(row);
+  await syncLegacyProjection(context, event.chainId, row, event);
+}
 import {
   type V2Domain,
   ensureV2Registry,
@@ -125,7 +136,7 @@ async function handleLabel(
     });
   }
 
-  context.V2_domain.set({
+  await setV2Domain(context, event, {
     ...existing,
     tokenId,
     labelhash: labelHash,
@@ -190,7 +201,7 @@ indexer.onEvent({ contract: "V2Registry", event: "LabelUnregistered", wildcard: 
     kind: "UNREGISTRATION", protocol: "v2", node: domain.node, name: domain.name,
     detail: { registry: event.srcAddress.toLowerCase(), tokenId: event.params.tokenId, sender: event.params.sender.toLowerCase() },
   });
-  context.V2_domain.set({
+  await setV2Domain(context, event, {
     ...domain,
     status: "UNREGISTERED",
     owner: undefined,
@@ -205,7 +216,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ExpiryUpdated", wildcard: true
     kind: "EXPIRY", protocol: "v2", node: domain.node, name: domain.name,
     detail: { registry: event.srcAddress.toLowerCase(), tokenId: event.params.tokenId, expiry: event.params.newExpiry },
   });
-  context.V2_domain.set({
+  await setV2Domain(context, event, {
     ...domain,
     expiry: event.params.newExpiry,
     updatedBlock: event.block.number,
@@ -221,7 +232,7 @@ indexer.onEvent({ contract: "V2Registry", event: "SubregistryUpdated", wildcard:
   const next = nullableAddress(subregistry);
 
   const previous = domain.subregistry;
-  context.V2_domain.set({ ...domain, subregistry: next, updatedBlock: event.block.number });
+  await setV2Domain(context, event, { ...domain, subregistry: next, updatedBlock: event.block.number });
   emitNameEvent(context, event, {
     kind: "SUBREGISTRY", protocol: "v2", node: domain.node, name: domain.name, address: next,
     detail: { registry: event.srcAddress.toLowerCase(), tokenId, previous: previous ?? null },
@@ -240,7 +251,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ResolverUpdated", wildcard: tr
   const { tokenId, resolver } = event.params;
   const domain = await loadOrCreateDomain(event, context, tokenId);
   const next = nullableAddress(resolver);
-  context.V2_domain.set({ ...domain, resolver: next, updatedBlock: event.block.number });
+  await setV2Domain(context, event, { ...domain, resolver: next, updatedBlock: event.block.number });
   emitNameEvent(context, event, {
     kind: "RESOLVER", protocol: "v2", node: domain.node, name: domain.name, address: next,
     detail: { registry: event.srcAddress.toLowerCase(), tokenId, previous: domain.resolver ?? null },
@@ -262,7 +273,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated", wildcard: true
     claimedParent: event.params.parent.toLowerCase(),
     claimedLabel: event.params.label,
   });
-  await propagateV2Registry(context, event.chainId, event.srcAddress);
+  await propagateV2Registry(context, event.chainId, event.srcAddress, 0, new Set(), event);
 });
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
@@ -270,7 +281,7 @@ indexer.onEvent({ contract: "V2Registry", event: "ParentUpdated", wildcard: true
 indexer.onEvent({ contract: "V2Registry", event: "TokenResource", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { tokenId, resource } = event.params;
   const domain = await loadOrCreateDomain(event, context, tokenId);
-  context.V2_domain.set({ ...domain, resource, updatedBlock: event.block.number });
+  await setV2Domain(context, event, { ...domain, resource, updatedBlock: event.block.number });
   const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
   context.V2_token_resource.set({
     id: `${registryId}-${tokenId}`,
@@ -287,7 +298,7 @@ indexer.onEvent({ contract: "V2Registry", event: "TokenRegenerated", wildcard: t
   const { oldTokenId, newTokenId } = event.params;
   const registryId = makeV2RegistryId(event.chainId, event.srcAddress);
   const domain = await loadOrCreateDomain(event, context, oldTokenId);
-  context.V2_domain.set({ ...domain, tokenId: newTokenId, updatedBlock: event.block.number });
+  await setV2Domain(context, event, { ...domain, tokenId: newTokenId, updatedBlock: event.block.number });
 
   const oldMappingId = `${registryId}-${oldTokenId}`;
   const oldMapping = await context.V2_token_resource.get(oldMappingId);
@@ -355,7 +366,7 @@ async function applyTransfer(
 
   const domain = await context.V2_domain.get(domainId);
   if (domain) {
-    context.V2_domain.set({
+    await setV2Domain(context, event, {
       ...domain,
       owner: toAddress === ZERO_ADDRESS ? undefined : toAddress,
       updatedBlock: event.block.number,

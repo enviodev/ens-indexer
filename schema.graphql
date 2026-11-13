@@ -522,6 +522,18 @@ type v2_registry_edge @index(fields: ["childRegistry", "active"]) {
   sender: String
 }
 
+# Nodes whose legacy subgraph_* rows the ENSv2 projection owns (a REGISTERED v2 name
+# on a proven, non-root path). While active, v1 Registry, BaseRegistrar and
+# NameWrapper events for the node only write their event rows. See
+# src/lib/legacy-projection.ts.
+type legacy_projection {
+  id: ID!                         # {chainId}-{node}
+  node: String!
+  v2Domain: String!
+  active: Boolean!
+  updatedBlock: Int!
+}
+
 type v2_domain @index(fields: ["registry", "status"]) @index(fields: ["owner", "expiry"]) @index(fields: ["status", "expiry"]) {
   id: ID!
   registry: v2_registry! @index

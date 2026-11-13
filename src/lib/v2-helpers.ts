@@ -1,4 +1,5 @@
 import { keccak256, concat } from "viem";
+import { syncLegacyProjection } from "./legacy-projection";
 import type { Entity } from "envio";
 import {
   ETH_NODE,
@@ -193,6 +194,7 @@ export async function propagateV2Registry(
   registryAddress: string,
   depth = 0,
   seen: Set<string> = new Set(),
+  at?: { block: { number: number; timestamp: number } },
 ): Promise<void> {
   if (depth > MAX_REGISTRY_DEPTH) {
     context.log.warn(`registry tree deeper than ${MAX_REGISTRY_DEPTH} at ${registryAddress}`);
@@ -269,7 +271,9 @@ export async function propagateV2Registry(
   for (const domain of domains) {
     const { name, node } = nameInRegistry(updated, domain.label, domain.labelhash);
     if (name !== domain.name || node !== domain.node) {
-      context.V2_domain.set({ ...domain, name, node });
+      const row = { ...domain, name, node };
+      context.V2_domain.set(row);
+      if (at) await syncLegacyProjection(context, chainId, row, at);
     }
     if (updated.proven && domain.resolver) {
       await ensureV2Resolver(context, chainId, domain.resolver, {
@@ -278,7 +282,7 @@ export async function propagateV2Registry(
       });
     }
     if (domain.subregistry) {
-      await propagateV2Registry(context, chainId, domain.subregistry, depth + 1, seen);
+      await propagateV2Registry(context, chainId, domain.subregistry, depth + 1, seen, at);
     }
   }
 }
@@ -316,7 +320,7 @@ export async function setV2Edge(
       sender: meta.sender,
     });
   }
-  await propagateV2Registry(context, chainId, childAddress);
+  await propagateV2Registry(context, chainId, childAddress, 0, new Set(), { block: { number: meta.block, timestamp: meta.timestamp } });
 }
 
 export { ROOT_NODE };
