@@ -201,9 +201,26 @@ export async function propagateV2Registry(
     return;
   }
   const id = makeV2RegistryId(chainId, registryAddress);
+  // `seen` holds the registries on the current path: a cycle stops here, but a
+  // registry reached again by another path is recomputed, since the parent it is
+  // named under may have been renamed in between.
   if (seen.has(id)) return;
   seen.add(id);
+  try {
+    await recomputeRegistry(context, chainId, id, depth, seen, at);
+  } finally {
+    seen.delete(id);
+  }
+}
 
+async function recomputeRegistry(
+  context: handlerContext,
+  chainId: number,
+  id: string,
+  depth: number,
+  seen: Set<string>,
+  at: { block: { number: number; timestamp: number } } | undefined,
+): Promise<void> {
   const registry = await context.V2_registry.get(id);
   if (!registry) return;
 

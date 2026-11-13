@@ -261,6 +261,40 @@ describe("registry graph edge cases", () => {
     expect(tables.V2_registry!.get(makeV2RegistryId(1, loop)).proven).toBe(true);
   });
 
+  it("renames a registry whose canonical parent is renamed later in the same pass", async () => {
+    // A links B (via a.b) and C (via a.c); C links B (via c.x), the newest link, so
+    // B is named under C. Renaming A visits B before C.
+    const { context, tables } = fakeContext();
+    const seed = "0xf60aba43e1f7f3dab1186ff03b561401c9df85e2";
+    const [A, B, C] = ["0x00000000000000000000000000000000000000a0", "0x00000000000000000000000000000000000000b0", "0x00000000000000000000000000000000000000c0"];
+    context.V2_registry.set(registryRow(seed, { kind: "eth", proven: true, node: ETH_NODE, name: "eth" }));
+    for (const r of [A, B, C]) context.V2_registry.set(registryRow(r));
+    const old = domainRow(seed, 1n << 40n, "old", { node: namehash("old.eth"), name: "old.eth", subregistry: A });
+    const ab = domainRow(A, 2n << 40n, "b", { subregistry: B });
+    const ac = domainRow(A, 3n << 40n, "c", { subregistry: C });
+    const cx = domainRow(C, 4n << 40n, "x", { subregistry: B });
+    for (const d of [old, ab, ac, cx]) context.V2_domain.set(d);
+    const edge = (parentId: string, child: string, linkedBlock: number) => context.V2_registry_edge.set({
+      id: `${parentId}-${child}`, chainId: 1, parentDomain_id: parentId, childRegistry_id: makeV2RegistryId(1, child),
+      active: true, linkedBlock, linkedTimestamp: 0n, unlinkedBlock: undefined, sender: undefined,
+    } as V2Edge);
+    edge(old.id, A, 1);
+    edge(ab.id, B, 2);
+    edge(ac.id, C, 3);
+    edge(cx.id, B, 4);
+    const nameOf = (r: string) => tables.V2_registry!.get(makeV2RegistryId(1, r)).name;
+    await propagateV2Registry(context, 1, A);
+    expect(nameOf(C)).toBe("c.old.eth");
+    expect(nameOf(B)).toBe("x.c.old.eth");
+    // A moves under a new name.
+    const moved = domainRow(seed, 5n << 40n, "moved", { node: namehash("moved.eth"), name: "moved.eth", subregistry: A });
+    context.V2_domain.set(moved);
+    edge(moved.id, A, 5);
+    await propagateV2Registry(context, 1, A);
+    expect(nameOf(A)).toBe("moved.eth");
+    expect(nameOf(B)).toBe("x.c.moved.eth");
+  });
+
   it("prefers the link a registry claims, but only among real links", () => {
     const registry = registryRow("0xc1", { claimedParent: "0xa2", claimedLabel: "two" });
     const mk = (addr: string, label: string, block: number) => ({
