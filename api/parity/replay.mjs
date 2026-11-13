@@ -145,6 +145,7 @@ for (const l of all) {
       ? decodeAbiParameters(parseAbiParameters("string, address, uint64"), l.data)
       : decodeAbiParameters(parseAbiParameters("string, uint64"), l.data);
     Object.assign(d, { tokenId: BigInt(l.topic1), labelhash: l.topic2, label, status: name === "LabelRegistered" ? "REGISTERED" : "RESERVED", owner: name === "LabelRegistered" ? a2.toLowerCase() : null, expiry: name === "LabelRegistered" ? a3 : a2, resolver: null, subregistry: null });
+    if (name === "LabelRegistered") d.everRegistered = true;
   } else if (name === "LabelUnregistered") {
     Object.assign(dom(r, BigInt(l.topic1)), { status: "UNREGISTERED", owner: null, expiry: "unregistered" });
   } else if (name === "ExpiryUpdated") {
@@ -284,6 +285,49 @@ for (const [k, v] of nodeState) {
   const got = dbNodeAddr.has(k) ? dbNodeAddr.get(k) : dbNodeText.has(k) ? dbNodeText.get(k) : null;
   if (String(got ?? null) === String(v ?? null)) nodeRecords.matched++; else if (recMismatch.length < 60) recMismatch.push({ id: k, indexed: got, replay: v });
 }
+// ─── Legacy projection (ens-subgraph v2.2.0 rules, src/ensv2Domain.ts) ──────
+// Expected subgraph_domain / subgraph_registration rows for ENSv2 names, derived from
+// the replayed v2 state above, not from the indexer's code:
+//  - a REGISTERED name on a named (proven) path outside the root registry: owner and
+//    registrant = holder, expiry = expiry (+ 2,419,200 s in the .eth registry), clamped
+//    to 253402300799, resolver = "<chain>-<resolver>-<node>", name = path name;
+//  - a name registered once and now UNREGISTERED: retired, owner 0x0, no registrant or
+//    resolver;
+//  - the .eth registry's names also own subgraph_registration (registrant, expiry).
+const MAX_LEGACY = 253402300799n, V2_GRACE = 2419200n;
+const clampL = (v) => (v > MAX_LEGACY ? MAX_LEGACY : v);
+const legacyRows = new Map((await db.query(`SELECT id, name, owner_id, registrant_id, "expiryDate", resolver_id FROM subgraph_domain WHERE "chainId" = $1`, [chainId])).rows.map((r) => [r.id, r]));
+const legacyRegs = new Map((await db.query(`SELECT id, registrant_id, "expiryDate" FROM subgraph_registration WHERE "chainId" = $1`, [chainId])).rows.map((r) => [r.id, r]));
+const legacy = { live: { checked: 0, matched: 0 }, retired: { checked: 0, matched: 0 }, registrations: { checked: 0, matched: 0 }, missingRows: 0, mismatches: [] };
+for (const d of domains.values()) {
+  if (!d.node || d.registry === SEEDS.root) continue;
+  const isEth = d.registry === SEEDS.eth;
+  const row = legacyRows.get(d.node);
+  const miss = (kind, field, want, got) => { if (legacy.mismatches.length < 200) legacy.mismatches.push({ node: d.node, name: d.name, kind, field, replay: want, indexed: got }); };
+  if (d.status === "REGISTERED" && d.owner) {
+    legacy.live.checked++;
+    if (!row) { legacy.missingRows++; miss("live", "row", "present", "absent"); continue; }
+    const want = {
+      owner_id: d.owner, registrant_id: d.owner, name: d.name,
+      expiryDate: d.expiry == null ? null : String(clampL(isEth ? BigInt(d.expiry) + V2_GRACE : BigInt(d.expiry))),
+      resolver_id: d.resolver ? `${chainId}-${d.resolver}-${d.node}` : null,
+    };
+    let ok = true;
+    for (const [f, v] of Object.entries(want)) if (String(row[f] ?? null) !== String(v ?? null)) { ok = false; miss("live", f, v, row[f] ?? null); }
+    if (ok) legacy.live.matched++;
+    if (isEth && d.expiry != null) {
+      legacy.registrations.checked++;
+      const reg = legacyRegs.get(d.node);
+      if (reg && reg.registrant_id === d.owner && String(reg.expiryDate) === String(clampL(BigInt(d.expiry)))) legacy.registrations.matched++;
+      else miss("registration", "row", { registrant: d.owner, expiry: String(clampL(BigInt(d.expiry))) }, reg ?? null);
+    }
+  } else if (d.status === "UNREGISTERED" && d.everRegistered) {
+    legacy.retired.checked++;
+    if (row && row.owner_id === ZERO && row.registrant_id == null && row.resolver_id == null) legacy.retired.matched++;
+    else miss("retired", "row", "owner 0x0, no registrant or resolver", row ?? null);
+  }
+}
+
 await db.query("COMMIT");
 await db.end();
 
@@ -298,6 +342,7 @@ const out = {
   nodeRecords: { ...nodeRecords, logs: nodeLogs.length, rate: nodeRecords.checked ? +(nodeRecords.matched / nodeRecords.checked).toFixed(6) : null },
   // Expected 0. Non-zero means a registry emitted transfers before the indexer knew it.
   transfersBeforeRegistryRow: transferCheck,
+  legacyProjection: { live: legacy.live, retired: legacy.retired, registrations: legacy.registrations, missingRows: legacy.missingRows, mismatchCount: legacy.mismatches.length, mismatches: legacy.mismatches.slice(0, 50) },
   mismatchCount: mismatches.length, mismatches: mismatches.slice(0, 200), recordMismatches: recMismatch,
 };
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
