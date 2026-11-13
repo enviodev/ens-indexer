@@ -41,7 +41,9 @@ for (const [name, fn] of Object.entries(CASES)) {
     try { times.push(await timed(() => fn(row))); } catch { errors++; }
   }
   times.sort((a, b) => a - b);
-  out.results[name] = { n: times.length, errors, p50_ms: +percentile(times, 50).toFixed(2), p95_ms: +percentile(times, 95).toFixed(2), p99_ms: +percentile(times, 99).toFixed(2) };
+  // A case where every request failed has no percentiles; keep its error count.
+  const p = (q) => (times.length ? +percentile(times, q).toFixed(2) : null);
+  out.results[name] = { n: times.length, errors, p50_ms: p(50), p95_ms: p(95), p99_ms: p(99) };
 }
 if (args.out) writeFileSync(args.out, JSON.stringify(out, null, 1));
 console.log(JSON.stringify(out, null, 1));
