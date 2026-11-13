@@ -84,6 +84,21 @@ test("a migrated name's resolver comes from the new registry only", { skip }, as
   assert.equal((await resolveName(1, "kept.eth")).resolver, OLD);
 });
 
+test("a primary name is verified against the coin type of its reverse record", { skip }, async () => {
+  const chain = 8453;
+  const coinType = 2147492101; // Base
+  const address = "0x00000000000000000000000000000000000a11ce";
+  const resolver = "0x00000000000000000000000000000000000000e5";
+  const node = viemNamehash("alice.base.eth");
+  await q(`INSERT INTO reverse_name_record VALUES ($1, $2, $3, $4, $5)`, [`${chain}-${address}-${coinType}`, chain, address, coinType, "alice.base.eth"]);
+  await q(`INSERT INTO domain_resolver_relation VALUES ($1, $2, $3, $4, $5)`, [`${chain}-r-${node}`, chain, "0x00000000000000000000000000000000000000b5", node, resolver]);
+  await q(`INSERT INTO resolver_address_record VALUES ($1, $2, $3, $4, $5, $6)`, [`${chain}-a-${node}`, chain, resolver, node, coinType, address]);
+  const r = await primaryName(chain, address);
+  assert.equal(r.name, "alice.base.eth");
+  assert.equal(r.coinType, String(coinType));
+  assert.equal(r.verified, true);
+});
+
 // A request and response that serveStream can drive without a socket.
 function fakeConnection(chain, query) {
   const req = Object.assign(new EventEmitter(), { headers: {}, destroyed: false });

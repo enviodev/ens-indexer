@@ -162,7 +162,9 @@ export async function primaryName(chainId, address, coinType = chainId === 1 ? 6
   const wanted = coinType === undefined ? rows : rows.filter((r) => String(r.coinType) === String(coinType));
   if (wanted.length === 0) return { address: addr, chainId, name: null, verified: false };
   const name = wanted[0].value;
-  const forward = await resolveName(chainId, name, { coinTypes: [String(coinType ?? 60)] });
-  const resolved = Object.values(forward.addresses ?? {})[0];
-  return { address: addr, chainId, name, coinType: String(wanted[0].coinType), verified: resolved?.toLowerCase() === addr };
+  // Verify against the forward record of the reverse record's own coin type.
+  const recordCoinType = String(wanted[0].coinType);
+  const forward = await resolveName(chainId, name, { coinTypes: [recordCoinType] });
+  const resolved = forward.addresses?.[recordCoinType];
+  return { address: addr, chainId, name, coinType: recordCoinType, verified: resolved?.toLowerCase() === addr };
 }
