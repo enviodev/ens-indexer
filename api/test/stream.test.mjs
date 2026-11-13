@@ -31,7 +31,8 @@ function startServer(port) {
   return new Promise((resolve) => child.stdout.on("data", (d) => { if (String(d).includes("listening")) resolve(child); }));
 }
 
-// Read SSE changes until one lands after `stopBlock` or `max` arrive.
+// Read SSE changes until one lands after `stopBlock` or `max` arrive. A filtered
+// stream may have no later change, so pass `max` (the expected count) for those.
 async function sse(url, { stopBlock, max = Infinity, headers = {} }) {
   const ctrl = new AbortController();
   const res = await fetch(url, { signal: ctrl.signal, headers });
@@ -110,18 +111,21 @@ test("stream delivers every change in a block range once, in order", { skip, tim
     const [node] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
     const name = (await pool.query(`select name from v2_domain where node = $1 and "chainId" = $2 and name is not null limit 1`, [node, CHAIN])).rows[0]?.name;
     if (name) {
-      const byName = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&name=${encodeURIComponent(name)}`, { stopBlock: TO });
-      assert.deepEqual(byName.map((c) => c.id), expected.filter((r) => r.node === node).map((r) => r.id));
+      const want = expected.filter((r) => r.node === node).map((r) => r.id);
+      const byName = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&name=${encodeURIComponent(name)}`, { stopBlock: TO, max: want.length });
+      assert.deepEqual(byName.map((c) => c.id), want);
     }
 
     // Filter by address.
     const address = expected.find((r) => r.address)?.address.toLowerCase();
-    const byAddress = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&address=${address}`, { stopBlock: TO });
-    assert.deepEqual(byAddress.map((c) => c.id), expected.filter((r) => r.address?.toLowerCase() === address).map((r) => r.id));
+    const wantAddress = expected.filter((r) => r.address?.toLowerCase() === address).map((r) => r.id);
+    const byAddress = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&address=${address}`, { stopBlock: TO, max: wantAddress.length });
+    assert.deepEqual(byAddress.map((c) => c.id), wantAddress);
 
     // Filter by kind.
-    const byKind = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&kinds=TRANSFER`, { stopBlock: TO });
-    assert.deepEqual(byKind.map((c) => c.id), expected.filter((r) => r.kind === "TRANSFER").map((r) => r.id));
+    const wantKind = expected.filter((r) => r.kind === "TRANSFER").map((r) => r.id);
+    const byKind = await sse(`http://127.0.0.1:4391/v1/stream?chain=${CHAIN}&from=${FROM}&kinds=TRANSFER`, { stopBlock: TO, max: wantKind.length });
+    assert.deepEqual(byKind.map((c) => c.id), wantKind);
   } finally {
     server.kill();
     await pool.end();
