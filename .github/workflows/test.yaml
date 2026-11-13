@@ -52,6 +52,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      # The API service is a separate package; some indexer tests import it
+      - name: Install API dependencies
+        run: pnpm --dir api install --frozen-lockfile
+
       # Generate indexer types
       # This step is required before running tests
       - name: Run codegen
@@ -64,3 +68,7 @@ jobs:
         run: pnpm test
         env:
           ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
+
+      # Database-backed API tests skip themselves without TEST_PG_PORT
+      - name: Run API tests
+        run: pnpm --dir api test
