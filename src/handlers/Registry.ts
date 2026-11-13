@@ -49,7 +49,17 @@ function applyRegistryOwner<D extends { owner_id: string; wrappedOwner_id?: stri
   owner: string,
   sink: boolean,
 ): D {
-  if (!sink) return { ...domain, owner_id: owner };
+  if (!sink) {
+    // A wrapped name's registry owner is the NameWrapper. The registry can move it
+    // elsewhere without a NameWrapper event (a parent's setSubnodeOwner on a subname
+    // whose PARENT_CANNOT_CONTROL fuse is not burned); the wrapped state then goes
+    // (src/ensRegistry.ts detachWrappedStateIfLeftWrapper).
+    if (domain.wrappedOwner_id && owner !== domain.owner_id) {
+      context.Subgraph_wrapped_domain.deleteUnsafe(domain.id);
+      return { ...domain, owner_id: owner, wrappedOwner_id: undefined };
+    }
+    return { ...domain, owner_id: owner };
+  }
   if (parentNode === ETH_NODE) return domain;
   if (domain.wrappedOwner_id) {
     context.Subgraph_wrapped_domain.deleteUnsafe(domain.id);

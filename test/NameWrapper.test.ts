@@ -252,4 +252,24 @@ describe("NameWrapper", () => {
       expect(wrapped.name).toBe("0xc816.eth");
     }, 120_000);
   });
+
+  // ─── A name that leaves the NameWrapper through the registry ──────────
+  // Subname 0xb10131…: created at 17,104,381, wrapped at 17,104,407, then its parent
+  // set its registry owner to 0x0 at 17,104,765 with no NameUnwrapped event. The
+  // wrapped state goes with it (ens-subgraph src/ensRegistry.ts
+  // detachWrappedStateIfLeftWrapper).
+  describe("registry owner change of a wrapped name", () => {
+    it("drops the wrapped state", async () => {
+      const node = "0xb10131a0bafc8ecb8ad29d7f19d8b2a5cc7e9071358d361fa29bfc3a6dc79477";
+      const indexer = createTestIndexer();
+      for (const b of [17_104_381, 17_104_392, 17_104_407]) {
+        await indexer.process({ chains: { 1: { startBlock: b, endBlock: b } } });
+      }
+      expect((await indexer.Subgraph_domain.getOrThrow(node)).wrappedOwner_id).toBeDefined();
+      await indexer.process({ chains: { 1: { startBlock: 17_104_765, endBlock: 17_104_765 } } });
+      const domain = await indexer.Subgraph_domain.getOrThrow(node);
+      expect(domain.wrappedOwner_id).toBeUndefined();
+      expect(await indexer.Subgraph_wrapped_domain.get(node)).toBeUndefined();
+    }, 180_000);
+  });
 });
