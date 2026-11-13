@@ -99,6 +99,26 @@ test("a primary name is verified against the coin type of its reverse record", {
   assert.equal(r.verified, true);
 });
 
+test("registration ids are unique and non-null within a chain", { skip }, async () => {
+  const chain = 8453;
+  const label = labelhash("foo");
+  const rows = [
+    { name: "foo.base.eth", parent: viemNamehash("base.eth"), labelhash: label },
+    { name: "foo.xyz", parent: viemNamehash("xyz"), labelhash: label }, // a 3DNS name with the same label
+    { name: "bar.xyz", parent: viemNamehash("xyz"), labelhash: null },
+  ];
+  for (const r of rows) {
+    const node = viemNamehash(r.name);
+    await q(`INSERT INTO subgraph_domain (id, "chainId", name, labelhash, parent_id, "subdomainCount") VALUES ($1, $2, $3, $4, $5, 0)`, [node, chain, r.name, r.labelhash, r.parent]);
+    await q(`INSERT INTO subgraph_registration (id, "chainId", domain_id) VALUES ($1, $2, $1)`, [node, chain]);
+  }
+  const ids = new Map((await q(`SELECT id, domain_id FROM ens_unified_registration WHERE "chainId" = $1`, [chain])).map((r) => [r.domain_id, r.id]));
+  // The subgraph's form for names under the chain's registrar: the labelhash.
+  assert.equal(ids.get(viemNamehash("foo.base.eth")), label);
+  assert.equal(ids.get(viemNamehash("foo.xyz")), viemNamehash("foo.xyz"));
+  assert.equal(ids.get(viemNamehash("bar.xyz")), viemNamehash("bar.xyz"));
+});
+
 // A request and response that serveStream can drive without a socket.
 function fakeConnection(chain, query) {
   const req = Object.assign(new EventEmitter(), { headers: {}, destroyed: false });

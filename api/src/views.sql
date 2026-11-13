@@ -24,8 +24,24 @@ SELECT
   ) THEN 'v2' ELSE 'v1' END AS protocol
 FROM subgraph_domain s;
 
--- The subgraph keys Registration by labelhash. Stored rows are keyed by node.
+-- The subgraph keys Registration by labelhash; stored rows are keyed by node. A
+-- labelhash is unique only under one parent, so names under a registrar's base
+-- name (eth, base.eth, linea.eth) keep the subgraph's id and every other
+-- registration (3DNS names, or one without a labelhash) keeps its node. Two
+-- branches, not a CASE, so a lookup by id uses the labelhash and id indexes.
 CREATE OR REPLACE VIEW ens_unified_registration AS
 SELECT d.labelhash AS id, r."chainId", r."registrationDate", r."expiryDate", r.cost, r."labelName", r.domain_id, r.registrant_id
 FROM subgraph_registration r
-JOIN subgraph_domain d ON d.id = r.domain_id AND d."chainId" = r."chainId";
+JOIN subgraph_domain d ON d.id = r.domain_id AND d."chainId" = r."chainId"
+WHERE d.labelhash IS NOT NULL AND d.parent_id IN (
+  '0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae',
+  '0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72fbf672e7b7fd5690328e10',
+  '0x527aac89ac1d1de5dd84cff89ec92c69b028ce9ce3fa3d654882474ab4402ec3')
+UNION ALL
+SELECT r.id, r."chainId", r."registrationDate", r."expiryDate", r.cost, r."labelName", r.domain_id, r.registrant_id
+FROM subgraph_registration r
+LEFT JOIN subgraph_domain d ON d.id = r.domain_id AND d."chainId" = r."chainId"
+WHERE d.id IS NULL OR d.labelhash IS NULL OR d.parent_id IS NULL OR d.parent_id NOT IN (
+  '0x93cdeb708b7545dc668eb9280176169d1c33cfd8ed6f04690a0bcc88a93fc4ae',
+  '0xff1e3c0eb00ec714e34b6114125fbde1dea2f24a72fbf672e7b7fd5690328e10',
+  '0x527aac89ac1d1de5dd84cff89ec92c69b028ce9ce3fa3d654882474ab4402ec3');
