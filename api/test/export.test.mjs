@@ -31,6 +31,10 @@ test("full export matches the database, and a second run adds only a new range",
       const parquet = (await duck.runAndReadAll(`select count(*)::int n from read_parquet('${dir}/${table}/chain=${CHAIN}/**/*.parquet')`)).getRowObjectsJson()[0].n;
       assert.equal(Number(parquet), n, `${table}: parquet ${parquet} vs postgres ${n}`);
     }
+    // Numeric values survive exactly (token ids are far above 2^53).
+    const { rows: [big] } = await client.query(`select id, "tokenId"::text t from v2_transfer where "chainId" = $1 and "blockNumber" <= $2 order by "tokenId" desc limit 1`, [CHAIN, pin]);
+    const fromParquet = (await duck.runAndReadAll(`select "tokenId"::varchar t from read_parquet('${dir}/v2_transfer/chain=${CHAIN}/**/*.parquet') where id = '${big.id}'`)).getRowObjectsJson()[0].t;
+    assert.equal(fromParquet, big.t);
     await client.end();
 
     // Second run: a new range directory for block tables, starting after the pin.

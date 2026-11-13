@@ -40,6 +40,9 @@ const run = (sql) => db.run(sql);
 const rows = async (sql) => (await db.runAndReadAll(sql)).getRowObjectsJson();
 
 await run(`INSTALL postgres; LOAD postgres; INSTALL httpfs; LOAD httpfs;`);
+// Bounded memory: DuckDB defaults to 80% of RAM. Spill goes to EXPORT_TEMP_DIR, capped.
+await run(`SET memory_limit = '${process.env.EXPORT_MEMORY_LIMIT ?? "6GB"}'; SET threads = ${Number(process.env.EXPORT_THREADS ?? 4)}; SET preserve_insertion_order = false;`);
+if (process.env.EXPORT_TEMP_DIR) await run(`SET temp_directory = ${quote(process.env.EXPORT_TEMP_DIR)}; SET max_temp_directory_size = '${process.env.EXPORT_MAX_TEMP ?? "15GB"}';`);
 const pgConn = [
   `host=${process.env.ENVIO_PG_HOST ?? "localhost"}`, `port=${process.env.ENVIO_PG_PORT ?? 5433}`,
   `user=${process.env.ENVIO_PG_USER ?? "postgres"}`, `password=${process.env.ENVIO_PG_PASSWORD ?? "testing"}`,
@@ -69,38 +72,53 @@ if (!args.full) {
 const tables = (await rows(`SELECT table_name FROM pg.information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
   AND table_name NOT LIKE 'envio\\_%' ESCAPE '\\' AND table_name NOT LIKE '%$%' ORDER BY table_name`)).map((r) => r.table_name)
   .filter((t) => !args.tables || String(args.tables).split(",").includes(t));
-const columns = async (t) => new Set((await rows(`SELECT column_name FROM pg.information_schema.columns WHERE table_schema = 'public' AND table_name = ${quote(t)}`)).map((r) => r.column_name));
+const columns = async (t) => (await rows(`SELECT column_name, data_type, udt_name FROM pg.information_schema.columns WHERE table_schema = 'public' AND table_name = ${quote(t)} ORDER BY ordinal_position`));
+// Rows are read with postgres_query so Postgres does the filtering, and numeric columns
+// are cast to text there: DuckDB's Postgres scanner maps numeric without a precision to
+// DOUBLE, which loses wei amounts, token ids and other values above 2^53.
+const pgSelect = (sql) => `SELECT * FROM postgres_query('pg', ${quote(sql)})`;
+const ident = (c) => `"${c.replace(/"/g, '""')}"`;
+const selectList = (cols) => cols.map((c) =>
+  c.data_type === "numeric" ? `${ident(c.column_name)}::text AS ${ident(c.column_name)}`
+  : c.udt_name === "_numeric" ? `${ident(c.column_name)}::text[] AS ${ident(c.column_name)}`
+  : ident(c.column_name)).join(", ");
 
 const thisRun = { startedAt: new Date().toISOString(), committedBefore: pinBefore, tables: {} };
 for (const table of tables) {
-  const cols = await columns(table);
+  const colRows = await columns(table);
+  const cols = new Set(colRows.map((c) => c.column_name));
   if (!cols.has("chainId")) continue;
   const blockCol = cols.has("blockNumber") ? "blockNumber" : cols.has("updatedBlock") ? "updatedBlock" : null;
   const last = manifest.tables[table]?.lastBlock ?? -1;
   const t0 = Date.now();
-  let path, where;
+  const list = selectList(colRows);
+  let path, where, n = 0;
   if (blockCol) {
     if (last >= pinBefore) continue;
     path = `${target}/${table}/chain=${chainId}/range=${last + 1}-${pinBefore}`;
     where = `"chainId" = ${chainId} AND "${blockCol}" > ${last} AND "${blockCol}" <= ${pinBefore}`;
+    // One file per block bucket, written one at a time: bounded memory on any table size.
+    const buckets = await rows(pgSelect(`SELECT (floor("${blockCol}" / ${BUCKET_SIZE}) * ${BUCKET_SIZE})::bigint AS b, count(*)::bigint AS n FROM "${table}" WHERE ${where} GROUP BY 1 ORDER BY 1`));
+    for (const { b, n: bn } of buckets) {
+      const dir = `${path}/block_bucket=${b}`;
+      if (!isS3) mkdirSync(dir, { recursive: true });
+      const sql = `SELECT ${list} FROM "${table}" WHERE ${where} AND "${blockCol}" >= ${b} AND "${blockCol}" < ${Number(b) + BUCKET_SIZE}`;
+      await run(`COPY (${pgSelect(sql)}) TO ${quote(`${dir}/data_0.parquet`)} (FORMAT parquet, COMPRESSION zstd)`);
+      n += Number(bn);
+    }
   } else {
     if (manifest.tables[table] && !args.snapshots) continue;
     path = `${target}/${table}/chain=${chainId}/snapshot=${pinBefore}`;
     where = `"chainId" = ${chainId}`;
-  }
-  if (!isS3) mkdirSync(path, { recursive: true });
-  const select = blockCol
-    ? `SELECT *, ("${blockCol}" // ${BUCKET_SIZE}) * ${BUCKET_SIZE} AS block_bucket FROM pg.public."${table}" WHERE ${where}`
-    : `SELECT * FROM pg.public."${table}" WHERE ${where}`;
-  const [{ n }] = await rows(`SELECT count(*)::BIGINT AS n FROM pg.public."${table}" WHERE ${where}`);
-  if (Number(n) > 0) {
-    // A partitioned copy writes a directory; a snapshot is one file inside its directory.
-    if (blockCol) await run(`COPY (${select}) TO ${quote(path)} (FORMAT parquet, COMPRESSION zstd, PARTITION_BY (block_bucket), OVERWRITE_OR_IGNORE)`);
-    else await run(`COPY (${select}) TO ${quote(`${path}/part-0.parquet`)} (FORMAT parquet, COMPRESSION zstd)`);
+    n = Number((await rows(pgSelect(`SELECT count(*)::bigint AS n FROM "${table}" WHERE ${where}`)))[0].n);
+    if (n > 0) {
+      if (!isS3) mkdirSync(path, { recursive: true });
+      await run(`COPY (${pgSelect(`SELECT ${list} FROM "${table}" WHERE ${where}`)}) TO ${quote(`${path}/part-0.parquet`)} (FORMAT parquet, COMPRESSION zstd)`);
+    }
   }
   const seconds = (Date.now() - t0) / 1000;
   manifest.tables[table] = { kind: blockCol ? `range:${blockCol}` : "snapshot", lastBlock: pinBefore, lastPath: path };
-  thisRun.tables[table] = { rows: Number(n), seconds: +seconds.toFixed(2), path };
+  thisRun.tables[table] = { rows: n, seconds: +seconds.toFixed(2), path };
   console.error(`${table}: ${n} rows in ${seconds.toFixed(1)}s`);
 }
 thisRun.committedAfter = await committed();
