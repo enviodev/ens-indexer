@@ -3,7 +3,7 @@ import { createTestIndexer } from "envio";
 import { namehash } from "viem";
 import { makeV2DomainId } from "../src/lib/v2-helpers";
 // @ts-ignore -- plain ESM module from the API package
-import { decideAuthority, DEPLOYMENTS } from "../api/src/resolve.mjs";
+import { decideAuthority, DEPLOYMENTS } from "../api/src/authority.mjs";
 
 // A real Sepolia name, birena.eth: premigrated (reserved on v2 with the
 // ENSV1Resolver mirror) at block 11,821,440, migrated by the unlocked migration
