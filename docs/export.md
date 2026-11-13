@@ -25,3 +25,9 @@ The first run exports everything up to the committed block. Later runs export on
 For a table with `updatedBlock`, a range holds the rows that changed in it. Take the latest row per `id` when reading several ranges.
 
 Snapshots are read while the indexer runs, so they can include changes after the committed block in the manifest.
+
+## Values and resources
+
+Numeric columns are written as text (`numeric[]` as text arrays), so wei amounts, token ids and expiries keep every digit. Cast them when reading if your tool needs a number type that can hold them.
+
+Each block bucket is written by its own query, so memory stays bounded on any table size. Defaults: DuckDB `memory_limit` 6 GB (`EXPORT_MEMORY_LIMIT`), 4 threads (`EXPORT_THREADS`). Set `EXPORT_TEMP_DIR` to let DuckDB spill to disk, capped by `EXPORT_MAX_TEMP` (default 15 GB). A full Ethereum mainnet export (70 tables, about 90M rows, 7 GB of Parquet) takes about 4.5 minutes and under 1 GB of memory.
