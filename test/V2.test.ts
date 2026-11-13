@@ -754,8 +754,19 @@ describe("events before late registration (Sepolia, all affected addresses)", ()
     const nodeTexts = await indexer.V2_node_text.getWhere({ resolver: { _eq: c.address } });
     const nodeAddrs = await indexer.V2_node_address.getWhere({ resolver: { _eq: c.address } });
     if (c.distinctLinkedNodes > 0) expect(links.length).toBe(c.distinctLinkedNodes);
-    else if (c.hasRecords || nodeTexts.length + nodeAddrs.length > 0) expect(nodeTexts.length + nodeAddrs.length).toBeGreaterThan(0);
-    else expect(resolver?.createdBlock).toBe(c.firstLogBlock);
+    if (c.hasRecords) {
+      // Record values, checked apart from links: keyed by record for a linked
+      // resolver, by node otherwise.
+      let recordValues = nodeTexts.length + nodeAddrs.length;
+      for (const record of await indexer.V2_record.getWhere({ resolver_id: { _eq: id } })) {
+        recordValues += (await indexer.V2_record_text.getWhere({ record_id: { _eq: record.id } })).length;
+        recordValues += (await indexer.V2_record_address.getWhere({ record_id: { _eq: record.id } })).length;
+      }
+      expect(recordValues).toBeGreaterThan(0);
+    }
+    if (c.distinctLinkedNodes === 0 && !c.hasRecords && nodeTexts.length + nodeAddrs.length === 0) {
+      expect(resolver?.createdBlock).toBe(c.firstLogBlock);
+    }
   });
 });
 
