@@ -28,6 +28,21 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # Empty Postgres for api/test/fixture.test.mjs, which builds its own schema.
+    # Throwaway credentials: the database exists only for this job.
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_PASSWORD: fixture
+        ports:
+          - 5499:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       # Check out your repository code
       - name: Checkout code
@@ -52,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # The API service is a separate package; some indexer tests import it
+      # The API service is a separate package
       - name: Install API dependencies
         run: pnpm --dir api install --frozen-lockfile
 
@@ -69,6 +84,10 @@ jobs:
         env:
           ENVIO_API_TOKEN: ${{ secrets.ENVIO_API_TOKEN }}
 
-      # Database-backed API tests skip themselves without TEST_PG_PORT
+      # Tests against a synced database skip themselves without TEST_PG_PORT;
+      # the fixture tests use the empty Postgres service above
       - name: Run API tests
         run: pnpm --dir api test
+        env:
+          TEST_FIXTURE_PG_PORT: 5499
+          TEST_FIXTURE_PG_PASSWORD: fixture
