@@ -209,3 +209,23 @@ describe("Registry", () => {
     }, 180_000);
   });
 });
+
+describe("old registry events after migration", () => {
+  // An <address>.addr.reverse node gets resolver 0xa2c122be on the new registry at
+  // 11,173,241 (which migrates it); the old reverse registrar then sets resolver 0x5fbb459c
+  // on the old registry at 11,178,252. The ENS subgraph ignores old-registry Transfer,
+  // NewResolver and NewTTL for a migrated node (src/ensRegistry.ts handle*OldRegistry).
+  it("does not let an old-registry NewResolver change a migrated node", async () => {
+    const node = "0x231bc090800744d904b4aa931e4fbd69d770ec2c2582e55b37c0842a17036650";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 11_173_241, endBlock: 11_173_241 } } });
+    const migrated = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(migrated.isMigrated).toBe(true);
+    expect(migrated.resolver_id).toBe(`1-0xa2c122be93b0074270ebee7f6b7292c7deb45047-${node}`);
+    await indexer.process({ chains: { 1: { startBlock: 11_178_252, endBlock: 11_178_252 } } });
+    const after = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(after.resolver_id).toBe(`1-0xa2c122be93b0074270ebee7f6b7292c7deb45047-${node}`);
+    const events = (await indexer.Subgraph_new_resolver.getAll()).filter((e: any) => e.domain_id === node);
+    expect(events.map((e: any) => e.blockNumber)).toEqual([11_173_241]);
+  }, 180_000);
+});

@@ -68,6 +68,21 @@ function applyRegistryOwner<D extends { owner_id: string; wrappedOwner_id?: stri
   return { ...domain, owner_id: ZERO_ADDRESS };
 }
 
+// ─── Old registry after migration ───────────────────────────────────────────
+
+/**
+ * An old-registry Transfer, NewResolver or NewTTL applies only to a domain that exists
+ * and has not moved to the new registry; the root node always takes NewResolver, and
+ * is created if missing (ens-subgraph 16846b1 src/ensRegistry.ts handleTransferOldRegistry,
+ * handleNewResolverOldRegistry, handleNewTTLOldRegistry). Otherwise nothing is written.
+ */
+async function oldRegistryEventApplies(context: handlerContext, node: string, rootAllowed: boolean): Promise<boolean> {
+  const domain = await context.Subgraph_domain.get(node);
+  // getDomain creates the root on first use; any other missing domain is skipped.
+  if (!domain) return node === ROOT_NODE;
+  return (rootAllowed && node === ROOT_NODE) || !domain.isMigrated;
+}
+
 // ─── Shared NewOwner Handler ────────────────────────────────────────────────
 
 async function handleNewOwner(
@@ -286,6 +301,7 @@ async function handleTransfer(
 indexer.onEvent(
   { contract: "RegistryOld", event: "Transfer" },
   async ({ event, context }) => {
+    if (!(await oldRegistryEventApplies(context, event.params.node, false))) return;
     await handleTransfer(event, context);
   },
 );
@@ -398,7 +414,15 @@ async function handleNewResolver(
 indexer.onEvent(
   { contract: "RegistryOld", event: "NewResolver" },
   async ({ event, context }) => {
-    await handleNewResolver(event, context, true);
+    if (await oldRegistryEventApplies(context, event.params.node, true)) {
+      await handleNewResolver(event, context, true);
+      return;
+    }
+    // The subgraph tables ignore it; the resolver relation keeps its own rule
+    // (old-registry rows only for nodes that never migrated).
+    if (!(await nodeIsMigrated(context, event.params.node))) {
+      upsertDomainResolverRelation(context, event.chainId, event.srcAddress, event.params.node, event.params.resolver);
+    }
   },
 );
 
@@ -448,6 +472,7 @@ async function handleNewTTL(
 indexer.onEvent(
   { contract: "RegistryOld", event: "NewTTL" },
   async ({ event, context }) => {
+    if (!(await oldRegistryEventApplies(context, event.params.node, false))) return;
     await handleNewTTL(event, context);
   },
 );
