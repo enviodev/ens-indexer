@@ -13,6 +13,18 @@ describe("Resolver", () => {
   // ─── AddrChanged ──────────────────────────────────────────────────────
 
   describe("AddrChanged", () => {
+    it("sets addr without listing a coin type (Ethereum 10,561,562)", async () => {
+      // Resolver 0xda1756bb emits only AddrChanged for this node. The ENS subgraph adds to
+      // Resolver.coinTypes only on AddressChanged (src/resolver.ts handleMulticoinAddrChanged).
+      const node = "0x9da61bba6dd53210392333ea90cadb91528df5c5411de3b3d699af6fcf3265f5";
+      const resolverId = makeResolverId(1, "0xda1756bb923af5d1a05e277cb1e54f1d0a127890", node);
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 10_561_562, endBlock: 10_561_562 } } });
+      const resolver = await indexer.Subgraph_resolver.getOrThrow(resolverId);
+      expect(resolver.addr_id).toBeDefined();
+      expect(resolver.coinTypes).toBeUndefined();
+    }, 120_000);
+
     it("updates resolver addr and materializes Domain.resolvedAddress_id", async () => {
       const indexer = createTestIndexer();
 

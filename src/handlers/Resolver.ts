@@ -55,18 +55,13 @@ indexer.onEvent(
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
-  // upsert Resolver with the new addr
-  const resolver = await upsertResolver(context, {
+  // upsert Resolver with the new addr. coinTypes is left alone: the ENS subgraph
+  // lists a coin type only on AddressChanged (src/resolver.ts handleAddrChanged).
+  await upsertResolver(context, {
     id: resolverId,
     domain_id: node,
     address: event.srcAddress,
     addr_id: a,
-  });
-
-  // legacy AddrChanged is the coin type 60 record: list it in coinTypes
-  context.Subgraph_resolver.set({
-    ...resolver,
-    coinTypes: uniq([...(resolver.coinTypes ?? []), BigInt(ETH_COIN_TYPE)]),
   });
 
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
