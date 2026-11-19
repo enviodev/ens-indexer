@@ -32,7 +32,7 @@ How a contract is found:
 | Basenames registrar and controllers | Fixed | NameRegistered, NameRegisteredWithRecord, NameRenewed, Transfer, ETHPaymentProcessed |
 | Linea registrar and controller | Fixed | NameRegistered, NameRenewed, Transfer, OwnerNameRegistered, PohNameRegistered |
 | 3DNS token | Fixed | NewOwner, Transfer, RegistrationCreated, RegistrationExtended, TransferSingle, TransferBatch |
-| Resolvers | Signature, from any address, whether or not a registry has assigned it (as the ENS subgraph does) | AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged, ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged, DNSRecordChanged, DNSRecordDeleted |
+| Resolvers | Signature, from any address, whether or not a registry has assigned it (as the ENS subgraph does) | AddrChanged, AddressChanged, NameChanged, ABIChanged, PubkeyChanged, TextChanged (with and without the value), ContenthashChanged, InterfaceChanged, AuthorisationChanged, VersionChanged, DNSRecordChanged, DNSRecordDeleted |
 | Reverse registrar (legacy) | Fixed | ReverseClaimed |
 | Standalone reverse registrar | Fixed | NameForAddrChanged |
 | Universal renewal | Fixed | RenewalReferred |

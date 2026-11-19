@@ -282,6 +282,12 @@ contracts:
         field_selection:
           transaction_fields:
             - hash
+      # Older resolvers (PublicResolver 0x4976fb03 and others) emit TextChanged without the value.
+      - event: "TextChanged(bytes32 indexed node, string indexed indexedKey, string key)"
+        name: TextChangedWithoutValue
+        field_selection:
+          transaction_fields:
+            - hash
       - event: "ContenthashChanged(bytes32 indexed node, bytes hash)"
         field_selection:
           transaction_fields:
