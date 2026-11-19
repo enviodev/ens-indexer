@@ -3,6 +3,7 @@ import { onV2Chains } from "../lib/v2-deployments";
 import { decodeDnsEncodedName, namehashFromLabels, type handlerContext } from "../lib/helpers";
 import { ensureV2Resolver, makeV2RegistryId, nullableAddress } from "../lib/v2-helpers";
 import { emitNameEvent } from "../lib/name-events";
+import { refreshLegacyResolverSnapshot, refreshRecordSnapshots } from "../lib/legacy-resolver-projection";
 
 // ─── Discovery ───────────────────────────────────────────────────────────────
 // Record events are matched on any address (wildcard), so records written before
@@ -41,7 +42,7 @@ async function ensureRecord(context: handlerContext, chainId: number, resolver: 
   const id = recordRowId(resolverId, recordId);
   const existing = await context.V2_record.get(id);
   if (existing) return existing;
-  const row = { id, resolver_id: resolverId, recordId, contenthash: undefined, primaryName: undefined };
+  const row = { id, resolver_id: resolverId, recordId, contenthash: undefined, primaryName: undefined, coinTypesSeen: undefined, textKeysSeen: undefined };
   context.V2_record.set(row);
   return row;
 }
@@ -84,6 +85,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "Linked", wildcard: true, where
     active: true,
     updatedBlock: event.block.number,
   });
+  await refreshLegacyResolverSnapshot(context, event.chainId, event.srcAddress, node);
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "Cleared", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
@@ -114,27 +116,31 @@ indexer.onEvent({ contract: "V2Resolver", event: "Cleared", wildcard: true, wher
 indexer.onEvent({ contract: "V2Resolver", event: "AddressUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { recordId, coinType, addressBytes } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
+  if (!(record.coinTypesSeen ?? []).includes(coinType)) context.V2_record.set({ ...record, coinTypesSeen: [...(record.coinTypesSeen ?? []), coinType] });
   const id = `${record.id}-${coinType}`;
   if (addressBytes === "0x") {
     context.V2_record_address.deleteUnsafe(id);
     await emitRecordChange(context, event, record.id, { field: "address", coinType, value: null });
-    return;
+  } else {
+    context.V2_record_address.set({ id, record_id: record.id, coinType, value: addressBytes });
+    await emitRecordChange(context, event, record.id, { field: "address", coinType, value: addressBytes });
   }
-  context.V2_record_address.set({ id, record_id: record.id, coinType, value: addressBytes });
-  await emitRecordChange(context, event, record.id, { field: "address", coinType, value: addressBytes });
+  await refreshRecordSnapshots(context, event.chainId, event.srcAddress, record.id);
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "TextUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
   const { recordId, key, value } = event.params;
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
+  if (!(record.textKeysSeen ?? []).includes(key)) context.V2_record.set({ ...record, textKeysSeen: [...(record.textKeysSeen ?? []), key] });
   const id = `${record.id}-${key}`;
   if (value === "") {
     context.V2_record_text.deleteUnsafe(id);
     await emitRecordChange(context, event, record.id, { field: "text", key, value: null });
-    return;
+  } else {
+    context.V2_record_text.set({ id, record_id: record.id, key, value });
+    await emitRecordChange(context, event, record.id, { field: "text", key, value });
   }
-  context.V2_record_text.set({ id, record_id: record.id, key, value });
-  await emitRecordChange(context, event, record.id, { field: "text", key, value });
+  await refreshRecordSnapshots(context, event.chainId, event.srcAddress, record.id);
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "ContenthashUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {
@@ -142,6 +148,7 @@ indexer.onEvent({ contract: "V2Resolver", event: "ContenthashUpdated", wildcard:
   const record = await ensureRecord(context, event.chainId, event.srcAddress, recordId);
   context.V2_record.set({ ...record, contenthash: hash === "0x" ? undefined : hash });
   await emitRecordChange(context, event, record.id, { field: "contenthash", value: hash === "0x" ? null : hash });
+  await refreshRecordSnapshots(context, event.chainId, event.srcAddress, record.id);
 });
 
 indexer.onEvent({ contract: "V2Resolver", event: "NameUpdated", wildcard: true, where: onV2Chains }, async ({ event, context }) => {

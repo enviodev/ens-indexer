@@ -13,6 +13,18 @@ describe("Resolver", () => {
   // ─── AddrChanged ──────────────────────────────────────────────────────
 
   describe("AddrChanged", () => {
+    it("sets addr without listing a coin type (Ethereum 10,561,562)", async () => {
+      // Resolver 0xda1756bb emits only AddrChanged for this node. The ENS subgraph adds to
+      // Resolver.coinTypes only on AddressChanged (src/resolver.ts handleMulticoinAddrChanged).
+      const node = "0x9da61bba6dd53210392333ea90cadb91528df5c5411de3b3d699af6fcf3265f5";
+      const resolverId = makeResolverId(1, "0xda1756bb923af5d1a05e277cb1e54f1d0a127890", node);
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 10_561_562, endBlock: 10_561_562 } } });
+      const resolver = await indexer.Subgraph_resolver.getOrThrow(resolverId);
+      expect(resolver.addr_id).toBeDefined();
+      expect(resolver.coinTypes).toBeUndefined();
+    }, 120_000);
+
     it("updates resolver addr and materializes Domain.resolvedAddress_id", async () => {
       const indexer = createTestIndexer();
 
@@ -112,6 +124,20 @@ describe("Resolver", () => {
   // ─── TextChanged ──────────────────────────────────────────────────────
 
   describe("TextChanged", () => {
+    it("adds keys from the older TextChanged without a value (justin.ahn.eth, Ethereum 16,939,786)", async () => {
+      // PublicResolver 0x4976fb03 emits TextChanged(bytes32,string,string): five keys for
+      // justin.ahn.eth in block 16,939,786. The ENS subgraph lists them in Resolver.texts.
+      const node = "0xc9fafbc5052cb6852d5bbbb7b8d19e973222dafdfc590ee857f771d325f41386";
+      const resolverId = makeResolverId(1, "0x4976fb03c32e5b8cfe2b6ccb31c09ba78ebaba41", node);
+      const indexer = createTestIndexer();
+      await indexer.process({ chains: { 1: { startBlock: 16_939_786, endBlock: 16_939_786 } } });
+      const resolver = await indexer.Subgraph_resolver.getOrThrow(resolverId);
+      expect([...(resolver.texts ?? [])].sort()).toEqual(["avatar", "com.twitter", "email", "org.telegram", "url"]);
+      const events = (await indexer.Subgraph_text_changed.getAll()).filter((e: any) => e.resolver_id === resolverId);
+      expect(events).toHaveLength(5);
+      for (const e of events) expect(e.value).toBeUndefined();
+    }, 120_000);
+
     it("accumulates text keys on resolver and logs TextChanged", async () => {
       const indexer = createTestIndexer();
 

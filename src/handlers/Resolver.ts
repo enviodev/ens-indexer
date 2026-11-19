@@ -55,18 +55,13 @@ indexer.onEvent(
 
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
-  // upsert Resolver with the new addr
-  const resolver = await upsertResolver(context, {
+  // upsert Resolver with the new addr. coinTypes is left alone: the ENS subgraph
+  // lists a coin type only on AddressChanged (src/resolver.ts handleAddrChanged).
+  await upsertResolver(context, {
     id: resolverId,
     domain_id: node,
     address: event.srcAddress,
     addr_id: a,
-  });
-
-  // legacy AddrChanged is the coin type 60 record: list it in coinTypes
-  context.Subgraph_resolver.set({
-    ...resolver,
-    coinTypes: uniq([...(resolver.coinTypes ?? []), BigInt(ETH_COIN_TYPE)]),
   });
 
   // materialize Domain.resolvedAddress_id if Domain.resolver_id matches
@@ -261,13 +256,18 @@ indexer.onEvent(
 );
 
 // ─── TextChanged ─────────────────────────────────────────────────────────────
-// Emitted when a text record for a node changes.
+// Emitted when a text record for a node changes. Older resolvers emit it without
+// the value (TextChangedWithoutValue): the key is listed and logged as the ENS
+// subgraph does (handleTextChanged), with no value for the record tables.
 
-indexer.onEvent(
-  { contract: "Resolver", event: "TextChanged", wildcard: true, where: onResolverChains },
-  async ({ event, context }) => {
-  const { node, key, value } = event.params;
-
+async function applyTextChanged(
+  context: handlerContext,
+  event: { chainId: number; srcAddress: string; block: { number: number; timestamp: number }; logIndex: number; transaction: { hash: string } },
+  node: string,
+  key: string,
+  value: string | undefined,
+  hasValue: boolean,
+): Promise<void> {
   const resolverId = makeResolverId(event.chainId, event.srcAddress, node);
 
   // upsert Resolver
@@ -300,10 +300,26 @@ indexer.onEvent(
     value: sanitizedValue,
   });
 
-  // PA: track text record
+  // PA: track text record (only when the event carries the value)
+  if (!hasValue) return;
   ensurePAResolver(context, event.chainId, event.srcAddress);
   ensurePAResolverRecords(context, event.chainId, event.srcAddress, node);
   handlePATextRecordUpdate(context, event.chainId, event.srcAddress, node, key, value ?? null);
+}
+
+indexer.onEvent(
+  { contract: "Resolver", event: "TextChanged", wildcard: true, where: onResolverChains },
+  async ({ event, context }) => {
+    const { node, key, value } = event.params;
+    await applyTextChanged(context, event, node, key, value, true);
+  },
+);
+
+indexer.onEvent(
+  { contract: "Resolver", event: "TextChangedWithoutValue", wildcard: true, where: onResolverChains },
+  async ({ event, context }) => {
+    const { node, key } = event.params;
+    await applyTextChanged(context, event, node, key, undefined, false);
   },
 );
 

@@ -79,6 +79,11 @@ async function materializeDomainExpiryDate(
  * Shared logic for TransferSingle and TransferBatch handlers.
  * Processes a single token transfer within the NameWrapper.
  */
+/** Number of [labelhash] parts in a name (labels no event has carried). */
+function hashedLabelCount(name: string | undefined): number {
+  return name === undefined ? Number.MAX_SAFE_INTEGER : (name.match(/\[[0-9a-f]{64}\]/g) ?? []).length;
+}
+
 async function handleTransfer(
   event: {
     block: { number: number; timestamp: number };
@@ -274,6 +279,12 @@ indexer.onEvent(
       name: healedName,
       labelName: label,
     };
+  } else if (healedName !== undefined && hashedLabelCount(domain.name) > hashedLabelCount(healedName)) {
+    // The label is known (eth, reverse, addr) but the name still holds [labelhash]
+    // parts, because a parent's label was unknown when the domain was created. The
+    // wrapped name, which hashes back to the node, knows more labels: take it.
+    // (The ENS subgraph names these labels from graph-node's label table instead.)
+    updatedDomain = { ...updatedDomain, name: healedName };
   }
 
   // A live ENSv2 name is the ENSv2 projection's: only the event row is written

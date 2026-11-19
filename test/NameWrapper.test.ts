@@ -294,3 +294,19 @@ describe("NameWrapper", () => {
     }, 180_000);
   });
 });
+
+describe("names healed from NameWrapped", () => {
+  // eth.ski is created at 17,454,162 under the TLD ski, whose label no event carries, so its
+  // name is eth.[labelhash(ski)]; it is wrapped at 17,454,165 with the full DNS name
+  // eth.ski, whose labels hash to the node. The known label "eth" must not stop the heal.
+  it("takes the wrapped name when the current one has hashed labels (eth.ski)", async () => {
+    const node = "0xb51f94804f1ef06f7decc715e1efc18e3b1dc6e5d2a2d6de5e5499e9212dfefd";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 17_454_162, endBlock: 17_454_162 } } });
+    expect((await indexer.Subgraph_domain.getOrThrow(node)).name).toMatch(/^eth\.\[/);
+    await indexer.process({ chains: { 1: { startBlock: 17_454_165, endBlock: 17_454_165 } } });
+    const domain = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(domain.name).toBe("eth.ski");
+    expect(domain.labelName).toBe("eth");
+  }, 180_000);
+});
