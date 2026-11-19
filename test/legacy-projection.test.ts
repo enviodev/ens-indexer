@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createTestIndexer } from "envio";
+import { keccak256, namehash, toBytes } from "viem";
 
 // ENSv2 projection into the legacy subgraph_* tables, as the ENS subgraph does it
 // (ens-subgraph 16846b1 src/ensv2Domain.ts, src/legacyGovernance.ts). Real mainnet blocks.
@@ -117,4 +118,81 @@ describe("unlinking a registry retires the names projected through it (Sepolia)"
     expect(retired.registrant_id).toBeUndefined();
     expect((await indexer.Legacy_projection.getOrThrow(`11155111-${node}`)).active).toBe(false);
   }, 300_000);
+});
+
+describe("ENSv2 resolver records in the legacy Resolver row", () => {
+  // ens-subgraph 16846b1 src/ensv2ResolverProjection.ts: a live v2 name whose resolver is a
+  // PermissionedResolver shows the linked record's addr, coin types, text keys and
+  // contenthash on its legacy Resolver row, and the addr as Domain.resolvedAddress.
+  it("snapshots the linked record when the name attaches the resolver (recallapp.eth, Ethereum)", async () => {
+    // Resolver 0xaea93de6 links recallapp.eth and sets its ETH address at 26,356,729; the
+    // name is registered on ENSv2 with that resolver at 26,356,735; the record's
+    // contenthash is set at 26,356,751.
+    const node = "0x769c5f27b94caaa153b857015cdc26ef77a2720dba182f9c74dffca397b0b550";
+    const resolver = "0xaea93de6c4c91188b38a89bd5ff3c720ac9e8f72";
+    const indexer = createTestIndexer();
+    await indexer.process({ chains: { 1: { startBlock: 26_356_729, endBlock: 26_356_735 } } });
+    let domain = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(domain.resolver_id).toBe(`1-${resolver}-${node}`);
+    let row = await indexer.Subgraph_resolver.getOrThrow(`1-${resolver}-${node}`);
+    expect(row.addr_id).toBe("0x2db5dcc40c3cffe92e718513d62d9bcbb945a503");
+    expect(row.coinTypes).toEqual([60n]);
+    expect(row.contentHash).toBeUndefined();
+    expect(domain.resolvedAddress_id).toBe("0x2db5dcc40c3cffe92e718513d62d9bcbb945a503");
+    // A later record event refreshes the row.
+    await indexer.process({ chains: { 1: { startBlock: 26_356_751, endBlock: 26_356_751 } } });
+    row = await indexer.Subgraph_resolver.getOrThrow(`1-${resolver}-${node}`);
+    expect(row.contentHash).toBe("0xe40101fa011b20e002e9ab0bee50f874a8ee461fe053aca71c7e3be502b941d8933008e357f9e0");
+    domain = await indexer.Subgraph_domain.getOrThrow(node);
+    expect(domain.resolvedAddress_id).toBe("0x2db5dcc40c3cffe92e718513d62d9bcbb945a503");
+  }, 300_000);
+
+  it("follows later record changes, keeps cleared keys and clears on unlink (simulated, Sepolia)", async () => {
+    const CHAIN = 11155111;
+    const ETH_REGISTRY = "0xd4ebcbbdf463c9c45784603db0ddd499bc44a8b4";
+    const resolver = "0x5900000000000000000000000000000000000e06";
+    const owner = "0x00000000000000000000000000000000000b0b03";
+    const holder = "0x00000000000000000000000000000000000a11ce";
+    const label = "snapshotted";
+    const node = namehash(`${label}.eth`);
+    const tokenId = BigInt(keccak256(toBytes(label)));
+    const dns = "0x0b736e617073686f7474656403657468" + "00";
+    const at = (n: number, logIndex: number) => ({ block: { number: n, timestamp: 1_790_000_000 + n }, logIndex });
+    const indexer = createTestIndexer();
+    const run = (items: any[]) => indexer.process({ chains: { [CHAIN]: { simulate: items } } });
+    await run([
+      { contract: "V2Registry", event: "LabelRegistered", srcAddress: ETH_REGISTRY, ...at(12_000_500, 1),
+        params: { tokenId, labelHash: keccak256(toBytes(label)), label, owner, expiry: 9_999_999_999n, sender: owner } },
+      { contract: "V2Registry", event: "ResolverUpdated", srcAddress: ETH_REGISTRY, ...at(12_000_500, 2), params: { tokenId, resolver, sender: owner } },
+      { contract: "V2Resolver", event: "Linked", srcAddress: resolver, ...at(12_000_501, 1), params: { recordId: 1n, node, name: dns } },
+      { contract: "V2Resolver", event: "AddressUpdated", srcAddress: resolver, ...at(12_000_501, 2), params: { recordId: 1n, coinType: 60n, addressBytes: holder } },
+      { contract: "V2Resolver", event: "TextUpdated", srcAddress: resolver, ...at(12_000_501, 3), params: { recordId: 1n, keyHash: "avatar", key: "avatar", value: "x" } },
+    ]);
+    const id = `${CHAIN}-${resolver}-${node}`;
+    let row = await indexer.Subgraph_resolver.getOrThrow(id);
+    expect(row.addr_id).toBe(holder);
+    expect(row.coinTypes).toEqual([60n]);
+    expect(row.texts).toEqual(["avatar"]);
+    expect((await indexer.Subgraph_domain.getOrThrow(node)).resolvedAddress_id).toBe(holder);
+    // Clearing the address and the text keeps their keys, as the subgraph does.
+    await run([
+      { contract: "V2Resolver", event: "AddressUpdated", srcAddress: resolver, ...at(12_000_502, 1), params: { recordId: 1n, coinType: 60n, addressBytes: "0x" } },
+      { contract: "V2Resolver", event: "TextUpdated", srcAddress: resolver, ...at(12_000_502, 2), params: { recordId: 1n, keyHash: "avatar", key: "avatar", value: "" } },
+    ]);
+    row = await indexer.Subgraph_resolver.getOrThrow(id);
+    expect(row.addr_id).toBeUndefined();
+    expect(row.coinTypes).toEqual([60n]);
+    expect(row.texts).toEqual(["avatar"]);
+    expect((await indexer.Subgraph_domain.getOrThrow(node)).resolvedAddress_id).toBeUndefined();
+    // Linking the name to record 0 unlinks it: the snapshot is cleared.
+    await run([
+      { contract: "V2Resolver", event: "AddressUpdated", srcAddress: resolver, ...at(12_000_503, 1), params: { recordId: 1n, coinType: 60n, addressBytes: holder } },
+      { contract: "V2Resolver", event: "Linked", srcAddress: resolver, ...at(12_000_503, 2), params: { recordId: 0n, node, name: dns } },
+    ]);
+    row = await indexer.Subgraph_resolver.getOrThrow(id);
+    expect(row.addr_id).toBeUndefined();
+    expect(row.coinTypes).toBeUndefined();
+    expect(row.texts).toBeUndefined();
+    expect((await indexer.Subgraph_domain.getOrThrow(node)).resolvedAddress_id).toBeUndefined();
+  }, 120_000);
 });

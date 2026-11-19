@@ -684,6 +684,10 @@ type v2_record {
   recordId: BigInt!
   contenthash: String
   primaryName: String
+  # Every coin type and text key ever set on the record, in first-set order. Cleared
+  # values keep their key, as in the ENS subgraph's legacy Resolver projection.
+  coinTypesSeen: [BigInt!]
+  textKeysSeen: [String!]
   texts: [v2_record_text!]! @derivedFrom(field: "record")
   addresses: [v2_record_address!]! @derivedFrom(field: "record")
   links: [v2_record_link!]! @derivedFrom(field: "record")

@@ -24,6 +24,7 @@ import {
 } from "./helpers";
 import type { V2Domain } from "./v2-helpers";
 import { V2_DEPLOYMENTS } from "./v2-deployments";
+import { refreshLegacyResolverSnapshot } from "./legacy-resolver-projection";
 
 // ETHRegistrar GRACE_PERIOD_V2 on mainnet and Sepolia: 28 days (src/ensv2Constants.ts
 // getV2GracePeriod; contracts-v2 script/deploy-constants.ts).
@@ -130,6 +131,8 @@ async function project(
     resolver_id: resolverId,
     resolvedAddress_id: resolvedAddress,
   });
+  // The resolver's legacy row, with its linked ENSv2 record (attachDomainResolver).
+  if (domain.resolver) await refreshLegacyResolverSnapshot(context, chainId, domain.resolver, node);
 
   // The canonical <label>.eth path owns the legacy registration (syncEthRegistration).
   if (isEth && parentNode === ETH_NODE && domain.expiry !== undefined) {
